@@ -1,0 +1,752 @@
+import express from 'express';
+import nodemailer from 'nodemailer';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import path from 'path';
+import multer from 'multer';
+import { runEventOrchestration, rewriteEventDocumentWithComment, readEventDocument } from './orchestrator';
+import { initCronJobs, runPassGenerationJob, runPassRemindersJob } from './cron';
+import { processVideo } from './videoPipeline';
+import { chatWithRAG, refreshKnowledgeBase } from './rag';
+import { getPaymentHistory, addPaymentTransaction, getStudentPasses, getAllPasses, generateStudentPass, payStudentPass, getGroups, getUsersAndParents, addStudent, deleteStudent, updateStudentFullData, approveStudent, getTeamRoles, getSchedule, addAttendance, getEvents, bookEvent, getEventBookings, approveEventBooking, payEventBooking, saveEventQuestion, getPendingEventQuestions, markEventQuestionAsAnswered, updateUserProfile, setParentDeviceToken, removeDeviceToken, updateUserPin } from './sheetsApi';
+import jwt from 'jsonwebtoken';
+import { authenticateJWT } from './middleware';
+import { logConsentToWORM, deleteEphemeralVideo } from './audit';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_for_development_only';
+
+dotenv.config();
+
+const upload = multer({ dest: 'uploads/' });
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json());
+
+// Serve PWA static files
+app.use(express.static(path.join(__dirname, '../public')));
+
+// Global JWT Middleware
+app.use((req, res, next) => {
+  const publicRoutes = [
+    '/api/auth/login',
+    '/api/register',
+    '/api/users/add',
+    '/api/users/recover-pin',
+    '/api/health',
+    '/api/auth/device-pair-token',
+    '/api/auth/pair-device',
+    '/api/push/mock',
+    '/api/tablet/recent-checkins',
+    '/api/checkin'
+  ];
+  
+  if (!req.path.startsWith('/api/') || publicRoutes.includes(req.path) || req.path.startsWith('/api/drive/webhook') || req.path.startsWith('/api/debug/cron')) {
+    return next();
+  }
+  
+  authenticateJWT(req, res, next);
+});
+
+
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', message: 'VialFlow API is running' });
+});
+
+// --- AUTHENTICATION (RBAC & PIN) ---
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { login, pin } = req.body;
+    if (!login || !pin) return res.status(400).json({ error: 'Brak loginu lub PINu' });
+
+    const loginLower = login.trim().toLowerCase();
+    const pinTrimmed = String(pin).trim();
+
+    // 1. Sprawdź kadrę (Zespół)
+    const team = await getTeamRoles();
+    const staffMember = team.find(t => t.email === loginLower);
+    if (staffMember) {
+      if (staffMember.pin === pinTrimmed || staffMember.pin === '') {
+        const payload = { id: staffMember.id, role: staffMember.role, email: staffMember.email, name: `${staffMember.firstName} ${staffMember.lastName}` };
+        const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
+        return res.json({ 
+          success: true, 
+          role: staffMember.role,
+          userData: payload,
+          token
+        });
+      }
+      return res.status(401).json({ error: 'Nieprawidłowy PIN' });
+    }
+
+    // 2. Pobierz rodziców i dzieci z GSheets
+    const parents = await getUsersAndParents();
+    
+    // Szukaj jako rodzic
+    const parentMatch = parents.find(p => p.email.toLowerCase() === loginLower);
+    if (parentMatch) {
+      if (parentMatch.pin === pinTrimmed || parentMatch.pin === '') {
+        const payload = { id: parentMatch.id, role: 'Rodzic', email: parentMatch.email, name: parentMatch.name };
+        const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
+        return res.json({
+          success: true,
+          role: 'Rodzic',
+          userData: parentMatch,
+          token
+        });
+      }
+      return res.status(401).json({ error: 'Nieprawidłowy PIN' });
+    };
+
+    // Szukaj jako uczeń (logowanie przez ID np. U-123)
+    let childMatch = null;
+    let parentOfChild = null;
+    for (const p of parents) {
+      const c = p.children.find((c: any) => c.id.toLowerCase() === loginLower || c.email.toLowerCase() === loginLower);
+      if (c) {
+        childMatch = c;
+        parentOfChild = p;
+        break;
+      }
+    }
+
+    if (childMatch) {
+      if (childMatch.pin === pinTrimmed || childMatch.pin === '') {
+        // Sprawdź wiek
+        let isAdult = false;
+        if (childMatch.birthDate) {
+          const dob = new Date(childMatch.birthDate);
+          const ageDifMs = Date.now() - dob.getTime();
+          const ageDate = new Date(ageDifMs); 
+          const age = Math.abs(ageDate.getUTCFullYear() - 1970);
+          isAdult = age >= 16;
+        }
+
+        const role = isAdult ? 'Uczen_Dorosly' : 'Uczen_Nieletni';
+        const payload = { id: childMatch.id, role, name: childMatch.name, email: childMatch.email };
+        const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
+
+        return res.json({
+          success: true,
+          role: isAdult ? 'Uczen_Dorosly' : 'Uczen_Nieletni',
+          userData: childMatch,
+          token
+        });
+      }
+      return res.status(401).json({ error: 'Nieprawidłowy PIN' });
+    }
+
+    // Nie znaleziono
+    return res.status(404).json({ error: 'Nie znaleziono użytkownika' });
+
+  } catch (err) {
+    console.error('Błąd logowania:', err);
+    res.status(500).json({ error: 'Błąd serwera' });
+  }
+});
+
+// --- NETFLIX-STYLE AUTHENTICATION ---
+
+const pairCodes = new Map<string, { email: string, expires: number }>();
+
+app.post('/api/auth/device-pair-token', (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Brak emaila' });
+  
+  // Generuj 6-cyfrowy kod
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  pairCodes.set(code, { email, expires: Date.now() + 15 * 60 * 1000 }); // 15 minut
+  
+  res.json({ success: true, code });
+});
+
+app.post('/api/auth/pair-device', async (req, res) => {
+  const { code } = req.body;
+  const entry = pairCodes.get(code);
+  
+  if (!entry || entry.expires < Date.now()) {
+    return res.status(400).json({ error: 'Nieprawidłowy lub wygasły kod' });
+  }
+  
+  // Generuj trwały token
+  const deviceToken = `dev_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+  const success = await setParentDeviceToken(entry.email, deviceToken);
+  
+  if (success) {
+    pairCodes.delete(code); // Usuń zużyty kod
+    res.json({ success: true, deviceToken });
+  } else {
+    res.status(500).json({ error: 'Błąd parowania' });
+  }
+});
+
+app.get('/api/auth/device-profiles', async (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).json({ error: 'Brak tokenu' });
+  
+  const parents = await getUsersAndParents();
+  const matchedChildren = [];
+  
+  for (const parent of parents) {
+    // Sprawdź czy któreś z dzieci ma ten token w kolumnie S
+    const hasToken = parent.children.some((c: any) => c.deviceToken === token);
+    if (hasToken) {
+      // Zwracamy wszystkie dzieci tego rodzica
+      matchedChildren.push(...parent.children.map((c: any) => ({
+        id: c.id,
+        firstName: c.firstName,
+        lastName: c.lastName,
+        groupId: c.groupId,
+        hasPin: !!c.pin
+      })));
+      break; // Złożenie, że token przypisany do 1 rodziny
+    }
+  }
+  
+  res.json({ success: true, profiles: matchedChildren });
+});
+
+app.post('/api/auth/verify-profile-pin', async (req, res) => {
+  const { token, childId, pin } = req.body;
+  if (!token || !childId || !pin) return res.status(400).json({ error: 'Brak danych' });
+  
+  const parents = await getUsersAndParents();
+  let matchedChild = null;
+  
+  for (const parent of parents) {
+    const hasToken = parent.children.some((c: any) => c.deviceToken === token);
+    if (hasToken) {
+      const child = parent.children.find((c: any) => c.id === childId);
+      if (child && child.pin === pin) {
+        matchedChild = child;
+        break;
+      }
+    }
+  }
+  
+  if (matchedChild) {
+    res.json({ success: true, role: 'Uczen_Nieletni', userData: matchedChild });
+  } else {
+    res.status(401).json({ error: 'Nieprawidłowy PIN' });
+  }
+});
+
+app.post('/api/auth/set-profile-pin', async (req, res) => {
+  const { childId, newPin, targetType } = req.body;
+  const success = await updateUserPin(childId, newPin, targetType);
+  if (success) {
+    res.json({ success: true });
+  } else {
+    res.status(500).json({ error: 'Błąd aktualizacji PINu' });
+  }
+});
+
+app.post('/api/auth/unpair-device', async (req, res) => {
+  const { token } = req.body;
+  const success = await removeDeviceToken(token);
+  if (success) {
+    res.json({ success: true });
+  } else {
+    res.status(500).json({ error: 'Błąd odłączania urządzenia' });
+  }
+});
+
+// --- KONIEC NETFLIX-STYLE AUTHENTICATION ---
+// --- FAZA 12: BAZA UCZNIÓW I GRUP (Google Sheets) ---
+app.get('/api/users', async (req, res) => {
+  try {
+    const parentsWithChildren = await getUsersAndParents();
+    res.json(parentsWithChildren);
+  } catch (err) {
+    console.error('Błąd pobierania użytkowników:', err);
+    res.status(500).json({ error: 'Błąd serwera' });
+  }
+});
+
+app.get('/api/groups', async (req, res) => {
+  try {
+    const groups = await getGroups();
+    res.json(groups);
+  } catch (err) {
+    console.error('Błąd pobierania grup:', err);
+    res.status(500).json({ error: 'Błąd serwera' });
+  }
+});
+
+app.post('/api/users/add', async (req, res) => {
+  try {
+    const result = await addStudent(req.body);
+    res.json(result);
+  } catch (err) {
+    console.error('Błąd dodawania ucznia:', err);
+    res.status(500).json({ error: 'Błąd serwera' });
+  }
+});
+
+// --- RECOVER PIN via EMAIL ---
+app.post('/api/users/recover-pin', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Brak adresu e-mail' });
+
+    const searchEmail = email.trim().toLowerCase();
+    let foundPin = null;
+    let foundName = 'Użytkowniku';
+
+    // 1. Check Team (Admins/Instructors)
+    const team = await getTeamRoles();
+    const staff = team.find(t => t.email.toLowerCase() === searchEmail);
+    if (staff && staff.pin) {
+      foundPin = staff.pin;
+      foundName = staff.firstName || 'Członku Zespołu';
+    }
+
+    // 2. Check Parents & Adult Students
+    if (!foundPin) {
+      const parents = await getUsersAndParents();
+      const parentList = Array.from(parents.values());
+      
+      for (const p of parentList) {
+        if (p.email.toLowerCase() === searchEmail) {
+          if (p.pin) {
+            foundPin = p.pin;
+            foundName = p.name || 'Rodzicu/Opiekunie';
+            break;
+          }
+        }
+        
+        // Also check OP2
+        for (const child of p.children) {
+          if (child.op2Email && child.op2Email.trim().toLowerCase() === searchEmail) {
+            if (child.op2Pin) {
+              foundPin = child.op2Pin;
+              foundName = child.op2Name || 'Drugi Opiekunie';
+              break;
+            }
+          }
+          if (child.email && child.email.trim().toLowerCase() === searchEmail) {
+            // Student
+            if (child.pin) {
+              foundPin = child.pin;
+              foundName = child.firstName || 'Uczniu';
+              break;
+            }
+          }
+        }
+        if (foundPin) break;
+      }
+    }
+
+    // Send email if found
+    if (foundPin) {
+      const transporter = nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
+        auth: {
+          user: process.env.GMAIL_USER || 'antidotum.vialflow@gmail.com',
+          pass: process.env.GMAIL_PASS || 'lqcv krch aucy drgn'
+        }
+      });
+
+      const mailOptions = {
+        from: '"Antidotum App" <antidotum.vialflow@gmail.com>',
+        to: searchEmail,
+        subject: 'Twoje przypomnienie PIN-u do aplikacji Antidotum',
+        html: `
+          <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+            <h2 style="color: #F472B6;">Aplikacja Antidotum</h2>
+            <p>Witaj ${foundName},</p>
+            <p>Ktoś poprosił o przypomnienie numeru PIN logowania powiązanego z tym adresem e-mail.</p>
+            <p>Twój aktualny PIN to: <strong style="font-size: 24px; letter-spacing: 2px;">${foundPin}</strong></p>
+            <p><br>Jeśli to nie Ty składałeś to zapytanie, po prostu zignoruj tę wiadomość, a Twój PIN pozostanie bezpieczny.</p>
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+            <p style="font-size: 12px; color: #999;">Wiadomość wygenerowana automatycznie przez system VialFlow.</p>
+          </div>
+        `
+      };
+
+      try {
+        await transporter.sendMail(mailOptions);
+        console.log('E-mail z przypomnieniem PIN wysłany pomyślnie do:', searchEmail);
+      } catch (error) {
+        console.error('Błąd wysyłania e-maila:', error);
+      }
+    }
+
+    // We respond with success either way to prevent email enumeration
+    res.json({ success: true, message: 'Jeśli e-mail istnieje, instrukcje zostały wysłane.' });
+
+  } catch (err) {
+    console.error('Błąd w /api/users/recover-pin:', err);
+    res.status(500).json({ error: 'Wewnętrzny błąd serwera' });
+  }
+});
+
+app.delete('/api/users/:childId', async (req, res) => {
+  try {
+    const result = await deleteStudent(req.params.childId);
+    res.json(result);
+  } catch (err) {
+    console.error('Błąd usuwania ucznia:', err);
+    res.status(500).json({ error: 'Błąd serwera' });
+  }
+});
+
+app.put('/api/users/:childId/edit', async (req, res) => {
+  try {
+    const result = await updateStudentFullData(req.params.childId, req.body);
+    res.json({ success: result });
+  } catch (err) {
+    console.error('Błąd edycji ucznia:', err);
+    res.status(500).json({ error: 'Błąd serwera' });
+  }
+});
+
+app.put('/api/users/:childId/approve', async (req, res) => {
+  try {
+    const { groupId } = req.body;
+    if (!groupId) return res.status(400).json({ error: 'Brak grupy' });
+    const result = await approveStudent(req.params.childId, groupId);
+    res.json(result);
+  } catch (err) {
+    console.error('Błąd zatwierdzania ucznia:', err);
+    res.status(500).json({ error: 'Błąd serwera' });
+  }
+});
+
+// Endpoint Event Orchestratora AI (Faza 3)
+app.post('/api/orchestrate', async (req, res) => {
+  try {
+    const { messages } = req.body;
+    if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'Brak messages' });
+
+    const result = await runEventOrchestration(messages);
+    res.json(result);
+  } catch (err) {
+    console.error('Błąd Orkiestratora API:', err);
+    res.status(500).json({ error: 'Wystąpił błąd podczas orkiestracji zdarzenia.' });
+  }
+});
+
+// --- LISTA WYDARZEŃ I REZERWACJE ---
+app.get('/api/events', async (req, res) => {
+  try {
+    const events = await getEvents();
+    res.json(events);
+  } catch (err) {
+    console.error('Blad /api/events:', err);
+    res.status(500).json({ error: 'Blad serwera' });
+  }
+});
+
+app.get('/api/events/bookings', async (req, res) => {
+  try {
+    const bookings = await getEventBookings();
+    res.json(bookings);
+  } catch (err) {
+    console.error('Blad /api/events/bookings GET:', err);
+    res.status(500).json({ error: 'Blad serwera' });
+  }
+});
+
+app.post('/api/events/book', async (req, res) => {
+  try {
+    const { childId, eventId } = req.body;
+    if (!childId || !eventId) return res.status(400).json({ error: 'Brak childId lub eventId' });
+    const result = await bookEvent(childId, eventId);
+    res.json(result);
+  } catch (err) {
+    console.error('Blad /api/events/book:', err);
+    res.status(500).json({ error: 'Blad serwera' });
+  }
+});
+
+app.put('/api/events/bookings/:sheetRow/approve', async (req, res) => {
+  try {
+    const result = await approveEventBooking(Number(req.params.sheetRow));
+    res.json(result);
+  } catch (err) {
+    console.error('Blad /api/events/bookings/approve:', err);
+    res.status(500).json({ error: 'Blad serwera' });
+  }
+});
+
+app.post('/api/events/bookings/:sheetRow/pay', async (req, res) => {
+  try {
+    const { blikCode, method } = req.body;
+    const result = await payEventBooking(Number(req.params.sheetRow), blikCode, method);
+    res.json(result);
+  } catch (err) {
+    console.error('Blad /api/events/bookings/pay:', err);
+    res.status(500).json({ error: 'Blad serwera' });
+  }
+});
+
+// Endpoint do czytania dokumentu wydarzenia z GDocs
+app.get('/api/events/:docId/comments', async (req, res) => {
+  try {
+    const { docId } = req.params;
+    const result = await readEventDocument(docId);
+    res.json(result);
+  } catch (err) {
+    console.error('Błąd pobierania dokumentu:', err);
+    res.status(500).json({ error: 'Wystąpił błąd podczas pobierania Google Docs.' });
+  }
+});
+
+// Zapisanie pytania do Skrzynki (z aplikacji mobilnej)
+app.post('/api/events/:docId/questions', async (req, res) => {
+  try {
+    const { docId } = req.params;
+    const { comment, author } = req.body;
+    if (!comment || !author) return res.status(400).json({ error: 'Brak komentarza lub autora' });
+
+    const success = await saveEventQuestion(docId, author, comment);
+    if (success) {
+      res.json({ success: true, message: 'Pytanie trafiło do organizatora!' });
+    } else {
+      res.status(500).json({ error: 'Błąd zapisywania pytania.' });
+    }
+  } catch (err) {
+    console.error('Błąd zapisu pytania:', err);
+    res.status(500).json({ error: 'Wystąpił błąd podczas zapisu pytania.' });
+  }
+});
+
+// Pobieranie oczekujących pytań (dla Admina)
+app.get('/api/events/questions/pending', async (req, res) => {
+  try {
+    const questions = await getPendingEventQuestions();
+    res.json(questions);
+  } catch (err) {
+    console.error('Błąd pobierania pytań:', err);
+    res.status(500).json({ error: 'Wystąpił błąd.' });
+  }
+});
+
+// Endpoint do dodawania odpowiedzi i przepisywania dokumentu przez AI
+app.post('/api/events/questions/:sheetRow/answer', async (req, res) => {
+  try {
+    const { sheetRow } = req.params;
+    const { docId, originalQuestion, author, answer } = req.body;
+    
+    // Złożenie pełnego kontekstu dla AI (pytanie + odpowiedź admina)
+    const combinedContext = `PYTANIE: ${originalQuestion} \n ODPOWIEDŹ ORGANIZATORA: ${answer}`;
+
+    // 1. Wywołanie Vertex AI do nadpisania GDocs
+    const result = await rewriteEventDocumentWithComment(docId, combinedContext, author);
+    
+    // 2. Jeśli sukces, zmiana statusu w Arkuszach na "Rozwiązane"
+    if (result && result.success) {
+      await markEventQuestionAsAnswered(Number(sheetRow));
+      res.json(result);
+    } else {
+      res.status(500).json({ error: 'AI Error' });
+    }
+  } catch (err) {
+    console.error('Błąd odpowiedzi i nadpisywania:', err);
+    res.status(500).json({ error: 'Wystąpił błąd.' });
+  }
+});
+
+// --- HISTORIA PLATNOSCI I KARNETY ---
+app.get('/api/payments/history', async (req, res) => {
+  try {
+    const { childId } = req.query;
+    const history = await getPaymentHistory(childId as string);
+    res.json(history);
+  } catch (err) {
+    console.error('Blad /api/payments/history:', err);
+    res.status(500).json({ error: 'Blad serwera' });
+  }
+});
+
+app.get('/api/payments/passes', async (req, res) => {
+  try {
+    const { childId } = req.query;
+    const passes = await getStudentPasses(childId as string);
+    res.json(passes);
+  } catch (err) {
+    console.error('Blad /api/payments/passes:', err);
+    res.status(500).json({ error: 'Blad serwera' });
+  }
+});
+
+app.get('/api/payments/passes/all', async (req, res) => {
+  try {
+    const passes = await getAllPasses();
+    res.json(passes);
+  } catch (err) {
+    console.error('Blad /api/payments/passes/all:', err);
+    res.status(500).json({ error: 'Blad serwera' });
+  }
+});
+
+app.post('/api/payments/passes/generate/:childId', async (req, res) => {
+  try {
+    const result = await generateStudentPass(req.params.childId);
+    res.json(result);
+  } catch (err) {
+    console.error('Blad /api/payments/passes/generate:', err);
+    res.status(500).json({ error: 'Blad serwera' });
+  }
+});
+
+app.post('/api/payments/passes/:childId/pay', async (req, res) => {
+  try {
+    const { blikCode, method } = req.body;
+    const result = await payStudentPass(req.params.childId, blikCode, method);
+    res.json(result);
+  } catch (err) {
+    console.error('Blad /api/payments/passes/pay:', err);
+    res.status(500).json({ error: 'Blad serwera' });
+  }
+});
+
+app.post('/api/payments/add', async (req, res) => {
+  try {
+    const result = await addPaymentTransaction(req.body);
+    res.json(result);
+  } catch (err) {
+    console.error('Blad /api/payments/add:', err);
+    res.status(500).json({ error: 'Blad serwera' });
+  }
+});
+
+app.put('/api/users/:childId/profile', async (req, res) => {
+  try {
+    const result = await updateUserProfile(req.params.childId, req.body);
+    res.json({ success: result });
+  } catch (err) {
+    console.error('Blad /api/users/profile:', err);
+    res.status(500).json({ error: 'Blad serwera' });
+  }
+});
+
+// --- HARMONOGRAM I FREKWENCJA ---
+app.get('/api/schedule', async (req, res) => {
+  try {
+    const { groupId } = req.query;
+    const schedule = await getSchedule(groupId as string);
+    res.json(schedule);
+  } catch (err) {
+    console.error('Błąd endpointu /api/schedule:', err);
+    res.status(500).json({ error: 'Błąd pobierania harmonogramu' });
+  }
+});
+
+  // --- RAG AI CHAT ---
+  app.post('/api/rag/chat', async (req, res) => {
+    try {
+      const { message } = req.body;
+      const userRole = (req as any).user?.role || 'Rodzic';
+      const response = await chatWithRAG(message, userRole);
+      res.json(response);
+    } catch (err) {
+      console.error('Błąd RAG:', err);
+      res.status(500).json({ error: 'Błąd generowania odpowiedzi AI' });
+    }
+  });
+
+// Endpoint do weryfikacji obecności z QR (Faza 2)
+// --- FAZA 5: REVERSE QR CHECK-IN ---
+app.post('/api/checkin', async (req, res) => {
+    try {
+      let childId: string, terminalId: string;
+
+      if (req.body.qrData) {
+         const parsed = JSON.parse(req.body.qrData);
+         childId = parsed.childId;
+         terminalId = parsed.terminalId;
+      } else {
+         childId = req.body.childId;
+         terminalId = req.body.terminalId;
+      }
+
+      if (!childId) return res.status(400).json({ error: 'Brak childId' });
+      if (!terminalId) terminalId = 'REC-MAIN-1';
+
+      // Zapisz obecnosc w Google Sheets
+      await addAttendance(childId);
+
+      // Pobierz imie ucznia do wyswietlenia na tablecie
+      let childName = 'Uczen: ' + childId;
+      try {
+        const parents = await getUsersAndParents();
+        for (const parent of parents) {
+          const child = parent.children?.find((c: any) => c.id === childId);
+          if (child) { childName = `${child.firstName} ${child.lastName}`; break; }
+        }
+      } catch {}
+
+      // Zapisz w pamieci podrejcznej tabletu
+      if (!global.recentCheckins) global.recentCheckins = {};
+      if (!global.recentCheckins[terminalId]) global.recentCheckins[terminalId] = [];
+      global.recentCheckins[terminalId].push({ childId, childName, timestamp: Date.now() });
+
+      res.json({ success: true });
+    } catch(err) {
+      console.error('Blad checkin:', err);
+      res.status(500).json({ error: 'Blad serwera' });
+    }
+  });
+
+  // Endpoint dla short-pollingu tabletu
+  app.get('/api/tablet/recent-checkins', (req, res) => {
+    const { terminalId } = req.query;
+    if (!terminalId || !global.recentCheckins || !global.recentCheckins[terminalId as string]) {
+      return res.json([]);
+    }
+    const checkins = global.recentCheckins[terminalId as string];
+    global.recentCheckins[terminalId as string] = [];
+    res.json(checkins);
+  });
+
+
+// --- FAZA 6: AI DANCE COACH (Trener Wideo) ---
+app.get('/api/coach/choreographies', (req, res) => {
+  res.json([
+    { id: '1', title: 'Hip-Hop Basic Groove', instructor: 'Kamil', duration: '0:45', level: 'Pocz�tkuj�cy' },
+    { id: '2', title: 'Jazz Pirouette Combo', instructor: 'Marta', duration: '1:20', level: '�redniozaawansowany' },
+    { id: '3', title: 'High Heels Walk', instructor: 'Sara', duration: '0:30', level: 'Pocz�tkuj�cy' }
+  ]);
+});
+
+app.post('/api/coach/analyze', upload.single('video'), (req, res) => {
+  console.log('[AI Coach] Otrzymano wideo do analizy. Przesy�anie do Vertex AI...');
+  // Symulacja ci�kiej pracy modelu ML:
+  setTimeout(async () => {
+    res.json({
+      success: true,
+      score: 82,
+      timingAccuracy: 75,
+      postureAccuracy: 90,
+      feedback: [
+        "�wietnie trzymasz ram� w pierwszej sekwencji (0:05-0:15)!",
+        "Popracuj nad timingiem w przej�ciu do parteru (sp�nienie 0.2s).",
+        "Twoje piruety s� stabilne, dobra praca st�p."
+      ]
+    });
+  }, 3000);
+});
+
+// Zamiast res.sendFile na ka�d� nieznan� �cie�k� (Faza 2, do obs�ugi PWA), serwujemy index.html
+app.use((req, res) => {
+  if (!req.path.startsWith('/api/')) {
+    res.sendFile(require('path').join(__dirname, '../public/index.html'));
+  } else {
+    res.status(404).json({ error: 'Not found' });
+  }
+});
+
+
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => {
+  console.log(`[Server] VialFlow API dzia�a na porcie ${PORT}`);
+  // Uruchom cron jobs
+  initCronJobs();
+});

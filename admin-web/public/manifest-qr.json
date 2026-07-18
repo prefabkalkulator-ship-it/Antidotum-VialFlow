@@ -1,0 +1,17 @@
+{
+  "name": "Antidotum Tablet Recepcji",
+  "short_name": "Antidotum QR",
+  "description": "Terminal recepcyjny szkoły tańca Antidotum",
+  "start_url": "/tablet.html",
+  "display": "standalone",
+  "background_color": "#0B0B0C",
+  "theme_color": "#F472B6",
+  "icons": [
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

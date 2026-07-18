@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "Antidotum",
+    "slug": "mobile-app",
+    "version": "1.0.2",
+    "orientation": "portrait",
+    "icon": "./assets/icon.jpg",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "Aplikacja wymaga rozpoznawania mowy.",
+        "NSMicrophoneUsageDescription": "Aplikacja wymaga dostępu do mikrofonu."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0B0B0C",
+        "foregroundImage": "./assets/android-icon-foreground.jpg",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "pl.antidotum.lab",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "softwareKeyboardLayoutMode": "pan",
+      "versionCode": 3
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "themeColor": "#0B0B0C",
+      "backgroundColor": "#0B0B0C"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "02544343-bfcf-4519-8594-6776d5a82b5a"
+      }
+    },
+    "plugins": [
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Aplikacja wymaga dostępu do mikrofonu.",
+          "speechRecognitionPermission": "Aplikacja wymaga rozpoznawania mowy."
+        }
+      ],
+      "expo-status-bar"
+    ],
+    "owner": "antidotum"
+  }
+}

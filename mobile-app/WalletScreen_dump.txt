@@ -1,0 +1,27 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { StyleSheet, Text, View, Dimensions, TouchableOpacity, ScrollView, SafeAreaView, TextInput, Modal, Animated, Platform, Alert, BackHandler, KeyboardAvoidingView } from 'react-native';
+import InstallPrompt from './components/InstallPrompt';
+import QRCode from 'react-native-qrcode-svg';
+import { User, Clock, MapPin, ChevronRight, CreditCard, ScanLine, Smartphone, Camera, CheckCircle2, Loader2, Sparkles, ShieldCheck, LogOut, FlaskConical, Calendar, CalendarDays, Mic, Square, Volume2, Edit2 } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const { width } = Dimensions.get('window');
+
+const apiFetch = async (url: string, init?: RequestInit) => {
+  const token = await AsyncStorage.getItem('jwtToken');
+  init = init || {};
+  init.headers = { ...init.headers, 'Authorization': 'Bearer ' };
+  return fetch(url, init);
+};
+
+// Antidotum Colors
+const COLORS = {
+  background: '#0B0B0C',
+  surface: '#18181B',
+  primary: '#F472B6',
+  primaryDark: '#BE185D',
+  text: '#FFFFFF',
+  textMuted: '#A1A1AA',
+  success: '#10B981',
+};
+

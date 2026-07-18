@@ -1,0 +1,38 @@
+  useSpeechRecognitionEvent('end', () => setIsListening(false));
+  useSpeechRecognitionEvent('error', (event) => {
+    setIsListening(false);
+    console.log('STT Event Error:', event);
+  });
+
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = 'pl-PL';
+
+        recognition.onresult = (event: any) => {
+          let currentTranscript = '';
+          for (let i = 0; i < event.results.length; ++i) {
+             currentTranscript += event.results[i][0].transcript;
+          }
+          if (currentTranscript) {
+            setInput(currentTranscript.trim());
+            if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+            silenceTimerRef.current = setTimeout(() => {
+              stopListening();
+              if (triggerSendRef.current) triggerSendRef.current();
+            }, 5000);
+          }
+        };
+
+        recognition.onerror = (e: any) => {
+           console.log(e); stopListening();
+        };
+        recognitionRef.current = recognition;
+      }
+    }
+    return () => stopSpeaking();
+  }, []);
