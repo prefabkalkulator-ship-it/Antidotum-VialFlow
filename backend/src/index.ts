@@ -8,7 +8,7 @@ import multer from 'multer';
 import { runEventOrchestration, rewriteEventDocumentWithComment, readEventDocument } from './orchestrator';
 import { initCronJobs, runPassGenerationJob, runPassRemindersJob } from './cron';
 import { processVideo } from './videoPipeline';
-import { chatWithRAG, refreshKnowledgeBase } from './rag';
+import { chatWithRAG, refreshKnowledgeBase, generatePushDraft, refinePushDraft } from './rag';
 import { getPaymentHistory, addPaymentTransaction, getStudentPasses, getAllPasses, generateStudentPass, payStudentPass, getGroups, getUsersAndParents, addStudent, deleteStudent, updateStudentFullData, approveStudent, getTeamRoles, getSchedule, addAttendance, getEvents, bookEvent, getEventBookings, approveEventBooking, payEventBooking, saveEventQuestion, getPendingEventQuestions, markEventQuestionAsAnswered, updateUserProfile, setParentDeviceToken, removeDeviceToken, updateUserPin, setExpoPushToken } from './sheetsApi';
 import jwt from 'jsonwebtoken';
 import { authenticateJWT } from './middleware';
@@ -714,6 +714,28 @@ app.get('/api/schedule', async (req, res) => {
     } catch (err) {
       console.error('Błąd RAG:', err);
       res.status(500).json({ error: 'Błąd generowania odpowiedzi AI' });
+    }
+  });
+
+  app.post('/api/rag/push-draft', async (req, res) => {
+    try {
+      const { message } = req.body;
+      const draft = await generatePushDraft(message);
+      res.json({ draft });
+    } catch (err) {
+      console.error('Błąd push-draft:', err);
+      res.status(500).json({ error: 'Błąd generowania szkicu' });
+    }
+  });
+
+  app.post('/api/rag/push-refine', async (req, res) => {
+    try {
+      const { currentDraft, modification } = req.body;
+      const newDraft = await refinePushDraft(currentDraft, modification);
+      res.json({ draft: newDraft });
+    } catch (err) {
+      console.error('Błąd push-refine:', err);
+      res.status(500).json({ error: 'Błąd modyfikacji szkicu' });
     }
   });
 

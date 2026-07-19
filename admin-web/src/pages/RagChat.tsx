@@ -210,14 +210,21 @@ export default function RagChat() {
     setIsTyping(true);
 
     if (originalInput.toLowerCase().includes('powiadomienie')) {
-      setTimeout(() => {
-        setIsTyping(false);
+      setIsTyping(true);
+      try {
         const aiMsgId = (Date.now() + 1).toString();
         const aiText = 'Przygotowałem szkic powiadomienia Push. Sprawdź, czy wszystko się zgadza:';
         
-        // Wyciągamy szkic na podstawie wiadomości użytkownika:
         let draftText = originalInput.replace(/Wyślij powiadomienie (do [a-zA-Ząćęłńóśźż]+:\s*)?/i, '').trim();
         if (!draftText) draftText = "Wpisz treść powiadomienia...";
+
+        const res = await fetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/rag/push-draft', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: originalInput })
+        });
+        const data = await res.json();
+        if (data.draft) draftText = data.draft;
 
         setMessages(prev => [...prev, {
           id: aiMsgId,
@@ -228,7 +235,11 @@ export default function RagChat() {
           pushDraftStatus: 'draft'
         }]);
         if (currentInputMethod === 'voice') speakText(aiText, aiMsgId);
-      }, 1500);
+      } catch(e) {
+        console.error(e);
+      } finally {
+        setIsTyping(false);
+      }
       return;
     }
 
@@ -318,9 +329,27 @@ export default function RagChat() {
     const recognition = new SpeechRecognition();
     recognition.lang = 'pl-PL';
     
-    recognition.onresult = (event: any) => {
+    recognition.onresult = async (event: any) => {
       const transcript = event.results[0][0].transcript;
-      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, pushDraftContent: m.pushDraftContent + ' ' + transcript } : m));
+      const msg = messages.find(m => m.id === msgId);
+      if (msg) {
+        setMessages(prev => prev.map(m => m.id === msgId ? { ...m, pushDraftContent: m.pushDraftContent + ' (Redaguję...)' } : m));
+        try {
+          const res = await fetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/rag/push-refine', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ currentDraft: msg.pushDraftContent, modification: transcript })
+          });
+          const data = await res.json();
+          if (data.draft) {
+             setMessages(prev => prev.map(m => m.id === msgId ? { ...m, pushDraftContent: data.draft } : m));
+          } else {
+             setMessages(prev => prev.map(m => m.id === msgId ? { ...m, pushDraftContent: msg.pushDraftContent } : m));
+          }
+        } catch(e) {
+           setMessages(prev => prev.map(m => m.id === msgId ? { ...m, pushDraftContent: msg.pushDraftContent } : m));
+        }
+      }
     };
     
     recognition.onerror = () => setIsRecordingPush(false);
@@ -416,16 +445,19 @@ export default function RagChat() {
                         {availableUsers.length > 0 && (
                           <optgroup label="Uczniowie">
                             {availableUsers.flatMap(p => p.children || []).map(c => (
-                              <option key={c.id} value={c.id}>{c.firstName} {c.lastName} (ID: {c.id})</option>
+                              <option key={c.id} value={c.id}>{c.firstName} {c.lastName} ({c.groupName || 'Brak Grupy'})</option>
                             ))}
                           </optgroup>
                         )}
 
                         {availableUsers.length > 0 && (
                           <optgroup label="Opiekunowie">
-                            {availableUsers.map(p => (
-                              <option key={p.email} value={p.email}>{p.email} (Opiekun {p.children?.[0]?.lastName || ''})</option>
-                            ))}
+                            {availableUsers.map(p => {
+                              const childNames = (p.children || []).map((ch: any) => ch.firstName + ' ' + ch.lastName).join(', ');
+                              return (
+                                <option key={p.email} value={p.email}>{p.name || p.email} (Opiekun: {childNames})</option>
+                              );
+                            })}
                           </optgroup>
                         )}
                       </select>

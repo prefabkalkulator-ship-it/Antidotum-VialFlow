@@ -138,3 +138,45 @@ ${contextText}`;
     throw new Error('Błąd generowania odpowiedzi RAG');
   }
 }
+
+export async function generatePushDraft(instruction: string) {
+  const generativeModel = vertexAI.preview.getGenerativeModel({
+    model: 'gemini-2.5-flash',
+  });
+
+  const prompt = `Jesteś asystentem redagującym powiadomienia Push. Użytkownik podał następujące instrukcje: "${instruction}". 
+Zredaguj krótkie, uprzejme powiadomienie Push. Popraw błędy, ułóż zgrabne zdanie i dodaj pasujące emoji. 
+Zwróć TYLKO treść powiadomienia, bez wstępów, pozdrowień i cudzysłowów.`;
+
+  try {
+    const aiResponse = await generativeModel.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }]
+    });
+    return aiResponse.response.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || instruction;
+  } catch(e) {
+    console.error('[RAG] Błąd generatePushDraft:', e);
+    return instruction;
+  }
+}
+
+export async function refinePushDraft(currentDraft: string, modification: string) {
+  const generativeModel = vertexAI.preview.getGenerativeModel({
+    model: 'gemini-2.5-flash',
+  });
+
+  const prompt = `Jesteś asystentem redagującym powiadomienia Push. Masz obecny szkic powiadomienia: "${currentDraft}". 
+Użytkownik powiedział, że chce to zmienić: "${modification}". 
+Zmodyfikuj szkic zgodnie z jego życzeniem zachowując zwięzły, uprzejmy styl powiadomienia Push z emoji. 
+Zwróć TYLKO nową treść powiadomienia, bez zbędnych słów.`;
+
+  try {
+    const aiResponse = await generativeModel.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }]
+    });
+    return aiResponse.response.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || (currentDraft + ' ' + modification);
+  } catch(e) {
+    console.error('[RAG] Błąd refinePushDraft:', e);
+    return currentDraft + ' ' + modification;
+  }
+}
+

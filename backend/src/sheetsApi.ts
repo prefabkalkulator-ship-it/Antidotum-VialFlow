@@ -74,6 +74,7 @@ export const getUsersAndParents = async () => {
         firstName: row[1] || '',
         lastName: row[2] || '',
         birthDate: row[3] || '',
+        groupName: row[4] || '',
         groupId: (row[4] || '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
         email: row[5] || '',
         rodo: row[12] || '',

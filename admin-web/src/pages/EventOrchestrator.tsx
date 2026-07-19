@@ -399,16 +399,19 @@ export default function EventOrchestrator() {
                   {availableUsers.length > 0 && (
                     <optgroup label="Uczniowie">
                       {availableUsers.flatMap(p => p.children || []).map(c => (
-                        <option key={c.id} value={c.id}>{c.firstName} {c.lastName} (ID: {c.id})</option>
+                        <option key={c.id} value={c.id}>{c.firstName} {c.lastName} ({c.groupName || 'Brak Grupy'})</option>
                       ))}
                     </optgroup>
                   )}
 
                   {availableUsers.length > 0 && (
                     <optgroup label="Opiekunowie">
-                      {availableUsers.map(p => (
-                        <option key={p.email} value={p.email}>{p.email} (Opiekun {p.children?.[0]?.lastName || ''})</option>
-                      ))}
+                      {availableUsers.map(p => {
+                        const childNames = (p.children || []).map((ch: any) => ch.firstName + ' ' + ch.lastName).join(', ');
+                        return (
+                          <option key={p.email} value={p.email}>{p.name || p.email} (Opiekun: {childNames})</option>
+                        );
+                      })}
                     </optgroup>
                   )}
                 </select>
