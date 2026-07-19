@@ -1223,6 +1223,8 @@ function ChatScreen({ isKeyboardVisible, keyboardHeight }: { isKeyboardVisible?:
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const inputRef = useRef<TextInput>(null);
+  const chatScrollRef = useRef<ScrollView>(null);
+  const finalTextRef = useRef('');
 
   // STT/TTS state
   const [isListening, setIsListening] = useState(false);
@@ -1240,7 +1242,8 @@ function ChatScreen({ isKeyboardVisible, keyboardHeight }: { isKeyboardVisible?:
 
   useSpeechRecognitionEvent('result', (event) => {
     if (event.results && event.results[0]) {
-      setInput(event.results[0].transcript);
+      const cleanTextDeduplicated = event.results[0].transcript.trim().split(/\s+/).filter((w: string, i: number, arr: string[]) => i === 0 || w.toLowerCase() !== arr[i - 1].toLowerCase()).join(' ');
+      setInput(cleanTextDeduplicated);
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = setTimeout(() => {
         stopListening();
@@ -1264,14 +1267,36 @@ function ChatScreen({ isKeyboardVisible, keyboardHeight }: { isKeyboardVisible?:
         recognition.lang = 'pl-PL';
 
         recognition.onresult = (event: any) => {
-          let finalTranscript = '';
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-              finalTranscript += event.results[i][0].transcript;
+          let currentText = '';
+          for (let i = 0; i < event.results.length; ++i) {
+              const transcript = event.results[i][0].transcript;
+              if (!transcript.trim()) continue;
+              
+              if (!currentText) {
+                currentText = transcript.trim();
+              } else {
+                const words1 = currentText.split(/\s+/);
+                const words2 = transcript.trim().split(/\s+/);
+                let overlap = 0;
+                for (let k = 1; k <= Math.min(words1.length, words2.length); k++) {
+                  let match = true;
+                  for (let j = 0; j < k; j++) {
+                    if (words1[words1.length - k + j].toLowerCase() !== words2[j].toLowerCase()) {
+                      match = false;
+                      break;
+                    }
+                  }
+                  if (match) overlap = k;
+                }
+                if (overlap > 0) {
+                  currentText = [...words1, ...words2.slice(overlap)].join(' ');
+                } else {
+                  currentText += ' ' + transcript.trim();
+                }
+              }
             }
-          }
-          if (finalTranscript) {
-            setInput(prev => (prev + ' ' + finalTranscript).trim());
+            if (currentText) {
+              setInput(currentText);
             if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
             silenceTimerRef.current = setTimeout(() => {
               stopListening();
@@ -1337,15 +1362,31 @@ function ChatScreen({ isKeyboardVisible, keyboardHeight }: { isKeyboardVisible?:
   const speakText = (text: string, msgId?: string) => {
     setIsSpeaking(true);
     if (msgId) setSpeakingMsgId(msgId);
-    Speech.speak(text, {
-      language: 'pl-PL',
-      onDone: () => { setIsSpeaking(false); setSpeakingMsgId(null); },
-      onStopped: () => { setIsSpeaking(false); setSpeakingMsgId(null); },
-      onError: () => { setIsSpeaking(false); setSpeakingMsgId(null); }
-    });
+    
+    const cleanText = text.replace(/[\*\#\_]|([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '');
+    
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const msg = new SpeechSynthesisUtterance(cleanText);
+      msg.lang = 'pl-PL';
+      msg.onend = () => { setIsSpeaking(false); setSpeakingMsgId(null); };
+      msg.onerror = () => { setIsSpeaking(false); setSpeakingMsgId(null); };
+      window.speechSynthesis.speak(msg);
+    } else {
+      Speech.speak(cleanText, {
+        language: 'pl-PL',
+        onDone: () => { setIsSpeaking(false); setSpeakingMsgId(null); },
+        onStopped: () => { setIsSpeaking(false); setSpeakingMsgId(null); },
+        onError: () => { setIsSpeaking(false); setSpeakingMsgId(null); }
+      });
+    }
   };
   const stopSpeaking = () => {
-    Speech.stop();
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    } else {
+      Speech.stop();
+    }
     setIsSpeaking(false);
     setSpeakingMsgId(null);
   };
@@ -1390,7 +1431,7 @@ function ChatScreen({ isKeyboardVisible, keyboardHeight }: { isKeyboardVisible?:
         setMessages(prev => [...prev, {
           id: msgId,
           sender: 'ai', text: aiText } as any]);
-      if (currentInputMethod === 'voice') speakText(aiText);
+      if (currentInputMethod === 'voice') speakText(aiText, msgId);
     } catch {
       const msgId = Date.now().toString();
         setMessages(prev => [...prev, {
@@ -1402,6 +1443,17 @@ function ChatScreen({ isKeyboardVisible, keyboardHeight }: { isKeyboardVisible?:
   };
 
   const announcements: any[] = [];
+
+  useEffect(() => {
+    if (viewMode === 'assistant') {
+      const timer = setTimeout(() => {
+        if (chatScrollRef.current && typeof chatScrollRef.current.scrollToEnd === 'function') {
+          chatScrollRef.current.scrollToEnd({ animated: true });
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [messages, viewMode]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -1433,7 +1485,11 @@ function ChatScreen({ isKeyboardVisible, keyboardHeight }: { isKeyboardVisible?:
         </ScrollView>
       ) : (
         <>
-          <ScrollView style={{ flex: 1, marginBottom: 20 }} keyboardShouldPersistTaps="handled">
+          <ScrollView 
+            ref={chatScrollRef}
+            style={{ flex: 1, marginBottom: 20 }} 
+            keyboardShouldPersistTaps="handled"
+          >
             {messages.map(m => (
           <View key={m.id} style={{ alignSelf: m.sender === 'user' ? 'flex-end' : 'flex-start', backgroundColor: m.sender === 'user' ? COLORS.primary : COLORS.surface, padding: 15, borderRadius: 15, marginBottom: 10, maxWidth: '80%' }}>
             <Text style={{ color: COLORS.text }}>{m.text}</Text>
