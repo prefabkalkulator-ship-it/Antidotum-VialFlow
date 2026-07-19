@@ -43,6 +43,22 @@ export default function RagChat() {
     setTimeout(scrollToBottom, 300);
   }, [messages, isTyping]);
 
+  const [availableGroups, setAvailableGroups] = useState<any[]>([]);
+  const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/groups')
+      .then(res => res.json())
+      .then(data => { if(Array.isArray(data)) setAvailableGroups(data); })
+      .catch(console.error);
+      
+    fetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/users')
+      .then(res => res.json())
+      .then(data => { if(Array.isArray(data)) setAvailableUsers(data); })
+      .catch(console.error);
+  }, []);
+
+
   const mergeTranscripts = (existing: string, incoming: string) => {
     if (!existing) return incoming.trim();
     if (!incoming) return existing.trim();
@@ -198,12 +214,17 @@ export default function RagChat() {
         setIsTyping(false);
         const aiMsgId = (Date.now() + 1).toString();
         const aiText = 'Przygotowałem szkic powiadomienia Push. Sprawdź, czy wszystko się zgadza:';
+        
+        // Wyciągamy szkic na podstawie wiadomości użytkownika:
+        let draftText = originalInput.replace(/Wyślij powiadomienie (do [a-zA-Ząćęłńóśźż]+:\s*)?/i, '').trim();
+        if (!draftText) draftText = "Wpisz treść powiadomienia...";
+
         setMessages(prev => [...prev, {
           id: aiMsgId,
           sender: 'ai',
           text: aiText,
           isPushDraft: true,
-          pushDraftContent: "Hej! 👋 Przypominamy o jutrzejszej zbiórce koło szkoły punktualnie o 9:00. Pamiętajcie o zabraniu strojów! Widzimy się! 💃🕺",
+          pushDraftContent: draftText,
           pushDraftStatus: 'draft'
         }]);
         if (currentInputMethod === 'voice') speakText(aiText, aiMsgId);
@@ -212,7 +233,7 @@ export default function RagChat() {
     }
 
     try {
-      const res = await fetch('http://localhost:3000/api/rag/chat', {
+      const res = await fetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/rag/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: originalInput }),
@@ -287,11 +308,25 @@ export default function RagChat() {
   const [isRecordingPush, setIsRecordingPush] = useState(false);
 
   const handleVoiceRefinePush = (msgId: string) => {
+    const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Twoja przeglądarka nie wspiera rozpoznawania mowy.");
+      return;
+    }
+    
     setIsRecordingPush(true);
-    setTimeout(() => {
-      setIsRecordingPush(false);
-      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, pushDraftContent: m.pushDraftContent + ' [Korekta dodana głosowo]' } : m));
-    }, 2000);
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'pl-PL';
+    
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, pushDraftContent: m.pushDraftContent + ' ' + transcript } : m));
+    };
+    
+    recognition.onerror = () => setIsRecordingPush(false);
+    recognition.onend = () => setIsRecordingPush(false);
+    
+    recognition.start();
   };
 
   return (
@@ -366,10 +401,33 @@ export default function RagChat() {
                         onChange={(e) => setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, pushTargetGroup: e.target.value } : m))}
                       >
                         <option value="" disabled>-- Wybierz grupę docelową --</option>
-                        <option value="Wszystkie Grupy">Wszystkie Grupy</option>
-                        <option value="Modern Jazz">Modern Jazz</option>
-                        <option value="Hip-Hop">Hip-Hop</option>
-                        <option value="Balet">Balet</option>
+                        <optgroup label="Ogólne">
+                          <option value="wszyscy">Wszyscy użytkownicy</option>
+                        </optgroup>
+                        
+                        {availableGroups.length > 0 && (
+                          <optgroup label="Grupy">
+                            {availableGroups.map(g => (
+                              <option key={g.name} value={g.name}>{g.name}</option>
+                            ))}
+                          </optgroup>
+                        )}
+
+                        {availableUsers.length > 0 && (
+                          <optgroup label="Uczniowie">
+                            {availableUsers.flatMap(p => p.children || []).map(c => (
+                              <option key={c.id} value={c.id}>{c.firstName} {c.lastName} (ID: {c.id})</option>
+                            ))}
+                          </optgroup>
+                        )}
+
+                        {availableUsers.length > 0 && (
+                          <optgroup label="Opiekunowie">
+                            {availableUsers.map(p => (
+                              <option key={p.email} value={p.email}>{p.email} (Opiekun {p.children?.[0]?.lastName || ''})</option>
+                            ))}
+                          </optgroup>
+                        )}
                       </select>
                       <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
                     </div>
