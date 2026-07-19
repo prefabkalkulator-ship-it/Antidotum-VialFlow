@@ -186,13 +186,13 @@ export default function EventOrchestrator() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto min-h-screen">
-      <div className="mb-8">
-        <h1 className="text-4xl font-heading font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-light mb-2">Orkiestrator Wydarzeń</h1>
+    <div className="p-0 md:p-8 max-w-6xl mx-auto h-full flex flex-col">
+      <div className="mb-2 md:mb-8 px-2 md:px-0">
+        <h1 className="text-3xl md:text-4xl font-heading font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-light mb-2">Orkiestrator Wydarzeń</h1>
         <p className="text-gray-400 font-sans">Podyktuj wizję wydarzenia. AI zapyta o braki i przygotuje pliki, dyskusje na Google Docs oraz grafikę.</p>
       </div>
 
-      <div className="bg-surface rounded-2xl border border-gray-800 p-6 shadow-2xl relative overflow-hidden flex flex-col md:flex-row gap-6 h-[75vh]">
+      <div className="bg-surface rounded-none md:rounded-2xl border-0 md:border border-gray-800 p-0 md:p-6 shadow-2xl relative overflow-hidden flex-1 flex flex-col md:flex-row gap-0 md:gap-6 min-h-0">
         
         {/* Lewa kolumna: Skrzynka Pytan i Czat */}
         <div className="flex-1 flex flex-col gap-4">
@@ -233,7 +233,7 @@ export default function EventOrchestrator() {
             </div>
           )}
 
-          <div className="flex-1 bg-[#0B0B0C] border border-gray-800 rounded-xl p-4 overflow-y-auto flex flex-col gap-4 shadow-inner">
+          <div className="flex-1 bg-[#0B0B0C] border-0 md:border border-gray-800 rounded-none md:rounded-xl p-0 md:p-4 overflow-y-auto flex flex-col gap-4 shadow-inner">
             {messages.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[80%] rounded-xl p-4 ${msg.role === 'user' ? 'bg-primary text-white' : 'bg-gray-800 text-gray-200'}`}>
@@ -251,9 +251,9 @@ export default function EventOrchestrator() {
             <div ref={chatEndRef} />
           </div>
           
-          <div className="relative">
+          <div className="relative px-1 md:px-0">
             <textarea 
-              className="w-full bg-[#18181B] border border-gray-700 rounded-xl pl-4 pr-32 py-4 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none h-20 shadow-lg"
+              className="w-full bg-[#18181B] border border-gray-700 rounded-xl pl-3 md:pl-4 pr-24 md:pr-32 py-3 md:py-4 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none h-20 shadow-lg text-sm md:text-base"
               placeholder="Odpowiedz tutaj lub użyj mikrofonu..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -261,7 +261,7 @@ export default function EventOrchestrator() {
               disabled={!draftMode || isProcessing}
             />
 
-            <div className="absolute bottom-4 right-4 flex gap-2">
+            <div className="absolute bottom-2 md:bottom-4 right-2 md:right-4 flex gap-2">
               {isRecording ? (
                 <button 
                   onClick={handleStopRecording}
@@ -290,7 +290,8 @@ export default function EventOrchestrator() {
         </div>
 
         {/* Prawa kolumna: Logi i Plakat */}
-        <div className="w-full md:w-[350px] lg:w-[400px] flex flex-col gap-4">
+        {(logs.length > 0 || draftImage) && (
+        <div className="w-full md:w-[350px] lg:w-[400px] flex flex-col gap-4 shrink-0 overflow-y-auto">
           {logs.length > 0 && (
             <div className="bg-[#0B0B0C] rounded-xl p-4 border border-gray-800 font-mono text-sm shadow-inner max-h-48 overflow-y-auto">
               <h3 className="text-gray-500 mb-2 uppercase tracking-widest font-bold text-xs flex items-center gap-2">
@@ -346,6 +347,7 @@ export default function EventOrchestrator() {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {showPushBuilder && (

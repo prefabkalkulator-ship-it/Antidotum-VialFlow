@@ -205,15 +205,15 @@ export default function RagChat() {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-5xl mx-auto min-h-[90vh] flex flex-col">
-      <div className="mb-6 flex justify-between items-end">
+    <div className="p-0 md:p-8 max-w-5xl mx-auto h-full flex flex-col">
+      <div className="mb-4 md:mb-6 flex justify-between items-end px-3 md:px-0 mt-3 md:mt-0">
         <div>
           <h1 className="text-4xl font-heading font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-light mb-2">Asystent AI & Push</h1>
           <p className="text-gray-400 font-sans">Zapytaj o dokumenty, nagraj wiadomość głosową lub wyślij powiadomienia</p>
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col bg-surface rounded-2xl border border-gray-800 shadow-2xl overflow-hidden relative">
+      <div className="flex-1 flex flex-col bg-surface rounded-none md:rounded-2xl border-0 md:border border-gray-800 shadow-2xl overflow-hidden relative">
         <div className="absolute top-4 right-4 z-10 flex gap-2">
           {isSpeaking && (
             <button 
@@ -225,14 +225,14 @@ export default function RagChat() {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-2 md:p-6 space-y-4 md:space-y-6">
           {messages.map(msg => (
             <div key={msg.id} className={`flex gap-4 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
               <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${msg.sender === 'user' ? 'bg-primary' : 'bg-primary/20'}`}>
                 {msg.sender === 'user' ? <User size={20} className="text-white" /> : <Bot size={20} className="text-primary" />}
               </div>
               
-              <div className={`flex flex-col gap-2 max-w-[85%] md:max-w-[70%]`}>
+              <div className={`flex flex-col gap-2 max-w-[90%] md:max-w-[70%]`}>
                 <div className={`p-4 rounded-2xl font-sans text-[15px] leading-relaxed shadow-sm ${msg.sender === 'user' ? 'bg-primary text-white rounded-tr-none' : 'bg-[#27272A] border border-gray-800 text-gray-200 rounded-tl-none relative'}`}>
                   {msg.text}
                   {msg.sender === 'ai' && (
@@ -328,7 +328,7 @@ export default function RagChat() {
         </div>
 
         {/* Sekcja wprowadzania wiadomości */}
-        <div className="p-4 border-t border-gray-800 bg-[#18181B] relative">
+        <div className="p-2 md:p-4 border-t border-gray-800 bg-[#18181B] relative">
           
           <div className="absolute -top-12 left-4 flex gap-2">
             <button 
@@ -361,10 +361,10 @@ export default function RagChat() {
             />
             <button 
               onClick={() => fileInputRef.current?.click()}
-              className="p-3 bg-gray-800 hover:bg-gray-700 rounded-xl text-gray-400 transition-colors mb-1"
+              className="p-2 md:p-3 bg-gray-800 hover:bg-gray-700 rounded-xl text-gray-400 transition-colors mb-1"
               title="Załącz plik z wiedzą"
             >
-              <Paperclip size={24} />
+              <Paperclip size={20} className="md:w-6 md:h-6" />
             </button>
             
             <div className="flex-1 relative">
@@ -379,8 +379,8 @@ export default function RagChat() {
                   }
                 }}
                 placeholder="Zapytaj o dokument, załącz plik, lub nagraj wiadomość..."
-                className="w-full bg-black/50 border border-gray-700 rounded-xl px-5 py-4 pr-12 text-white focus:outline-none focus:border-primary font-sans text-[15px] resize-none overflow-y-auto"
-                style={{ minHeight: '56px', maxHeight: '140px' }}
+                className="w-full bg-black/50 border border-gray-700 rounded-xl px-3 md:px-5 py-3 md:py-4 pr-10 md:pr-12 text-white focus:outline-none focus:border-primary font-sans text-sm md:text-[15px] resize-none overflow-y-auto"
+                style={{ minHeight: '50px', maxHeight: '140px' }}
               />
               {!input && !isListening && (
                 <button 
@@ -406,9 +406,9 @@ export default function RagChat() {
               id="hiddenSendBtn"
               onClick={handleSend}
               disabled={(!input.trim() && !attachedFile) || isTyping}
-              className="bg-primary text-white p-4 rounded-xl disabled:opacity-50 hover:bg-primary-dark transition-colors shadow-[0_0_15px_rgba(244,114,182,0.3)] mb-1"
+              className="bg-primary text-white p-3 md:p-4 rounded-xl disabled:opacity-50 hover:bg-primary-dark transition-colors shadow-[0_0_15px_rgba(244,114,182,0.3)] mb-1 shrink-0"
             >
-              <Send size={24} />
+              <Send size={20} className="md:w-6 md:h-6" />
             </button>
           </div>
         </div>
