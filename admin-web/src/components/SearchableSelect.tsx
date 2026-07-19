@@ -71,7 +71,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({ groups, valu
                   {group.options.map(opt => (
                     <div 
                       key={opt.value}
-                      className={\`px-3 py-2 rounded-lg cursor-pointer text-sm \${opt.value === value ? 'bg-primary text-white font-medium' : 'text-gray-200 hover:bg-[#3a3a40]'}\`}
+                      className={`px-3 py-2 rounded-lg cursor-pointer text-sm \${opt.value === value ? 'bg-primary text-white font-medium' : 'text-gray-200 hover:bg-[#3a3a40]'}`}
                       onClick={() => {
                         onChange(opt.value);
                         setIsOpen(false);
