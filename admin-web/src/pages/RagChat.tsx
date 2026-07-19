@@ -232,17 +232,50 @@ export default function RagChat() {
     }
   };
 
-  const approvePush = (msgId: string) => {
+  const approvePush = async (msgId: string) => {
+    const msg = messages.find(m => m.id === msgId);
+    if (!msg) return;
+    
     setMessages(prev => prev.map(m => {
       if (m.id === msgId) {
-        return { 
-          ...m, 
-          pushDraftStatus: 'sent', 
-          text: `✅ Powiadomienie: "${m.pushDraftContent}" zostało pomyślnie wysłane do grupy: ${m.pushTargetGroup}` 
-        };
+        return { ...m, pushDraftStatus: 'sending' };
       }
       return m;
     }));
+
+    try {
+      const res = await fetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/push/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('jwtToken') || ''}`
+        },
+        body: JSON.stringify({ targetGroup: msg.pushTargetGroup, title: 'Antidotum', body: msg.pushDraftContent })
+      });
+      const data = await res.json();
+      
+      setMessages(prev => prev.map(m => {
+        if (m.id === msgId) {
+          if (data.success) {
+            return { 
+              ...m, 
+              pushDraftStatus: 'sent', 
+              text: `✅ Powiadomienie: "${m.pushDraftContent}" zostało pomyślnie wysłane do grupy: ${m.pushTargetGroup} (${data.sentCount} urz.)` 
+            };
+          } else {
+            return { ...m, pushDraftStatus: 'sent', text: `❌ Błąd wysyłania: ${data.error}` };
+          }
+        }
+        return m;
+      }));
+    } catch(e) {
+      setMessages(prev => prev.map(m => {
+        if (m.id === msgId) {
+          return { ...m, pushDraftStatus: 'sent', text: `❌ Błąd połączenia przy wysyłaniu Push` };
+        }
+        return m;
+      }));
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

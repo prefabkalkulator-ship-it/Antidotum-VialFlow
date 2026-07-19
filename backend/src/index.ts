@@ -1,5 +1,6 @@
 import express from 'express';
 import nodemailer from 'nodemailer';
+import { Expo } from 'expo-server-sdk';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -8,7 +9,7 @@ import { runEventOrchestration, rewriteEventDocumentWithComment, readEventDocume
 import { initCronJobs, runPassGenerationJob, runPassRemindersJob } from './cron';
 import { processVideo } from './videoPipeline';
 import { chatWithRAG, refreshKnowledgeBase } from './rag';
-import { getPaymentHistory, addPaymentTransaction, getStudentPasses, getAllPasses, generateStudentPass, payStudentPass, getGroups, getUsersAndParents, addStudent, deleteStudent, updateStudentFullData, approveStudent, getTeamRoles, getSchedule, addAttendance, getEvents, bookEvent, getEventBookings, approveEventBooking, payEventBooking, saveEventQuestion, getPendingEventQuestions, markEventQuestionAsAnswered, updateUserProfile, setParentDeviceToken, removeDeviceToken, updateUserPin } from './sheetsApi';
+import { getPaymentHistory, addPaymentTransaction, getStudentPasses, getAllPasses, generateStudentPass, payStudentPass, getGroups, getUsersAndParents, addStudent, deleteStudent, updateStudentFullData, approveStudent, getTeamRoles, getSchedule, addAttendance, getEvents, bookEvent, getEventBookings, approveEventBooking, payEventBooking, saveEventQuestion, getPendingEventQuestions, markEventQuestionAsAnswered, updateUserProfile, setParentDeviceToken, removeDeviceToken, updateUserPin, setExpoPushToken } from './sheetsApi';
 import jwt from 'jsonwebtoken';
 import { authenticateJWT } from './middleware';
 import { logConsentToWORM, deleteEphemeralVideo } from './audit';
@@ -18,6 +19,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_for_development_on
 dotenv.config();
 
 const upload = multer({ dest: 'uploads/' });
+
+const expo = new Expo();
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -251,6 +254,68 @@ app.post('/api/auth/unpair-device', async (req, res) => {
     res.json({ success: true });
   } else {
     res.status(500).json({ error: 'Błąd odłączania urządzenia' });
+  }
+});
+
+// --- PUSH NOTIFICATIONS ---
+app.post('/api/push/register', async (req, res) => {
+  const { identifier, pushToken } = req.body;
+  if (!identifier || !pushToken) return res.status(400).json({ error: 'Brak danych' });
+  const success = await setExpoPushToken(identifier, pushToken);
+  if (success) {
+    res.json({ success: true });
+  } else {
+    res.status(500).json({ error: 'Błąd zapisu tokenu Push' });
+  }
+});
+
+app.post('/api/push/send', async (req, res) => {
+  const { targetGroup, title, body } = req.body;
+  if (!targetGroup || !title || !body) return res.status(400).json({ error: 'Brak danych' });
+
+  try {
+    const parents = await getUsersAndParents();
+    let tokens: string[] = [];
+
+    for (const parent of parents) {
+      for (const child of parent.children) {
+        if (child.expoPushToken && Expo.isExpoPushToken(child.expoPushToken)) {
+          if (targetGroup === 'wszyscy' || targetGroup === 'wszyscy_uczniowie' || child.groupId === targetGroup || child.id === targetGroup || child.email === targetGroup || parent.email === targetGroup) {
+            tokens.push(child.expoPushToken);
+          }
+        }
+      }
+    }
+
+    tokens = [...new Set(tokens)];
+
+    if (tokens.length === 0) {
+      return res.json({ success: true, message: 'Brak urządzeń do wysłania', sentCount: 0 });
+    }
+
+    const messages = tokens.map(token => ({
+      to: token,
+      sound: 'default' as const,
+      title,
+      body,
+      data: { withSome: 'data' },
+    }));
+
+    const chunks = expo.chunkPushNotifications(messages);
+    let sentCount = 0;
+    for (const chunk of chunks) {
+      try {
+        await expo.sendPushNotificationsAsync(chunk);
+        sentCount += chunk.length;
+      } catch (error) {
+        console.error('Błąd wysyłania chunka push:', error);
+      }
+    }
+
+    res.json({ success: true, sentCount });
+  } catch (err) {
+    console.error('Błąd API push:', err);
+    res.status(500).json({ error: 'Błąd serwera' });
   }
 });
 

@@ -60,7 +60,7 @@ export const getUsersAndParents = async () => {
     if (!api) throw new Error('Brak połączenia z Google Sheets');
     const response = await api.spreadsheets.values.get({
       spreadsheetId: USERS_SPREADSHEET_ID,
-      range: 'Baza_Uczniow!A:S',
+      range: 'Baza_Uczniow!A:T',
     });
 
     const rows = response.data.values;
@@ -87,7 +87,8 @@ export const getUsersAndParents = async () => {
         op1Phone: row[8] || '',
         op2Name: row[9] || '',
         op2Email: row[10] || '',
-        op2Phone: row[11] || ''
+        op2Phone: row[11] || '',
+        expoPushToken: row[19] || '' // Expo Push Token (kolumna T)
       };
 
       const p1EmailRaw = row[7] || '';
@@ -170,7 +171,8 @@ export const addStudent = async (data: any) => {
       data.parentPin || '',              // PIN Opiekuna 1 (P)
       data.op2Pin || '',                 // PIN Opiekuna 2 (Q)
       data.studentPin || '',             // PIN Ucznia (R)
-      ''                                 // Device Token (S)
+      '',                                // Device Token (S)
+      ''                                 // Expo Push Token (T)
     ];
 
     const meta = await api.spreadsheets.get({ spreadsheetId: USERS_SPREADSHEET_ID });
@@ -192,7 +194,7 @@ export const addStudent = async (data: any) => {
 
     await api.spreadsheets.values.update({
       spreadsheetId: USERS_SPREADSHEET_ID,
-      range: 'Baza_Uczniow!A2:S2',
+      range: 'Baza_Uczniow!A2:T2',
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [newRow] }
     });

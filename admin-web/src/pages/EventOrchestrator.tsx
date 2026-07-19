@@ -395,8 +395,25 @@ export default function EventOrchestrator() {
               </button>
               <button 
                 disabled={!pushTargetGroup}
-                onClick={() => {
-                  setLogs(prev => [...prev, `✅ Wysłano powiadomienie Push do: ${pushTargetGroup}`]);
+                onClick={async () => {
+                  try {
+                    const res = await fetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/push/send', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('jwtToken') || ''}`
+                      },
+                      body: JSON.stringify({ targetGroup: pushTargetGroup, title: 'Antidotum', body: pushContent })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      setLogs(prev => [...prev, `✅ Wysłano powiadomienie Push do: ${pushTargetGroup} (${data.sentCount} urz.)`]);
+                    } else {
+                      setLogs(prev => [...prev, `❌ Błąd wysyłania: ${data.error}`]);
+                    }
+                  } catch (e) {
+                    setLogs(prev => [...prev, `❌ Błąd połączenia przy wysyłaniu Push`]);
+                  }
                   setShowPushBuilder(false);
                 }}
                 className={`flex-1 py-3 rounded-xl font-bold font-sans flex items-center justify-center gap-2 transition-all ${

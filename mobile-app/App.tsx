@@ -8,6 +8,52 @@ import * as Speech from 'expo-speech';
 // Video intro removed
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
+async function registerForPushNotificationsAsync() {
+  let token;
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'default',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#FF231F7C',
+    });
+  }
+  if (Device.isDevice) {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== 'granted') {
+      console.log('Brak zgody na powiadomienia');
+      return;
+    }
+    try {
+      const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
+      if (projectId) {
+         token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      } else {
+         token = (await Notifications.getExpoPushTokenAsync()).data;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  return token;
+}
 
 const { width } = Dimensions.get('window');
 
@@ -1527,10 +1573,26 @@ function ChatScreen({ isKeyboardVisible, keyboardHeight }: { isKeyboardVisible?:
                    ))}
                  </View>
                  <TouchableOpacity 
-                   disabled={!m.pushTargetGroup}
-                   onPress={() => setMessages(prev => prev.map(msg => msg.id === m.id ? { ...msg, pushDraftStatus: 'sent', text: `✅ Powiadomienie wysłane do: ${msg.pushTargetGroup}` } : msg))}
-                   style={{ backgroundColor: !m.pushTargetGroup ? '#333' : COLORS.primary, padding: 12, borderRadius: 10, alignItems: 'center' }}
-                 >
+                    disabled={!m.pushTargetGroup}
+                    onPress={async () => {
+                      setMessages(prev => prev.map(msg => msg.id === m.id ? { ...msg, pushDraftStatus: 'sending' } : msg));
+                      try {
+                        const res = await apiFetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/push/send', {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ targetGroup: m.pushTargetGroup, title: 'Antidotum', body: m.pushDraftContent })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          setMessages(prev => prev.map(msg => msg.id === m.id ? { ...msg, pushDraftStatus: 'sent', text: `✅ Powiadomienie wysłane do: ${msg.pushTargetGroup} (${data.sentCount} urz.)` } : msg));
+                        } else {
+                          setMessages(prev => prev.map(msg => msg.id === m.id ? { ...msg, pushDraftStatus: 'sent', text: `❌ Błąd wysyłania: ${data.error}` } : msg));
+                        }
+                      } catch(e) {
+                        setMessages(prev => prev.map(msg => msg.id === m.id ? { ...msg, pushDraftStatus: 'sent', text: `❌ Błąd połączenia przy wysyłaniu Push` } : msg));
+                      }
+                    }}
+                    style={{ backgroundColor: !m.pushTargetGroup ? '#333' : COLORS.primary, padding: 12, borderRadius: 10, alignItems: 'center' }}
+                  >
                    <Text style={{ color: !m.pushTargetGroup ? COLORS.textMuted : COLORS.text, fontWeight: 'bold' }}>Wyślij</Text>
                  </TouchableOpacity>
               </View>
@@ -1910,6 +1972,23 @@ export default function App() {
   
   const [userData, setUserData] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'wallet' | 'payment' | 'coach' | 'chat' | 'events' | 'profile'>('wallet');
+
+  useEffect(() => {
+    if (userData) {
+      const identifier = userData.id || userData.email;
+      if (identifier) {
+        registerForPushNotificationsAsync().then(token => {
+          if (token) {
+            apiFetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/push/register', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ identifier, pushToken: token })
+            }).catch(console.error);
+          }
+        });
+      }
+    }
+  }, [userData]);
 
   useEffect(() => {
     if (isPopping.current) {
