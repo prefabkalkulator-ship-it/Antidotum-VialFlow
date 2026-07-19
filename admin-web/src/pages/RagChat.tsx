@@ -229,24 +229,28 @@ export default function RagChat() {
         let targetGroups: string[] = [];
         if (data.suggestedTarget) {
           const query = data.suggestedTarget.toLowerCase();
+          const tType = data.targetType || 'wszyscy';
           
-          // Lepszy algorytm dopasowania odwrotnego (szukamy czy części nazw występują w zapytaniu)
-          if (query.includes('wszys')) {
+          if (tType === 'wszyscy') {
             targetGroups.push('wszyscy');
-          } else {
-            // Szukamy w dostępnych grupach
+          } else if (tType === 'grupa') {
             availableGroups.forEach(g => {
               if (query.includes(g.name.toLowerCase())) targetGroups.push(g.name);
             });
-            // Szukamy w uczniach
+          } else if (tType === 'uczen') {
             availableUsers.flatMap(p => p.children || []).forEach(c => {
               if (query.includes(c.firstName.toLowerCase()) || query.includes(c.lastName.toLowerCase())) {
                 targetGroups.push(c.id);
               }
             });
-            // Szukamy w rodzicach
+          } else if (tType === 'opiekun') {
+            // Skoro AI wskazuje na konkretnego opiekuna po imieniu dziecka:
             availableUsers.forEach(p => {
-              if (p.name && (query.includes(p.name.toLowerCase().split(' ')[0]) || query.includes(p.name.toLowerCase().split(' ')[1] || ''))) {
+              const childrenNames = (p.children || []).map((ch: any) => `\${ch.firstName} \${ch.lastName}`.toLowerCase());
+              // Szukamy też czy w nazwie opiekuna lub dzieciach występuje słowo
+              const isMatch = (p.name && p.name.toLowerCase().includes(query)) || childrenNames.some((cn: string) => cn.includes(query) || query.includes(cn.split(' ')[0]));
+              
+              if (isMatch) {
                 targetGroups.push(p.email);
               }
             });
