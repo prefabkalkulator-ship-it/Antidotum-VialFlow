@@ -1244,14 +1244,12 @@ function ChatScreen({ isKeyboardVisible, keyboardHeight }: { isKeyboardVisible?:
     if (event.results && event.results[0]) {
       const cleanTextDeduplicated = event.results[0].transcript.trim().split(/\s+/).filter((w: string, i: number, arr: string[]) => i === 0 || w.toLowerCase() !== arr[i - 1].toLowerCase()).join(' ');
       setInput(cleanTextDeduplicated);
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = setTimeout(() => {
-        stopListening();
-        if (triggerSendRef.current) triggerSendRef.current();
-      }, 5000);
     }
   });
-  useSpeechRecognitionEvent('end', () => setIsListening(false));
+  useSpeechRecognitionEvent('end', () => {
+    setIsListening(false);
+    if (triggerSendRef.current) triggerSendRef.current();
+  });
   useSpeechRecognitionEvent('error', (event) => {
     setIsListening(false);
     console.log('STT Event Error:', event);
@@ -1297,12 +1295,12 @@ function ChatScreen({ isKeyboardVisible, keyboardHeight }: { isKeyboardVisible?:
             }
             if (currentText) {
               setInput(currentText);
-            if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-            silenceTimerRef.current = setTimeout(() => {
-              stopListening();
-              if (triggerSendRef.current) triggerSendRef.current();
-            }, 5000);
           }
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+          if (triggerSendRef.current) triggerSendRef.current();
         };
 
         recognition.onerror = (e: any) => {
@@ -1342,11 +1340,6 @@ function ChatScreen({ isKeyboardVisible, keyboardHeight }: { isKeyboardVisible?:
         try { recognitionRef.current.start(); } catch(e) {}
       }
     }
-    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-    silenceTimerRef.current = setTimeout(() => {
-      stopListening();
-      if (triggerSendRef.current) triggerSendRef.current();
-    }, 5000);
   };
 
   const stopListening = () => {
@@ -1356,7 +1349,6 @@ function ChatScreen({ isKeyboardVisible, keyboardHeight }: { isKeyboardVisible?:
     } else {
       if (recognitionRef.current) recognitionRef.current.stop();
     }
-    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
   };
 
   const speakText = (text: string, msgId?: string) => {

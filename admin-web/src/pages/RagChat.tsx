@@ -89,14 +89,12 @@ export default function RagChat() {
           }
           if (finalTranscript) {
             setInput(prev => mergeTranscripts(prev, finalTranscript).trim());
-            
-            // Auto submit po 5 sekundach ciszy
-            if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-            silenceTimerRef.current = setTimeout(() => {
-              stopListening();
-              document.getElementById('hiddenSendBtn')?.click();
-            }, 5000);
           }
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+          document.getElementById('hiddenSendBtn')?.click();
         };
 
         recognition.onerror = (event: any) => {
@@ -115,18 +113,11 @@ export default function RagChat() {
     if (recognitionRef.current) {
       try { recognitionRef.current.start(); } catch(e) {}
     }
-    
-    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-    silenceTimerRef.current = setTimeout(() => {
-       stopListening();
-       document.getElementById('hiddenSendBtn')?.click();
-    }, 5000);
   };
 
   const stopListening = () => {
     setIsListening(false);
     if (recognitionRef.current) recognitionRef.current.stop();
-    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
   };
 
   const speakText = (text: string, msgId?: string) => {
@@ -139,7 +130,12 @@ export default function RagChat() {
     setIsSpeaking(true);
     if (msgId) setSpeakingMsgId(msgId);
     
-    const utterance = new SpeechSynthesisUtterance(text);
+    const cleanText = text
+      .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '')
+      .replace(/[*#~_]/g, '')
+      .trim();
+      
+    const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = 'pl-PL';
     
     utterance.onstart = () => {
@@ -379,7 +375,7 @@ export default function RagChat() {
         </div>
 
         {/* Sekcja wprowadzania wiadomości */}
-        <div className="p-2 md:p-4 border-t border-gray-800 bg-[#18181B] relative">
+        <div className="p-2 md:p-4 pb-8 md:pb-4 border-t border-gray-800 bg-[#18181B] relative">
           
           <div className="absolute -top-12 left-4 flex gap-2">
             <button 
