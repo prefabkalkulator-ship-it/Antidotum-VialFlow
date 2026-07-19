@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Paperclip, FileText, Loader2, Check, Bell, Mic, X, ChevronDown, Volume2, Square } from 'lucide-react';
-import { SearchableSelect } from '../components/SearchableSelect'; // Zmienione poniżej
 import { MultiSelectSearch } from '../components/MultiSelectSearch';
 
 interface Message {
