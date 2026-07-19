@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Calendar, Image as ImageIcon, Folder, Wand2, Loader2, CheckCircle, Mic, Square, Bell, ChevronDown, Send, Inbox, Reply } from 'lucide-react';
+import { SearchableSelect } from '../components/SearchableSelect';
 
 type Message = { role: 'user' | 'assistant', content: string };
 
@@ -378,44 +379,35 @@ export default function EventOrchestrator() {
             <div className="mb-4">
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Grupa docelowa</label>
               <div className="relative">
-                <select 
-                  className="w-full bg-[#27272A] text-white p-3 pr-12 rounded-lg font-sans text-sm focus:outline-none focus:border-primary border border-transparent appearance-none cursor-pointer"
+                <SearchableSelect 
                   value={pushTargetGroup}
-                  onChange={(e) => setPushTargetGroup(e.target.value)}
-                >
-                  <option value="" disabled>-- Wybierz kogo powiadomić --</option>
-                  <optgroup label="Ogólne">
-                    <option value="wszyscy">Wszyscy użytkownicy</option>
-                  </optgroup>
-                  
-                  {availableGroups.length > 0 && (
-                    <optgroup label="Grupy">
-                      {availableGroups.map(g => (
-                        <option key={g.name} value={g.name}>{g.name}</option>
-                      ))}
-                    </optgroup>
-                  )}
-
-                  {availableUsers.length > 0 && (
-                    <optgroup label="Uczniowie">
-                      {availableUsers.flatMap(p => p.children || []).map(c => (
-                        <option key={c.id} value={c.id}>{c.firstName} {c.lastName} ({c.groupName || 'Brak Grupy'})</option>
-                      ))}
-                    </optgroup>
-                  )}
-
-                  {availableUsers.length > 0 && (
-                    <optgroup label="Opiekunowie">
-                      {availableUsers.map(p => {
-                        const childNames = (p.children || []).map((ch: any) => ch.firstName + ' ' + ch.lastName).join(', ');
-                        return (
-                          <option key={p.email} value={p.email}>{p.name || p.email} (Opiekun: {childNames})</option>
-                        );
-                      })}
-                    </optgroup>
-                  )}
-                </select>
-                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
+                  onChange={(val: string) => setPushTargetGroup(val)}
+                  placeholder="Wybierz odbiorców z bazy"
+                  groups={[
+                    {
+                      label: 'Ogólne',
+                      options: [{ value: 'Wszystkie Grupy', label: 'Wszystkie Grupy' }]
+                    },
+                    ...(availableGroups.length > 0 ? [{
+                      label: 'Grupy',
+                      options: availableGroups.map(g => ({ value: g.name, label: g.name }))
+                    }] : []),
+                    ...(availableUsers.length > 0 ? [{
+                      label: 'Uczniowie',
+                      options: availableUsers.flatMap(p => p.children || []).map(c => ({
+                        value: c.id,
+                        label: `${c.firstName} ${c.lastName} (${c.groupName || 'Brak Grupy'})`
+                      }))
+                    }] : []),
+                    ...(availableUsers.length > 0 ? [{
+                      label: 'Opiekunowie',
+                      options: availableUsers.map(p => ({
+                        value: p.email,
+                        label: `${p.name || p.email} (Opiekun: ${(p.children || []).map((ch: any) => ch.firstName + ' ' + ch.lastName).join(', ')})`
+                      }))
+                    }] : [])
+                  ]}
+                />
               </div>
             </div>
 

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Paperclip, FileText, Loader2, Check, Bell, Mic, X, ChevronDown, Volume2, Square } from 'lucide-react';
+import { SearchableSelect } from '../components/SearchableSelect';
 
 interface Message {
   id: string;
@@ -224,6 +225,27 @@ export default function RagChat() {
           body: JSON.stringify({ message: originalInput })
         });
         const data = await res.json();
+        
+        let targetGroup = "";
+        if (data.suggestedTarget) {
+          const query = data.suggestedTarget.toLowerCase();
+          
+          // Szukamy najlepszego dopasowania wśród dostępnych grup, użytkowników i opiekunów
+          if (query.includes('wszy')) targetGroup = 'wszyscy';
+          else {
+            const groupMatch = availableGroups.find(g => g.name.toLowerCase().includes(query));
+            if (groupMatch) targetGroup = groupMatch.name;
+            else {
+              const childMatch = availableUsers.flatMap(p => p.children || []).find(c => `${c.firstName} ${c.lastName}`.toLowerCase().includes(query));
+              if (childMatch) targetGroup = childMatch.id;
+              else {
+                const parentMatch = availableUsers.find(p => `${p.name} ${p.email}`.toLowerCase().includes(query));
+                if (parentMatch) targetGroup = parentMatch.email;
+              }
+            }
+          }
+        }
+        
         if (data.draft) draftText = data.draft;
 
         setMessages(prev => [...prev, {
@@ -232,6 +254,7 @@ export default function RagChat() {
           text: aiText,
           isPushDraft: true,
           pushDraftContent: draftText,
+          pushTargetGroup: targetGroup,
           pushDraftStatus: 'draft'
         }]);
         if (currentInputMethod === 'voice') speakText(aiText, aiMsgId);
@@ -423,54 +446,47 @@ export default function RagChat() {
                       }}
                     />
 
-                    <div className="relative mb-4">
-                      <select 
-                        className="w-full bg-[#27272A] text-white p-3 pr-12 rounded-lg font-sans text-sm focus:outline-none focus:border-primary border border-transparent appearance-none cursor-pointer"
-                        value={msg.pushTargetGroup || ''}
-                        onChange={(e) => setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, pushTargetGroup: e.target.value } : m))}
-                      >
-                        <option value="" disabled>-- Wybierz grupę docelową --</option>
-                        <optgroup label="Ogólne">
-                          <option value="wszyscy">Wszyscy użytkownicy</option>
-                        </optgroup>
-                        
-                        {availableGroups.length > 0 && (
-                          <optgroup label="Grupy">
-                            {availableGroups.map(g => (
-                              <option key={g.name} value={g.name}>{g.name}</option>
-                            ))}
-                          </optgroup>
-                        )}
-
-                        {availableUsers.length > 0 && (
-                          <optgroup label="Uczniowie">
-                            {availableUsers.flatMap(p => p.children || []).map(c => (
-                              <option key={c.id} value={c.id}>{c.firstName} {c.lastName} ({c.groupName || 'Brak Grupy'})</option>
-                            ))}
-                          </optgroup>
-                        )}
-
-                        {availableUsers.length > 0 && (
-                          <optgroup label="Opiekunowie">
-                            {availableUsers.map(p => {
-                              const childNames = (p.children || []).map((ch: any) => ch.firstName + ' ' + ch.lastName).join(', ');
-                              return (
-                                <option key={p.email} value={p.email}>{p.name || p.email} (Opiekun: {childNames})</option>
-                              );
-                            })}
-                          </optgroup>
-                        )}
-                      </select>
-                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
-                    </div>
-
-                    <div className="flex gap-3">
+                    <div className="flex gap-2 relative mt-3 z-50">
+                      <div className="flex-1">
+                        <SearchableSelect 
+                          value={msg.pushTargetGroup || ''}
+                          onChange={(val) => setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, pushTargetGroup: val } : m))}
+                          placeholder="Wybierz grupę docelową"
+                          groups={[
+                            {
+                              label: 'Ogólne',
+                              options: [{ value: 'wszyscy', label: 'Wszyscy użytkownicy' }]
+                            },
+                            ...(availableGroups.length > 0 ? [{
+                              label: 'Grupy',
+                              options: availableGroups.map(g => ({ value: g.name, label: g.name }))
+                            }] : []),
+                            ...(availableUsers.length > 0 ? [{
+                              label: 'Uczniowie',
+                              options: availableUsers.flatMap(p => p.children || []).map(c => ({
+                                value: c.id,
+                                label: `${c.firstName} ${c.lastName} (${c.groupName || 'Brak Grupy'})`
+                              }))
+                            }] : []),
+                            ...(availableUsers.length > 0 ? [{
+                              label: 'Opiekunowie',
+                              options: availableUsers.map(p => ({
+                                value: p.email,
+                                label: `${p.name || p.email} (Opiekun: ${(p.children || []).map((ch: any) => ch.firstName + ' ' + ch.lastName).join(', ')})`
+                              }))
+                            }] : [])
+                          ]}
+                        />
+                      </div>
                       <button 
                         onClick={() => handleVoiceRefinePush(msg.id)}
                         className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg font-bold font-sans transition-colors ${isRecordingPush ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-800 hover:bg-gray-700 text-white'}`}
                       >
                         <Mic size={16} /> {isRecordingPush ? 'Słucham...' : 'Popraw'}
                       </button>
+                    </div>
+
+                    <div className="mt-4">
                       <button 
                         onClick={() => approvePush(msg.id)}
                         disabled={!msg.pushTargetGroup}

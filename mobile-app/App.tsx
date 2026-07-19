@@ -1978,13 +1978,12 @@ export default function App() {
       const identifier = userData.id || userData.email;
       if (identifier) {
         registerForPushNotificationsAsync().then(token => {
-          if (token) {
-            apiFetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/push/register', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ identifier, pushToken: token })
-            }).catch(console.error);
-          }
+          const finalToken = token || `MOCK-TOKEN-${Math.floor(Math.random()*1000)}`;
+          apiFetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/push/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ identifier, pushToken: finalToken })
+          }).catch(console.error);
         });
       }
     }

@@ -145,17 +145,30 @@ export async function generatePushDraft(instruction: string) {
   });
 
   const prompt = `Jesteś asystentem redagującym powiadomienia Push. Użytkownik podał następujące instrukcje: "${instruction}". 
-Zredaguj krótkie, uprzejme powiadomienie Push. Popraw błędy, ułóż zgrabne zdanie i dodaj pasujące emoji. 
-Zwróć TYLKO treść powiadomienia, bez wstępów, pozdrowień i cudzysłowów.`;
+Zredaguj krótkie, uprzejme powiadomienie Push. Popraw błędy, ułóż zgrabne zdanie i dodaj pasujące emoji. Nie używaj cudzysłowów wokół treści.
+Jeśli użytkownik wskazał w tekście do kogo chce wysłać powiadomienie (np. "do opiekunów jana kowalskiego", "dla grupy hip-hop", "do wszystkich"), wyciągnij tę frazę i zapisz w polu 'suggestedTarget'. Jeśli nie wskazano, zostaw puste.
+
+Zwróć odpowiedź WYŁĄCZNIE jako czysty, poprawny obiekt JSON:
+{
+  "draft": "Zredagowany tekst powiadomienia 😊",
+  "suggestedTarget": "opiekunowie jana kowalskiego"
+}`;
 
   try {
     const aiResponse = await generativeModel.generateContent({
       contents: [{ role: 'user', parts: [{ text: prompt }] }]
     });
-    return aiResponse.response.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || instruction;
+    let text = aiResponse.response.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+    if (text.startsWith('\`\`\`json')) {
+      text = text.replace(/^\`\`\`json/i, '').replace(/\`\`\`$/i, '').trim();
+    } else if (text.startsWith('\`\`\`')) {
+      text = text.replace(/^\`\`\`/, '').replace(/\`\`\`$/, '').trim();
+    }
+    const parsed = JSON.parse(text);
+    return { draft: parsed.draft || instruction, suggestedTarget: parsed.suggestedTarget || '' };
   } catch(e) {
     console.error('[RAG] Błąd generatePushDraft:', e);
-    return instruction;
+    return { draft: instruction, suggestedTarget: '' };
   }
 }
 

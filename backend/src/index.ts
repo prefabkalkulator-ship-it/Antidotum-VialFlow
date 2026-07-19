@@ -720,8 +720,8 @@ app.get('/api/schedule', async (req, res) => {
   app.post('/api/rag/push-draft', async (req, res) => {
     try {
       const { message } = req.body;
-      const draft = await generatePushDraft(message);
-      res.json({ draft });
+      const result = await generatePushDraft(message);
+      res.json(result); // { draft, suggestedTarget }
     } catch (err) {
       console.error('Błąd push-draft:', err);
       res.status(500).json({ error: 'Błąd generowania szkicu' });
