@@ -29,6 +29,47 @@ export default function RagChat() {
   const recognitionRef = useRef<any>(null);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const scrollToBottom = () => {
+      if (chatEndRef.current && chatEndRef.current.parentElement) {
+        const container = chatEndRef.current.parentElement;
+        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+      }
+    };
+    scrollToBottom();
+    setTimeout(scrollToBottom, 100);
+    setTimeout(scrollToBottom, 300);
+  }, [messages, isTyping]);
+
+  const mergeTranscripts = (existing: string, incoming: string) => {
+    if (!existing) return incoming.trim();
+    if (!incoming) return existing.trim();
+    
+    const normalize = (str: string) => str.toLowerCase().replace(/[.,?!]/g, '').trim().replace(/\s+/g, ' ');
+    const exNorm = normalize(existing);
+    const inNorm = normalize(incoming);
+    
+    const exWords = exNorm.split(' ');
+    const inWords = inNorm.split(' ');
+    
+    let maxOverlap = 0;
+    for (let i = 1; i <= Math.min(exWords.length, inWords.length); i++) {
+      const suffix = exWords.slice(-i).join(' ');
+      const prefix = inWords.slice(0, i).join(' ');
+      if (suffix === prefix) {
+        maxOverlap = i;
+      }
+    }
+    
+    if (maxOverlap > 0) {
+      const existingOriginalWords = existing.trim().split(/\s+/);
+      const incomingOriginalWords = incoming.trim().split(/\s+/);
+      return existingOriginalWords.join(' ') + ' ' + incomingOriginalWords.slice(maxOverlap).join(' ');
+    }
+    return existing.trim() + ' ' + incoming.trim();
+  };
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -47,7 +88,7 @@ export default function RagChat() {
             }
           }
           if (finalTranscript) {
-            setInput(prev => (prev + ' ' + finalTranscript).trim());
+            setInput(prev => mergeTranscripts(prev, finalTranscript).trim());
             
             // Auto submit po 5 sekundach ciszy
             if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
@@ -91,15 +132,33 @@ export default function RagChat() {
   const speakText = (text: string, msgId?: string) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
+    
+    const utteranceId = Math.random().toString();
+    (window as any).activeUtteranceId = utteranceId;
+
+    setIsSpeaking(true);
+    if (msgId) setSpeakingMsgId(msgId);
+    
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'pl-PL';
+    
     utterance.onstart = () => {
-      setIsSpeaking(true);
-      if (msgId) setSpeakingMsgId(msgId);
+      if ((window as any).activeUtteranceId === utteranceId) {
+        setIsSpeaking(true);
+        if (msgId) setSpeakingMsgId(msgId);
+      }
     };
     utterance.onend = () => {
-      setIsSpeaking(false);
-      setSpeakingMsgId(null);
+      if ((window as any).activeUtteranceId === utteranceId) {
+        setIsSpeaking(false);
+        setSpeakingMsgId(null);
+      }
+    };
+    utterance.onerror = () => {
+      if ((window as any).activeUtteranceId === utteranceId) {
+        setIsSpeaking(false);
+        setSpeakingMsgId(null);
+      }
     };
     window.speechSynthesis.speak(utterance);
   };
@@ -141,16 +200,17 @@ export default function RagChat() {
     if (originalInput.toLowerCase().includes('powiadomienie')) {
       setTimeout(() => {
         setIsTyping(false);
+        const aiMsgId = (Date.now() + 1).toString();
         const aiText = 'Przygotowałem szkic powiadomienia Push. Sprawdź, czy wszystko się zgadza:';
         setMessages(prev => [...prev, {
-          id: (Date.now() + 1).toString(),
+          id: aiMsgId,
           sender: 'ai',
           text: aiText,
           isPushDraft: true,
           pushDraftContent: "Hej! 👋 Przypominamy o jutrzejszej zbiórce koło szkoły punktualnie o 9:00. Pamiętajcie o zabraniu strojów! Widzimy się! 💃🕺",
           pushDraftStatus: 'draft'
         }]);
-        if (currentInputMethod === 'voice') speakText(aiText);
+        if (currentInputMethod === 'voice') speakText(aiText, aiMsgId);
       }, 1500);
       return;
     }
@@ -164,10 +224,11 @@ export default function RagChat() {
       const data = await res.json();
       const aiText = data.answer || 'Błąd generowania odpowiedzi.';
       
-      const aiMsg: Message = { id: (Date.now() + 1).toString(), sender: 'ai', text: aiText };
+      const aiMsgId = (Date.now() + 1).toString();
+      const aiMsg: Message = { id: aiMsgId, sender: 'ai', text: aiText };
       setMessages(prev => [...prev, aiMsg]);
       
-      if (currentInputMethod === 'voice') speakText(aiText);
+      if (currentInputMethod === 'voice') speakText(aiText, aiMsgId);
     } catch (err) {
       setMessages(prev => [...prev, { id: 'err', sender: 'ai', text: 'Błąd połączenia z serwerem.' }]);
     } finally {
@@ -214,17 +275,6 @@ export default function RagChat() {
       </div>
 
       <div className="flex-1 flex flex-col bg-surface rounded-none md:rounded-2xl border-0 md:border border-gray-800 shadow-2xl overflow-hidden relative">
-        <div className="absolute top-4 right-4 z-10 flex gap-2">
-          {isSpeaking && (
-            <button 
-              onClick={stopSpeaking}
-              className="bg-red-500/20 hover:bg-red-500/40 text-red-500 border border-red-500/50 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 animate-pulse transition-all"
-            >
-              <Square size={12} fill="currentColor" /> Zatrzymaj Głos
-            </button>
-          )}
-        </div>
-
         <div className="flex-1 overflow-y-auto p-2 md:p-6 space-y-4 md:space-y-6">
           {messages.map(msg => (
             <div key={msg.id} className={`flex gap-4 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
@@ -325,6 +375,7 @@ export default function RagChat() {
               </div>
             </div>
           )}
+          <div ref={chatEndRef} />
         </div>
 
         {/* Sekcja wprowadzania wiadomości */}
