@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Calendar, Image as ImageIcon, Folder, Wand2, Loader2, CheckCircle, Mic, Square, Bell, ChevronDown, Send, Inbox, Reply } from 'lucide-react';
-import { SearchableSelect } from '../components/SearchableSelect';
+import { MultiSelectSearch } from '../components/MultiSelectSearch';
 
 type Message = { role: 'user' | 'assistant', content: string };
 
@@ -14,7 +14,7 @@ export default function EventOrchestrator() {
   const [draftMode, setDraftMode] = useState(true);
   const [logs, setLogs] = useState<string[]>([]);
   const [showPushBuilder, setShowPushBuilder] = useState(false);
-  const [pushTargetGroup, setPushTargetGroup] = useState('');
+  const [pushTargetGroups, setPushTargetGroups] = useState<string[]>([]);
   const [pushContent, setPushContent] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -377,11 +377,11 @@ export default function EventOrchestrator() {
             <p className="text-gray-400 font-sans mb-6 text-sm">Wydarzenie zostało utworzone wraz z dokumentem GDocs i plakatem. Wyślij Push, aby uczestnicy mogli komentować.</p>
             
             <div className="mb-4">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Grupa docelowa</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Grupy docelowe</label>
               <div className="relative">
-                <SearchableSelect 
-                  value={pushTargetGroup}
-                  onChange={(val: string) => setPushTargetGroup(val)}
+                <MultiSelectSearch 
+                  values={pushTargetGroups}
+                  onChange={(vals: string[]) => setPushTargetGroups(vals)}
                   placeholder="Wybierz odbiorców z bazy"
                   groups={[
                     {
@@ -394,14 +394,14 @@ export default function EventOrchestrator() {
                     }] : []),
                     ...(availableUsers.length > 0 ? [{
                       label: 'Uczniowie',
-                      options: availableUsers.flatMap(p => p.children || []).map(c => ({
+                      options: Array.from(new Map(availableUsers.flatMap(p => p.children || []).map((c: any) => [c.id, c])).values()).map((c: any) => ({
                         value: c.id,
                         label: `${c.firstName} ${c.lastName} (${c.groupName || 'Brak Grupy'})`
                       }))
                     }] : []),
                     ...(availableUsers.length > 0 ? [{
                       label: 'Opiekunowie',
-                      options: availableUsers.map(p => ({
+                      options: Array.from(new Map(availableUsers.map(p => [p.email, p])).values()).map((p: any) => ({
                         value: p.email,
                         label: `${p.name || p.email} (Opiekun: ${(p.children || []).map((ch: any) => ch.firstName + ' ' + ch.lastName).join(', ')})`
                       }))
@@ -428,7 +428,7 @@ export default function EventOrchestrator() {
                 Pomiń
               </button>
               <button 
-                disabled={!pushTargetGroup}
+                disabled={pushTargetGroups.length === 0}
                 onClick={async () => {
                   try {
                     const res = await fetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/push/send', {
@@ -437,11 +437,11 @@ export default function EventOrchestrator() {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${localStorage.getItem('jwtToken') || ''}`
                       },
-                      body: JSON.stringify({ targetGroup: pushTargetGroup, title: 'Antidotum', body: pushContent })
+                      body: JSON.stringify({ targetGroups: pushTargetGroups, title: 'Antidotum', body: pushContent })
                     });
                     const data = await res.json();
                     if (data.success) {
-                      setLogs(prev => [...prev, `✅ Wysłano powiadomienie Push do: ${pushTargetGroup} (${data.sentCount} urz.)`]);
+                      setLogs(prev => [...prev, `✅ Wysłano powiadomienie Push do ${pushTargetGroups.length} grup/użytkowników.`]);
                     } else {
                       setLogs(prev => [...prev, `❌ Błąd wysyłania: ${data.error}`]);
                     }

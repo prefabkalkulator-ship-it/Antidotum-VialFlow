@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Paperclip, FileText, Loader2, Check, Bell, Mic, X, ChevronDown, Volume2, Square } from 'lucide-react';
-import { SearchableSelect } from '../components/SearchableSelect';
+import { SearchableSelect } from '../components/SearchableSelect'; // Zmienione poniżej
+import { MultiSelectSearch } from '../components/MultiSelectSearch';
 
 interface Message {
   id: string;
@@ -9,7 +10,7 @@ interface Message {
   isPushDraft?: boolean;
   pushDraftContent?: string;
   pushDraftStatus?: 'draft' | 'approved' | 'sent' | 'dismissed';
-  pushTargetGroup?: string;
+  pushTargetGroups?: string[];
 }
 
 export default function RagChat() {
@@ -226,25 +227,35 @@ export default function RagChat() {
         });
         const data = await res.json();
         
-        let targetGroup = "";
+        let targetGroups: string[] = [];
         if (data.suggestedTarget) {
           const query = data.suggestedTarget.toLowerCase();
           
-          // Szukamy najlepszego dopasowania wśród dostępnych grup, użytkowników i opiekunów
-          if (query.includes('wszy')) targetGroup = 'wszyscy';
-          else {
-            const groupMatch = availableGroups.find(g => g.name.toLowerCase().includes(query));
-            if (groupMatch) targetGroup = groupMatch.name;
-            else {
-              const childMatch = availableUsers.flatMap(p => p.children || []).find(c => `${c.firstName} ${c.lastName}`.toLowerCase().includes(query));
-              if (childMatch) targetGroup = childMatch.id;
-              else {
-                const parentMatch = availableUsers.find(p => `${p.name} ${p.email}`.toLowerCase().includes(query));
-                if (parentMatch) targetGroup = parentMatch.email;
+          // Lepszy algorytm dopasowania odwrotnego (szukamy czy części nazw występują w zapytaniu)
+          if (query.includes('wszys')) {
+            targetGroups.push('wszyscy');
+          } else {
+            // Szukamy w dostępnych grupach
+            availableGroups.forEach(g => {
+              if (query.includes(g.name.toLowerCase())) targetGroups.push(g.name);
+            });
+            // Szukamy w uczniach
+            availableUsers.flatMap(p => p.children || []).forEach(c => {
+              if (query.includes(c.firstName.toLowerCase()) || query.includes(c.lastName.toLowerCase())) {
+                targetGroups.push(c.id);
               }
-            }
+            });
+            // Szukamy w rodzicach
+            availableUsers.forEach(p => {
+              if (p.name && (query.includes(p.name.toLowerCase().split(' ')[0]) || query.includes(p.name.toLowerCase().split(' ')[1] || ''))) {
+                targetGroups.push(p.email);
+              }
+            });
           }
         }
+        
+        // Unikalne adresaty
+        targetGroups = [...new Set(targetGroups)];
         
         if (data.draft) draftText = data.draft;
 
@@ -254,7 +265,7 @@ export default function RagChat() {
           text: aiText,
           isPushDraft: true,
           pushDraftContent: draftText,
-          pushTargetGroup: targetGroup,
+          pushTargetGroups: targetGroups,
           pushDraftStatus: 'draft'
         }]);
         if (currentInputMethod === 'voice') speakText(aiText, aiMsgId);
@@ -288,9 +299,9 @@ export default function RagChat() {
   };
 
   const approvePush = async (msgId: string) => {
-    const msg = messages.find(m => m.id === msgId);
-    if (!msg) return;
-    
+    const draftMsg = messages.find(m => m.id === msgId);
+    if (!draftMsg || !draftMsg.pushDraftContent || !draftMsg.pushTargetGroups || draftMsg.pushTargetGroups.length === 0) return;
+
     setMessages(prev => prev.map(m => {
       if (m.id === msgId) {
         return { ...m, pushDraftStatus: 'sending' };
@@ -305,7 +316,11 @@ export default function RagChat() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('jwtToken') || ''}`
         },
-        body: JSON.stringify({ targetGroup: msg.pushTargetGroup, title: 'Antidotum', body: msg.pushDraftContent })
+        body: JSON.stringify({ 
+          targetGroups: draftMsg.pushTargetGroups, 
+          title: 'Antidotum', 
+          body: draftMsg.pushDraftContent 
+        })
       });
       const data = await res.json();
       
@@ -315,7 +330,7 @@ export default function RagChat() {
             return { 
               ...m, 
               pushDraftStatus: 'sent', 
-              text: `✅ Powiadomienie: "${m.pushDraftContent}" zostało pomyślnie wysłane do grupy: ${m.pushTargetGroup} (${data.sentCount} urz.)` 
+              text: `✅ Powiadomienie: "${m.pushDraftContent}" zostało pomyślnie wysłane do ${m.pushTargetGroups?.length} grup/użytkowników (${data.sentCount} urz.)` 
             };
           } else {
             return { ...m, pushDraftStatus: 'sent', text: `❌ Błąd wysyłania: ${data.error}` };
@@ -446,53 +461,53 @@ export default function RagChat() {
                       }}
                     />
 
-                    <div className="flex gap-2 relative mt-3 z-50">
-                      <div className="flex-1">
-                        <SearchableSelect 
-                          value={msg.pushTargetGroup || ''}
-                          onChange={(val) => setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, pushTargetGroup: val } : m))}
-                          placeholder="Wybierz grupę docelową"
-                          groups={[
-                            {
-                              label: 'Ogólne',
-                              options: [{ value: 'wszyscy', label: 'Wszyscy użytkownicy' }]
-                            },
-                            ...(availableGroups.length > 0 ? [{
-                              label: 'Grupy',
-                              options: availableGroups.map(g => ({ value: g.name, label: g.name }))
-                            }] : []),
-                            ...(availableUsers.length > 0 ? [{
-                              label: 'Uczniowie',
-                              options: availableUsers.flatMap(p => p.children || []).map(c => ({
-                                value: c.id,
-                                label: `${c.firstName} ${c.lastName} (${c.groupName || 'Brak Grupy'})`
-                              }))
-                            }] : []),
-                            ...(availableUsers.length > 0 ? [{
-                              label: 'Opiekunowie',
-                              options: availableUsers.map(p => ({
-                                value: p.email,
-                                label: `${p.name || p.email} (Opiekun: ${(p.children || []).map((ch: any) => ch.firstName + ' ' + ch.lastName).join(', ')})`
-                              }))
-                            }] : [])
-                          ]}
-                        />
-                      </div>
-                      <button 
-                        onClick={() => handleVoiceRefinePush(msg.id)}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg font-bold font-sans transition-colors ${isRecordingPush ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-800 hover:bg-gray-700 text-white'}`}
-                      >
-                        <Mic size={16} /> {isRecordingPush ? 'Słucham...' : 'Popraw'}
-                      </button>
+                    <div className="mb-4 relative z-50">
+                      <MultiSelectSearch 
+                        values={msg.pushTargetGroups || []}
+                        onChange={(vals) => setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, pushTargetGroups: vals } : m))}
+                        placeholder="Wybierz grupy docelowe..."
+                        groups={[
+                          {
+                            label: 'Ogólne',
+                            options: [{ value: 'wszyscy', label: 'Wszyscy użytkownicy' }]
+                          },
+                          ...(availableGroups.length > 0 ? [{
+                            label: 'Grupy',
+                            options: availableGroups.map(g => ({ value: g.name, label: g.name }))
+                          }] : []),
+                          ...(availableUsers.length > 0 ? [{
+                            label: 'Uczniowie',
+                            // Deduplikacja uczniów
+                            options: Array.from(new Map(availableUsers.flatMap(p => p.children || []).map(c => [c.id, c])).values()).map((c: any) => ({
+                              value: c.id,
+                              label: `${c.firstName} ${c.lastName} (${c.groupName || 'Brak Grupy'})`
+                            }))
+                          }] : []),
+                          ...(availableUsers.length > 0 ? [{
+                            label: 'Opiekunowie',
+                            // Deduplikacja rodziców
+                            options: Array.from(new Map(availableUsers.map(p => [p.email, p])).values()).map((p: any) => ({
+                              value: p.email,
+                              label: `${p.name || p.email} (Opiekun: ${(p.children || []).map((ch: any) => ch.firstName + ' ' + ch.lastName).join(', ')})`
+                            }))
+                          }] : [])
+                        ]}
+                      />
                     </div>
 
-                    <div className="mt-4">
+                    <div className="flex gap-3">
+                      <button 
+                        onClick={() => handleVoiceRefinePush(msg.id)}
+                        className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold font-sans transition-colors border border-[#4a4a50] ${isRecordingPush ? 'bg-red-500 text-white animate-pulse' : 'bg-[#2a2a30] hover:bg-[#3a3a40] text-white'}`}
+                      >
+                        <Mic size={18} /> {isRecordingPush ? 'Słucham...' : 'Popraw'}
+                      </button>
                       <button 
                         onClick={() => approvePush(msg.id)}
-                        disabled={!msg.pushTargetGroup}
-                        className={`flex-1 text-white py-2 rounded-lg font-bold font-sans flex items-center justify-center gap-2 transition-all hover:scale-105 ${!msg.pushTargetGroup ? 'bg-gray-700 opacity-50 cursor-not-allowed' : 'bg-gradient-to-r from-primary to-primary-dark'}`}
+                        disabled={!msg.pushTargetGroups || msg.pushTargetGroups.length === 0}
+                        className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold font-sans transition-colors ${(!msg.pushTargetGroups || msg.pushTargetGroups.length === 0) ? 'bg-primary/50 text-white/50 cursor-not-allowed' : 'bg-primary hover:bg-primary/90 text-white shadow-lg'}`}
                       >
-                        Wyślij <Check size={18} />
+                        <Send size={18} /> Wyślij
                       </button>
                     </div>
                   </div>
