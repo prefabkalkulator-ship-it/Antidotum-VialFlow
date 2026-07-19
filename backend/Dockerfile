@@ -1,5 +1,5 @@
 # Use official Node.js runtime as a parent image (Lightweight Alpine)
-FROM node:18-alpine
+FROM node:20-alpine
 
 # Set the working directory
 WORKDIR /usr/src/app
