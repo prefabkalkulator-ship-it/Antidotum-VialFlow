@@ -227,31 +227,41 @@ export default function RagChat() {
         const data = await res.json();
         
         let targetGroups: string[] = [];
-        if (data.suggestedTarget) {
-          const query = data.suggestedTarget.toLowerCase();
-          const tType = data.targetType || 'wszyscy';
-          
-          if (tType === 'wszyscy') {
-            targetGroups.push('wszyscy');
-          } else if (tType === 'grupa') {
-            availableGroups.forEach(g => {
-              if (query.includes(g.name.toLowerCase())) targetGroups.push(g.name);
-            });
-          } else if (tType === 'uczen') {
-            availableUsers.flatMap(p => p.children || []).forEach(c => {
-              if (query.includes(c.firstName.toLowerCase()) || query.includes(c.lastName.toLowerCase())) {
-                targetGroups.push(c.id);
-              }
-            });
-          } else if (tType === 'opiekun') {
-            // Skoro AI wskazuje na konkretnego opiekuna po imieniu dziecka:
+        const query = (data.suggestedTarget || originalInput).toLowerCase();
+        const orig = originalInput.toLowerCase();
+        
+        // Zgadujemy intencję na podstawie słów kluczowych w oryginale
+        const isParentIntent = orig.includes('opiekun') || orig.includes('rodzic') || orig.includes('matk') || orig.includes('ojc');
+        const isGroupIntent = orig.includes('grup') || orig.includes('klas') || orig.includes('zajęc');
+        const isStudentIntent = orig.includes('ucze') || orig.includes('uczń') || orig.includes('dzieck');
+
+        if (orig.includes('wszys')) {
+          targetGroups.push('wszyscy');
+        } else {
+          // 1. Sprawdzamy czy to grupa
+          availableGroups.forEach(g => {
+            if (query.includes(g.name.toLowerCase()) || orig.includes(g.name.toLowerCase())) {
+              targetGroups.push(g.name);
+            }
+          });
+
+          // 2. Jeśli chodzi o opiekuna (lub nie znaleźliśmy grupy i nie jest to ewidentnie uczeń)
+          if (isParentIntent || (!isGroupIntent && !isStudentIntent && targetGroups.length === 0)) {
             availableUsers.forEach(p => {
-              const childrenNames = (p.children || []).map((ch: any) => `\${ch.firstName} \${ch.lastName}`.toLowerCase());
-              // Szukamy też czy w nazwie opiekuna lub dzieciach występuje słowo
-              const isMatch = (p.name && p.name.toLowerCase().includes(query)) || childrenNames.some((cn: string) => cn.includes(query) || query.includes(cn.split(' ')[0]));
-              
-              if (isMatch) {
-                targetGroups.push(p.email);
+              const childrenNames = (p.children || []).map((ch: any) => `${ch.firstName} ${ch.lastName}`.toLowerCase());
+              // Szukamy po nazwie opiekuna lub imieniu/nazwisku ucznia
+              const isMatch = (p.name && p.name.toLowerCase().includes(query)) || 
+                              childrenNames.some((cn: string) => cn.includes(query) || query.includes(cn.split(' ')[0]) || orig.includes(cn.split(' ')[0]));
+              if (isMatch) targetGroups.push(p.email);
+            });
+          }
+
+          // 3. Jeśli chodzi o ucznia (lub nadal nic nie mamy)
+          if (isStudentIntent || targetGroups.length === 0) {
+            availableUsers.flatMap(p => p.children || []).forEach(c => {
+              const childName = `${c.firstName} ${c.lastName}`.toLowerCase();
+              if (query.includes(childName) || orig.includes(childName) || query.includes(c.firstName.toLowerCase()) || orig.includes(c.firstName.toLowerCase())) {
+                targetGroups.push(c.id);
               }
             });
           }
