@@ -38,6 +38,23 @@ export default function EventOrchestrator() {
     return () => clearInterval(interval);
   }, []);
 
+  const [availableGroups, setAvailableGroups] = useState<any[]>([]);
+  const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (showPushBuilder) {
+      fetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/groups')
+        .then(res => res.json())
+        .then(data => { if(Array.isArray(data)) setAvailableGroups(data); })
+        .catch(console.error);
+        
+      fetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/users')
+        .then(res => res.json())
+        .then(data => { if(Array.isArray(data)) setAvailableUsers(data); })
+        .catch(console.error);
+    }
+  }, [showPushBuilder]);
+
   const handleAnswerQuestion = async (q: any) => {
     const answer = answerInputs[q.questionId];
     if (!answer) return;
@@ -367,11 +384,33 @@ export default function EventOrchestrator() {
                   onChange={(e) => setPushTargetGroup(e.target.value)}
                 >
                   <option value="" disabled>-- Wybierz kogo powiadomić --</option>
-                  <option value="Wszystkie Grupy">Wszystkie Grupy</option>
-                  <option value="Modern Jazz">Modern Jazz</option>
-                  <option value="Hip-Hop">Hip-Hop</option>
-                  <option value="Balet">Balet</option>
-                  <option value="Rodzice">Tylko Rodzice</option>
+                  <optgroup label="Ogólne">
+                    <option value="wszyscy">Wszyscy użytkownicy</option>
+                  </optgroup>
+                  
+                  {availableGroups.length > 0 && (
+                    <optgroup label="Grupy">
+                      {availableGroups.map(g => (
+                        <option key={g.name} value={g.name}>{g.name}</option>
+                      ))}
+                    </optgroup>
+                  )}
+
+                  {availableUsers.length > 0 && (
+                    <optgroup label="Uczniowie">
+                      {availableUsers.flatMap(p => p.children || []).map(c => (
+                        <option key={c.id} value={c.id}>{c.firstName} {c.lastName} (ID: {c.id})</option>
+                      ))}
+                    </optgroup>
+                  )}
+
+                  {availableUsers.length > 0 && (
+                    <optgroup label="Opiekunowie">
+                      {availableUsers.map(p => (
+                        <option key={p.email} value={p.email}>{p.email} (Opiekun {p.children?.[0]?.lastName || ''})</option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
                 <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
               </div>

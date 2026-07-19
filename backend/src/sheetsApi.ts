@@ -1169,3 +1169,40 @@ export const getPrices = async (): Promise<string> => {
     return 'Brak cennikow (Blad).';
   }
 };
+
+export const setExpoPushToken = async (identifier: string, token: string): Promise<boolean> => {
+  try {
+    const api = await initAuth();
+    if (!api) return false;
+    
+    const usersRes = await api.spreadsheets.values.get({
+      spreadsheetId: USERS_SPREADSHEET_ID,
+      range: 'Baza_Uczniow!A:T',
+    });
+    
+    const rows = usersRes.data.values || [];
+    const searchId = identifier.toLowerCase();
+    
+    // Szukamy pasującego wiersza (ID dziecka, Email Ucznia, Email P1, Email P2)
+    for (let i = 1; i < rows.length; i++) {
+      const childId = (rows[i][0] || '').toLowerCase();
+      const p1Email = (rows[i][7] || '').trim().toLowerCase();
+      const p2Email = (rows[i][10] || '').trim().toLowerCase();
+      const studentEmail = (rows[i][5] || '').trim().toLowerCase();
+      
+      if (childId === searchId || p1Email === searchId || p2Email === searchId || studentEmail === searchId) {
+        await api.spreadsheets.values.update({
+          spreadsheetId: USERS_SPREADSHEET_ID,
+          range: `Baza_Uczniow!T${i + 1}`,
+          valueInputOption: 'USER_ENTERED',
+          requestBody: { values: [[token]] }
+        });
+        return true;
+      }
+    }
+    return true; // nawte jeśli nie znaleźliśmy, nie rzucamy błędem by nie blokować aplikacji
+  } catch(e) {
+    console.error('Błąd zapisywania ExpoPushToken:', e);
+    return false;
+  }
+};
