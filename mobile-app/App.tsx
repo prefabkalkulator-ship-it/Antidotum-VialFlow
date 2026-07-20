@@ -1288,7 +1288,7 @@ function AiCoachScreen() {
   );
 }
 
-function ChatScreen({ isKeyboardVisible, keyboardHeight }: { isKeyboardVisible?: boolean, keyboardHeight?: number }) {
+function ChatScreen({ userData, isKeyboardVisible, keyboardHeight }: { userData?: any, isKeyboardVisible?: boolean, keyboardHeight?: number }) {
   const [viewMode, setViewMode] = useState<'timeline' | 'assistant'>('timeline');
   const [messages, setMessages] = useState<any[]>([{ id: '1', sender: 'ai', text: 'Cześć! Znam regulaminy szkoły i wszystko o eventach. W czym mogę pomóc?' }]);
   const [input, setInput] = useState('');
@@ -1505,7 +1505,37 @@ function ChatScreen({ isKeyboardVisible, keyboardHeight }: { isKeyboardVisible?:
     }
   };
 
-  const announcements: any[] = [];
+  
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  
+  const fetchAnnouncements = async () => {
+    if (!userData) return;
+    try {
+      const res = await apiFetch(`https://vialflow-backend-392406857647.europe-central2.run.app/api/notifications?groupId=${userData.groupId || userData.id || ''}&groupName=${userData.groupName || ''}&email=${userData.email || ''}&childIds=${(userData.children || []).map((c:any)=>c.id).join(',')}&t=${Date.now()}`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        // Parse date for nice display
+        const formatted = data.map(item => {
+          let dateStr = item.date;
+          try {
+            const d = new Date(item.date);
+            dateStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          } catch(e) {}
+          return { ...item, date: dateStr };
+        });
+        setAnnouncements(formatted);
+      }
+    } catch (error) {
+      console.log('Error fetching announcements:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (viewMode === 'timeline') {
+      fetchAnnouncements();
+    }
+  }, [viewMode, userData]);
+
 
   useEffect(() => {
     if (viewMode === 'assistant') {
@@ -1526,7 +1556,7 @@ function ChatScreen({ isKeyboardVisible, keyboardHeight }: { isKeyboardVisible?:
           style={{ flex: 1, paddingVertical: 10, alignItems: 'center', backgroundColor: viewMode === 'timeline' ? COLORS.primary : 'transparent', borderRadius: 15 }}
           onPress={() => setViewMode('timeline')}
         >
-          <Text style={{ color: viewMode === 'timeline' ? '#FFF' : COLORS.textMuted, fontWeight: 'bold' }}>Tablica Ogłoszeń</Text>
+          <Text style={{ color: viewMode === 'timeline' ? '#FFF' : COLORS.textMuted, fontWeight: 'bold' }}>Powiadomienia</Text>
         </TouchableOpacity>
         <TouchableOpacity 
           style={{ flex: 1, paddingVertical: 10, alignItems: 'center', backgroundColor: viewMode === 'assistant' ? COLORS.primary : 'transparent', borderRadius: 15 }}
@@ -1538,7 +1568,8 @@ function ChatScreen({ isKeyboardVisible, keyboardHeight }: { isKeyboardVisible?:
 
       {viewMode === 'timeline' ? (
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-          {announcements.map(a => (
+          {announcements.length === 0 && <Text style={{color: COLORS.textMuted, textAlign: 'center', marginTop: 20}}>Brak powiadomień dla ID: {userData?.id || 'brak'}</Text>}
+            {announcements.map(a => (
             <View key={a.id} style={{ backgroundColor: COLORS.surface, padding: 20, borderRadius: 15, marginBottom: 15, borderWidth: 1, borderColor: '#27272A' }}>
               <Text style={{ color: COLORS.textMuted, fontSize: 12, marginBottom: 5 }}>{a.date}</Text>
               <Text style={{ color: COLORS.text, fontSize: 16, fontWeight: 'bold', marginBottom: 10 }}>{a.title}</Text>
@@ -2417,7 +2448,7 @@ export default function App() {
       {activeTab === 'events' && <EventsScreen childrenInfo={role === 'Rodzic' ? userData?.children?.map((c:any) => ({ id: c.id, name: c.firstName })) : [{ id: userData?.id, name: userData?.firstName }]} />}
       {activeTab === 'payment' && <PaymentScreen childrenInfo={role === 'Rodzic' ? userData?.children?.map((c:any) => ({ id: c.id, name: c.firstName })) : [{ id: userData?.id, name: userData?.firstName }]} />}
       {activeTab === 'coach' && <AiCoachScreen />}
-      {activeTab === 'chat' && <ChatScreen isKeyboardVisible={isKeyboardVisible} keyboardHeight={keyboardHeight} />}
+      {activeTab === 'chat' && <ChatScreen userData={userData} isKeyboardVisible={isKeyboardVisible} keyboardHeight={keyboardHeight} />}
       {activeTab === 'profile' && <ProfileScreen userData={userData} role={role} />}
 
       {/* Bottom Navigation */}

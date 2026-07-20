@@ -9,7 +9,7 @@ import { runEventOrchestration, rewriteEventDocumentWithComment, readEventDocume
 import { initCronJobs, runPassGenerationJob, runPassRemindersJob } from './cron';
 import { processVideo } from './videoPipeline';
 import { chatWithRAG, refreshKnowledgeBase, generatePushDraft, refinePushDraft } from './rag';
-import { getPaymentHistory, addPaymentTransaction, getStudentPasses, getAllPasses, generateStudentPass, payStudentPass, getGroups, getUsersAndParents, addStudent, deleteStudent, updateStudentFullData, approveStudent, getTeamRoles, getSchedule, addAttendance, getEvents, bookEvent, getEventBookings, approveEventBooking, payEventBooking, saveEventQuestion, getPendingEventQuestions, markEventQuestionAsAnswered, updateUserProfile, setParentDeviceToken, removeDeviceToken, updateUserPin, setExpoPushToken } from './sheetsApi';
+import { getPaymentHistory, addPaymentTransaction, getStudentPasses, getAllPasses, generateStudentPass, payStudentPass, getGroups, getUsersAndParents, addStudent, deleteStudent, updateStudentFullData, approveStudent, getTeamRoles, getSchedule, addAttendance, getEvents, bookEvent, getEventBookings, approveEventBooking, payEventBooking, saveEventQuestion, getPendingEventQuestions, markEventQuestionAsAnswered, updateUserProfile, setParentDeviceToken, removeDeviceToken, updateUserPin, setExpoPushToken , saveNotification, getNotificationsForUser } from './sheetsApi';
 import jwt from 'jsonwebtoken';
 import { authenticateJWT } from './middleware';
 import { logConsentToWORM, deleteEphemeralVideo } from './audit';
@@ -49,6 +49,7 @@ app.use((req, res, next) => {
     '/api/tablet/recent-checkins',
     '/api/checkin',
     '/api/groups',
+    '/api/notifications',
     '/api/users'
   ];
   
@@ -63,6 +64,19 @@ app.use((req, res, next) => {
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'VialFlow API is running' });
+});
+
+
+app.get('/api/notifications', async (req, res) => {
+  try {
+    const { groupId, groupName, email, childIds } = req.query;
+    if (!groupId) return res.status(400).json({ error: 'Brak groupId' });
+    const notifications = await getNotificationsForUser(groupId);
+    res.json(notifications);
+  } catch (err) {
+    console.error('Błąd pobierania powiadomień:', err);
+    res.status(500).json({ error: 'Błąd serwera' });
+  }
 });
 
 app.get('/api/groups', async (req, res) => {
@@ -361,7 +375,8 @@ app.post('/api/push/send', async (req, res) => {
         }
       }
   
-      res.json({ success: true, sentCount });
+      await saveNotification(title, body, groups, 'System');
+        res.json({ success: true, sentCount });
     } catch (err) {
       console.error('Błąd API push:', err);
       res.status(500).json({ error: 'Błąd serwera' });

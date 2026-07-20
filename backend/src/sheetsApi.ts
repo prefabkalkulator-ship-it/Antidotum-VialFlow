@@ -99,7 +99,7 @@ export const getUsersAndParents = async () => {
       if (p1Email) {
         if (!parentsMap.has(p1Email)) {
           parentsMap.set(p1Email, {
-            id: `p1-${p1Email}`,
+            id: p1Email,
             name: row[6] || '',
             email: p1EmailRaw,
             phone: row[8] || '',
@@ -112,7 +112,7 @@ export const getUsersAndParents = async () => {
         // Pełnoletni uczeń (nie ma op1Email, ma studentEmail)
         if (!parentsMap.has(child.email)) {
           parentsMap.set(child.email, {
-            id: `adult-${child.email}`,
+            id: child.email,
             name: `${child.firstName} ${child.lastName}`,
             email: child.email,
             phone: row[8] || '', // używany jako telefon kontaktowy dla dorosłych
@@ -129,7 +129,7 @@ export const getUsersAndParents = async () => {
       if (p2Email && p2Email !== p1Email) {
         if (!parentsMap.has(p2Email)) {
           parentsMap.set(p2Email, {
-            id: `p2-${p2Email}`,
+            id: p2Email,
             name: row[9] || '',
             email: p2EmailRaw,
             phone: row[11] || '',
@@ -1212,5 +1212,98 @@ export const setExpoPushToken = async (identifier: string, token: string): Promi
   } catch(e) {
     console.error('Błąd zapisywania ExpoPushToken:', e);
     return false;
+  }
+};
+
+const NOTIFICATIONS_SPREADSHEET_ID = '1FxQQP2yBESSXfCTLFDZcZ68W1pPlVT-174P0J4g4OK0';
+
+// --- POWIADOMIENIA (TABLICA OGŁOSZEŃ) ---
+
+export const saveNotification = async (title: string, content: string, targetGroups: string[], sender: string = 'System') => {
+  try {
+    const api = await initAuth();
+    if (!api) throw new Error('Brak połączenia z Google Sheets');
+    
+    const id = Date.now().toString();
+    const date = new Date().toISOString();
+    const groupsStr = targetGroups.join(',');
+
+    const rowData = [id, date, title, content, groupsStr, sender];
+
+    // Get sheetId for "Powiadomienia"
+    const sheetData = await api.spreadsheets.get({
+      spreadsheetId: NOTIFICATIONS_SPREADSHEET_ID,
+    });
+    const sheet = sheetData.data.sheets?.find((s: any) => s.properties?.title === 'Powiadomienia');
+    const sheetId = sheet ? sheet.properties.sheetId : 0;
+
+    // Insert row at index 1 (between row 1 and 2)
+    await api.spreadsheets.batchUpdate({
+      spreadsheetId: NOTIFICATIONS_SPREADSHEET_ID,
+      requestBody: {
+        requests: [
+          {
+            insertDimension: {
+              range: {
+                sheetId: sheetId,
+                dimension: "ROWS",
+                startIndex: 1,
+                endIndex: 2
+              }
+            }
+          }
+        ]
+      }
+    });
+
+    // Update the newly inserted row
+    await api.spreadsheets.values.update({
+      spreadsheetId: NOTIFICATIONS_SPREADSHEET_ID,
+      range: 'Powiadomienia!A2:F2',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [rowData]
+      }
+    });
+    
+    return { success: true, id };
+  } catch (error) {
+    console.error('[Sheets API] Błąd zapisywania powiadomienia:', error);
+    return { success: false, error: 'Błąd zapisu' };
+  }
+};
+
+export const getNotificationsForUser = async (groupId: string, groupName: string = '', email: string = '', childIds: string = '') => {
+  try {
+    const api = await initAuth();
+    if (!api) throw new Error('Brak połączenia z Google Sheets');
+    
+    const response = await api.spreadsheets.values.get({
+      spreadsheetId: NOTIFICATIONS_SPREADSHEET_ID,
+      range: 'Powiadomienia!A:F',
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length <= 1) return [];
+
+    const data = rows.slice(1).map((row: any) => ({
+      id: row[0] || '',
+      date: row[1] || '',
+      title: row[2] || '',
+      content: row[3] || '',
+      targetGroups: (row[4] || '').split(',').map((g: string) => g.trim()),
+      sender: row[5] || ''
+    })).filter((n: any) => n.id !== ''); // ignore empty
+
+    // Filter by group
+    return data.filter((n: any) => {
+       const hasAll = n.targetGroups.some((g: string) => g.toLowerCase() === 'wszyscy');
+       const childIdsArr = (childIds || '').split(',').filter(Boolean);
+       const hasGroup = n.targetGroups.some((g: string) => g.toLowerCase() === groupId.toLowerCase() || (groupName && g.toLowerCase() === groupName.toLowerCase()) || (email && g.toLowerCase() === email.toLowerCase()) || childIdsArr.some((cid:string) => cid.toLowerCase() === g.toLowerCase()));
+       return hasAll || hasGroup;
+    });
+  } catch (error) {
+    console.error('[Sheets API] Błąd pobierania powiadomień:', error);
+    return [];
   }
 };
