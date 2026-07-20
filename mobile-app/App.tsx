@@ -11,6 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
+import { getFirebaseMessaging, getToken, onMessage } from './firebaseConfig';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -22,6 +23,25 @@ Notifications.setNotificationHandler({
 
 async function registerForPushNotificationsAsync() {
   let token;
+  
+  if (Platform.OS === 'web') {
+    try {
+      const messaging = await getFirebaseMessaging();
+      if (messaging) {
+        const currentToken = await getToken(messaging, { vapidKey: "BP70xxauLvf-G59SJO_ic6MZg7Ml4zYCv3sBPFQDacn0wpDy-SDhrM6tp4GwWbN-X85QORNOw8Ll_4yynGehNd0" });
+        if (currentToken) {
+          console.log("Pomyślnie pobrano token FCM:", currentToken);
+          token = currentToken;
+        } else {
+          console.log("Brak tokenu FCM (zgoda odrzucona?)");
+        }
+      }
+    } catch (e) {
+      console.log('Błąd podczas pobierania tokenu Web Push (FCM):', e);
+    }
+    return token;
+  }
+
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
       name: 'default',
@@ -43,13 +63,18 @@ async function registerForPushNotificationsAsync() {
     }
     try {
       const projectId = Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
-      if (projectId) {
-         token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-      } else {
-         token = (await Notifications.getExpoPushTokenAsync()).data;
-      }
+      const tokenPromise = projectId 
+        ? Notifications.getExpoPushTokenAsync({ projectId }) 
+        : Notifications.getExpoPushTokenAsync();
+        
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Push token timeout po 5s (częsty błąd braku google-services.json)')), 5000)
+      );
+
+      const result = await Promise.race([tokenPromise, timeoutPromise]) as Notifications.ExpoPushToken;
+      token = result.data;
     } catch (e) {
-      console.error(e);
+      console.log('Nie udało się pobrać prawdziwego tokenu:', e);
     }
   }
   return token;
@@ -1969,6 +1994,25 @@ export default function App() {
     const hideSub = Keyboard.addListener('keyboardDidHide', () => { setKeyboardVisible(false); setKeyboardHeight(0); });
     return () => { showSub.remove(); hideSub.remove(); };
   }, []);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      getFirebaseMessaging().then(messaging => {
+        if (messaging) {
+          onMessage(messaging, (payload) => {
+            console.log('Otrzymano powiadomienie (na pierwszym planie):', payload);
+            const title = payload.notification?.title || 'Nowe powiadomienie';
+            const body = payload.notification?.body || '';
+            Alert.alert(title, body);
+            // Fallback for web if Alert is not fully supported
+            if (typeof window !== 'undefined' && window.alert) {
+              window.alert(`${title}\n${body}`);
+            }
+          });
+        }
+      });
+    }
+  }, []);
   
   const [userData, setUserData] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'wallet' | 'payment' | 'coach' | 'chat' | 'events' | 'profile'>('wallet');
@@ -1977,14 +2021,25 @@ export default function App() {
     if (userData) {
       const identifier = userData.id || userData.email;
       if (identifier) {
-        registerForPushNotificationsAsync().then(token => {
-          const finalToken = token || `MOCK-TOKEN-${Math.floor(Math.random()*1000)}`;
-          apiFetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/push/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ identifier, pushToken: finalToken })
-          }).catch(console.error);
-        });
+        registerForPushNotificationsAsync()
+          .then(token => {
+            const finalToken = token || `MOCK-TOKEN-${Math.floor(Math.random()*1000)}`;
+            apiFetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/push/register', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ identifier, pushToken: finalToken })
+            }).catch(console.error);
+          })
+          .catch(e => {
+            // Bezpiecznik jeśli funkcja register rzuci wyjątek (np. Web Incognito)
+            console.log('Błąd przy rejestracji Push (fallback):', e);
+            const finalToken = `MOCK-TOKEN-${Math.floor(Math.random()*1000)}`;
+            apiFetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/push/register', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ identifier, pushToken: finalToken })
+            }).catch(console.error);
+          });
       }
     }
   }, [userData]);

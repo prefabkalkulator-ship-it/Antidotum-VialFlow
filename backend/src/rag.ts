@@ -144,14 +144,21 @@ export async function generatePushDraft(instruction: string) {
     model: 'gemini-2.5-flash',
   });
 
-  const prompt = `Jesteś asystentem redagującym powiadomienia Push. Użytkownik podał następujące instrukcje: "${instruction}". 
-Zredaguj krótkie, uprzejme powiadomienie Push. Popraw błędy, ułóż zgrabne zdanie i dodaj pasujące emoji. Nie używaj cudzysłowów wokół treści.
-Jeśli użytkownik wskazał w tekście do kogo chce wysłać powiadomienie (np. "do opiekunów jana kowalskiego", "dla grupy hip-hop", "do wszystkich"), wyciągnij tę frazę i zapisz w polu 'suggestedTarget'. Jeśli nie wskazano, zostaw puste.
+  const prompt = `Jesteś asystentem szkoły. Użytkownik dyktuje polecenie wysłania powiadomienia: "${instruction}".
+Twoim zadaniem jest zredagowanie GOTOWEJ treści powiadomienia Push skierowanego bezpośrednio do odbiorców (nie powtarzaj polecenia!).
+Na przykład, jeśli użytkownik mówi "wyślij powiadomienie do opiekunów jana kowalskiego że jutro ma przynieść strój", 
+zredaguj: "Drodzy opiekunowie Jana, przypominamy o konieczności przyniesienia stroju na jutrzejsze zajęcia. 👕"
 
-Zwróć odpowiedź WYŁĄCZNIE jako czysty, poprawny obiekt JSON:
+Poprawiaj błędy ortograficzne i gramatyczne (np. "kowalckiego" -> "kowalskiego"), używaj wielkich liter dla imion i nazwisk.
+
+Jeśli wskazano odbiorcę, wyciągnij jego imię/nazwisko/nazwę do 'suggestedTarget' i określ typ w 'targetType' ("opiekun", "uczen", "grupa", "wszyscy").
+Jeśli "opiekunowie jana", to suggestedTarget: "jan kowalski", targetType: "opiekun".
+
+Zwróć odpowiedź WYŁĄCZNIE jako JSON:
 {
   "draft": "Zredagowany tekst powiadomienia 😊",
-  "suggestedTarget": "opiekunowie jana kowalskiego"
+  "suggestedTarget": "jan kowalski",
+  "targetType": "opiekun"
 }`;
 
   try {
@@ -159,16 +166,20 @@ Zwróć odpowiedź WYŁĄCZNIE jako czysty, poprawny obiekt JSON:
       contents: [{ role: 'user', parts: [{ text: prompt }] }]
     });
     let text = aiResponse.response.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
-    if (text.startsWith('\`\`\`json')) {
+    if (text.startsWith('```json')) {
       text = text.replace(/^\`\`\`json/i, '').replace(/\`\`\`$/i, '').trim();
-    } else if (text.startsWith('\`\`\`')) {
+    } else if (text.startsWith('```')) {
       text = text.replace(/^\`\`\`/, '').replace(/\`\`\`$/, '').trim();
     }
     const parsed = JSON.parse(text);
-    return { draft: parsed.draft || instruction, suggestedTarget: parsed.suggestedTarget || '' };
+    return { 
+      draft: parsed.draft || instruction, 
+      suggestedTarget: parsed.suggestedTarget || '',
+      targetType: parsed.targetType || 'wszyscy'
+    };
   } catch(e) {
     console.error('[RAG] Błąd generatePushDraft:', e);
-    return { draft: instruction, suggestedTarget: '' };
+    return { draft: instruction, suggestedTarget: '', targetType: 'wszyscy' };
   }
 }
 
