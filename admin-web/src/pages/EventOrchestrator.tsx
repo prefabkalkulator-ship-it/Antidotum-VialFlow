@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Calendar, Image as ImageIcon, Folder, Wand2, Loader2, CheckCircle, Mic, Square, Bell, ChevronDown, Send, Inbox, Reply } from 'lucide-react';
+import { Calendar, Image as ImageIcon, Folder, Wand2, Loader2, CheckCircle, Mic, Square, Bell, ChevronDown, Send, Volume2 } from 'lucide-react';
 import { MultiSelectSearch } from '../components/MultiSelectSearch';
 
 type Message = { role: 'user' | 'assistant', content: string };
@@ -18,29 +18,54 @@ export default function EventOrchestrator() {
   const [pushContent, setPushContent] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // INBOX PYTAŃ
-  const [pendingQuestions, setPendingQuestions] = useState<any[]>([]);
-  const [answerInputs, setAnswerInputs] = useState<Record<string, string>>({});
-  const [answering, setAnswering] = useState<Record<string, boolean>>({});
-
-  const fetchQuestions = async () => {
-    try {
-      const res = await fetch('http://localhost:3000/api/events/questions/pending');
-      const data = await res.json();
-      if (Array.isArray(data)) setPendingQuestions(data);
-    } catch(e) {
-      console.error(e);
-    }
-  };
-
-  useEffect(() => {
-    fetchQuestions();
-    const interval = setInterval(fetchQuestions, 10000);
-    return () => clearInterval(interval);
-  }, []);
+  // Metoda wprowadzania i odtwarzanie TTS
+  const [inputMethod, setInputMethod] = useState<'text' | 'voice'>('text');
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speakingMsgIndex, setSpeakingMsgIndex] = useState<number | null>(null);
 
   const [availableGroups, setAvailableGroups] = useState<any[]>([]);
   const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+
+  // Referencja do Web Speech API Recognition
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Inicjalizacja Web Speech API
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const rec = new SpeechRecognition();
+      rec.continuous = true;
+      rec.interimResults = false;
+      rec.lang = 'pl-PL';
+
+      rec.onresult = (event: any) => {
+        let finalTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          }
+        }
+        if (finalTranscript.trim()) {
+          setInput(prev => prev ? prev + ' ' + finalTranscript.trim() : finalTranscript.trim());
+        }
+      };
+
+      rec.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setIsRecording(false);
+      };
+
+      rec.onend = () => {
+        setIsRecording(false);
+      };
+
+      recognitionRef.current = rec;
+    }
+  }, []);
 
   useEffect(() => {
     if (showPushBuilder) {
@@ -56,81 +81,58 @@ export default function EventOrchestrator() {
     }
   }, [showPushBuilder]);
 
-  const handleAnswerQuestion = async (q: any) => {
-    const answer = answerInputs[q.questionId];
-    if (!answer) return;
-    setAnswering(prev => ({...prev, [q.questionId]: true}));
-    setLogs(prev => [...prev, `⏳ Przepisywanie GDocs przez AI dla pytań: ${q.questionId}...`]);
-    try {
-      const res = await fetch(`http://localhost:3000/api/events/questions/${q.sheetRow}/answer`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ docId: q.docId, originalQuestion: q.text, author: q.author, answer })
-      });
-      const data = await res.json();
-      if(data.success) {
-        setLogs(prev => [...prev, `✅ Odpowiedziano na pyt od ${q.author}. Dokument wydarzenia zaktualizowany!`]);
-        fetchQuestions();
-      } else {
-        alert('Błąd przepisywania: ' + data.error);
-        setLogs(prev => [...prev, `❌ Błąd nadpisywania dokumentu. Vertex AI forbidden?`]);
+  const handleStartRecording = () => {
+    if (recognitionRef.current) {
+      setInputMethod('voice');
+      try {
+        recognitionRef.current.start();
+        setIsRecording(true);
+        setLogs(prev => [...prev, '🎤 Nasłuchiwanie głosu aktywne (ciągłe). Mów teraz...']);
+      } catch (e) {
+        console.error(e);
       }
-    } catch(e) {
-      alert('Błąd sieci.');
-    }
-    setAnswering(prev => ({...prev, [q.questionId]: false}));
-  };
-
-  // Referencje do nagrywania głosu
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const handleStartRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) audioChunksRef.current.push(event.data);
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        await transcribeAudio(audioBlob);
-        stream.getTracks().forEach(track => track.stop());
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-      setLogs(prev => [...prev, '🎤 Nagrywanie głosu rozpoczęte...']);
-    } catch (err) {
-      console.error(err);
-      alert('Brak dostępu do mikrofonu!');
+    } else {
+      alert('Rozpoznawanie mowy nie jest obsługiwane w Twojej przeglądarce.');
     }
   };
 
   const handleStopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
+    if (recognitionRef.current && isRecording) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
       setIsRecording(false);
-      setLogs(prev => [...prev, '⏹️ Przetwarzanie nagrania przez AI...']);
+      setLogs(prev => [...prev, '⏹️ Zakończono nagrywanie. Możesz edytować tekst i kliknąć Wyślij.']);
     }
   };
 
-  const transcribeAudio = async (audioBlob: Blob) => {
-    setIsProcessing(true);
-    // Symulacja wysyłki do Gemini 2.5 Flash Audio API dla dema
-    setTimeout(() => {
-      setInput('Organizujemy coroczny turniej tańca Winter Cup, 15 grudnia o 10:00.');
-      setIsProcessing(false);
-      setLogs(prev => [...prev, '✅ Transkrypcja gotowa. Możesz ją poprawić lub wysłać.']);
-    }, 2000);
+  const handleSpeak = (text: string, msgIndex: number) => {
+    if ('speechSynthesis' in window) {
+      if (isSpeaking && speakingMsgIndex === msgIndex) {
+        window.speechSynthesis.cancel();
+        setIsSpeaking(false);
+        setSpeakingMsgIndex(null);
+        return;
+      }
+
+      window.speechSynthesis.cancel();
+      const cleanText = text.replace(/[\*\#\_\[\]\(\)]|📄|📁|✅/g, '');
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.lang = 'pl-PL';
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        setSpeakingMsgIndex(null);
+      };
+      utterance.onerror = () => {
+        setIsSpeaking(false);
+        setSpeakingMsgIndex(null);
+      };
+      setIsSpeaking(true);
+      setSpeakingMsgIndex(msgIndex);
+      window.speechSynthesis.speak(utterance);
+    } else {
+      alert('Synteza mowy nie jest obsługiwana w Twojej przeglądarce.');
+    }
   };
 
   const [draftImage, setDraftImage] = useState<string | null>(null);
@@ -140,23 +142,38 @@ export default function EventOrchestrator() {
   const handleSendMessage = async () => {
     if (!input.trim()) return;
     
+    // Stop recording if active
+    handleStopRecording();
+    // Stop speaking if active
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      setSpeakingMsgIndex(null);
+    }
+
     const userMsg: Message = { role: 'user', content: input };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput('');
     setIsProcessing(true);
 
+    const currentInputMethod = inputMethod;
+
     try {
-      const response = await fetch('http://localhost:3000/api/orchestrate', {
+      const response = await fetch('/api/orchestrate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: newMessages }),
       });
 
       const data = await response.json();
+      const nextIndex = newMessages.length;
 
       if (data.status === 'ask' || data.status === 'preview') {
         setMessages([...newMessages, { role: 'assistant', content: data.message }]);
+        if (currentInputMethod === 'voice') {
+          setTimeout(() => handleSpeak(data.message, nextIndex), 100);
+        }
       } else if (data.status === 'complete') {
         const docLink = data.docId && data.docId !== 'brak-id' ? `https://docs.google.com/document/d/${data.docId}/edit` : null;
         const folderLink = data.folderId && data.folderId !== 'brak-id' ? `https://drive.google.com/drive/folders/${data.folderId}` : null;
@@ -164,29 +181,45 @@ export default function EventOrchestrator() {
           docLink ? `📄 [Otwórz opis wydarzenia](${docLink})` : '',
           folderLink ? `📁 [Otwórz folder na Dysku](${folderLink})` : ''
         ].filter(Boolean).join('\n');
-        setMessages([...newMessages, { role: 'assistant', content: `✅ Wydarzenie "${data.eventName}" zostało utworzone!\n\n${linksPart}` }]);
+        
+        const completeMsg = `✅ Wydarzenie "${data.eventName}" zostało utworzone!\n\n${linksPart}`;
+        setMessages([...newMessages, { role: 'assistant', content: completeMsg }]);
         
         setLogs(prev => [
           ...prev, 
           '✅ Foldery utworzone.',
           '✅ Wydarzenie w kalendarzu dodane.',
           '✅ Dokument z auto-aktualizowanym opisem utworzony.',
-          'Generowanie wstępnego szkicu plakatu w Imagen...'
+          'Generowanie plakatu w Imagen...'
         ]);
         
+        if (currentInputMethod === 'voice') {
+          setTimeout(() => handleSpeak(`Wydarzenie ${data.eventName} zostało utworzone.`, nextIndex), 100);
+        }
+
         setTimeout(() => {
           setDraftImage('https://via.placeholder.com/400x500/F472B6/000000?text=Szkic+Plakatu');
-          setLogs(prev => [...prev, '✅ Szkic plakatu gotowy do oceny.']);
+          setLogs(prev => [...prev, '✅ Plakat gotowy do oceny.']);
           setDraftMode(false);
         }, 3000);
       } else {
-        setMessages([...newMessages, { role: 'assistant', content: `Wystąpił błąd: ${data.message || 'Nieznany błąd'}` }]);
+        const errorMsg = `Wystąpił błąd: ${data.message || 'Nieznany błąd'}`;
+        setMessages([...newMessages, { role: 'assistant', content: errorMsg }]);
+        if (currentInputMethod === 'voice') {
+          setTimeout(() => handleSpeak(errorMsg, nextIndex), 100);
+        }
       }
     } catch (error) {
-      setMessages([...newMessages, { role: 'assistant', content: 'Krytyczny błąd połączenia z serwerem.' }]);
+      const critError = 'Krytyczny błąd połączenia z serwerem.';
+      const nextIndex = newMessages.length;
+      setMessages([...newMessages, { role: 'assistant', content: critError }]);
+      if (currentInputMethod === 'voice') {
+        setTimeout(() => handleSpeak(critError, nextIndex), 100);
+      }
     }
     
     setIsProcessing(false);
+    setInputMethod('text'); // reset to default
   };
 
   const handleRefine = () => {
@@ -213,18 +246,18 @@ export default function EventOrchestrator() {
     <div className="p-0 md:p-8 max-w-6xl mx-auto h-full flex flex-col">
       <div className="mb-2 md:mb-8 px-2 md:px-0">
         <h1 className="text-3xl md:text-4xl font-heading font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-light mb-2">Orkiestrator Wydarzeń</h1>
-        <p className="text-gray-400 font-sans">Podyktuj wizję wydarzenia. AI zapyta o braki i przygotuje pliki, dyskusje na Google Docs oraz grafikę.</p>
+        <p className="text-gray-400 font-sans">Zaproponuj wydarzenie. AI zapyta o braki i przygotuje pliki, dyskusje na Google Docs oraz grafikę.</p>
       </div>
 
       <div className="bg-surface rounded-none md:rounded-2xl border-0 md:border border-gray-800 p-0 md:p-6 shadow-2xl relative overflow-hidden flex-1 flex flex-col md:flex-row gap-0 md:gap-6 min-h-0">
         
         {/* Lewa kolumna: Czat z AI Asystentem */}
         <div className="flex-1 flex flex-col gap-4">
-          <div className="flex-1 bg-[#0B0B0C] border-0 md:border border-gray-800 rounded-none md:rounded-xl p-0 md:p-4 overflow-y-auto flex flex-col gap-4 shadow-inner">
+          <div className="flex-1 bg-[#0B0B0C] border-0 md:border border-gray-800 rounded-none md:rounded-xl p-4 overflow-y-auto flex flex-col gap-4 shadow-inner">
             {messages.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] rounded-xl p-4 ${msg.role === 'user' ? 'bg-primary text-white' : 'bg-gray-800 text-gray-200'}`}>
-                  <p className="whitespace-pre-wrap font-sans text-sm">
+                <div className={`max-w-[80%] rounded-xl p-4 relative group ${msg.role === 'user' ? 'bg-primary text-white' : 'bg-gray-800 text-gray-200'}`}>
+                  <p className="whitespace-pre-wrap font-sans text-sm pr-6">
                     {msg.role === 'assistant'
                       ? msg.content.split(/\n/).map((line, li) => {
                           const linkMatch = line.match(/^(.*)\[(.+?)\]\((.+?)\)(.*)$/);
@@ -236,6 +269,21 @@ export default function EventOrchestrator() {
                       : msg.content
                     }
                   </p>
+                  
+                  {/* Przycisk TTS dla odpowiedzi AI */}
+                  {msg.role === 'assistant' && (
+                    <button
+                      onClick={() => handleSpeak(msg.content, i)}
+                      className="absolute right-2 top-2 text-primary hover:text-white transition-colors"
+                      title={isSpeaking && speakingMsgIndex === i ? 'Zatrzymaj odtwarzanie' : 'Odsłuchaj'}
+                    >
+                      {isSpeaking && speakingMsgIndex === i ? (
+                        <Square size={14} fill="currentColor" />
+                      ) : (
+                        <Volume2 size={14} />
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -254,7 +302,10 @@ export default function EventOrchestrator() {
               className="w-full bg-[#18181B] border border-gray-700 rounded-xl pl-3 md:pl-4 pr-24 md:pr-32 py-3 md:py-4 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none h-20 shadow-lg text-sm md:text-base"
               placeholder="Odpowiedz tutaj lub użyj mikrofonu..."
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                setInputMethod('text');
+              }}
               onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
               disabled={!draftMode || isProcessing}
             />
@@ -431,7 +482,7 @@ export default function EventOrchestrator() {
                   setShowPushBuilder(false);
                 }}
                 className={`flex-1 py-3 rounded-xl font-bold font-sans flex items-center justify-center gap-2 transition-all ${
-                  !pushTargetGroup ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gradient-to-r from-primary to-primary-dark text-white hover:scale-105 shadow-[0_0_15px_rgba(244,114,182,0.3)]'
+                  pushTargetGroups.length === 0 ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gradient-to-r from-primary to-primary-dark text-white hover:scale-105 shadow-[0_0_15px_rgba(244,114,182,0.3)]'
                 }`}
               >
                 Wyślij Push <CheckCircle size={18} />
