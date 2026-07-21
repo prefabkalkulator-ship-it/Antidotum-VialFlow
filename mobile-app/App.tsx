@@ -457,7 +457,23 @@ const EventsScreen = ({ childrenInfo }: { childrenInfo: { id: string, name: stri
     if (!commentText.trim()) return;
     setSendingComment(true);
     try {
-      const author = (childrenInfo && childrenInfo.length > 0) ? childrenInfo[0].name : 'Użytkownik';
+      const childObj = (childrenInfo && childrenInfo.length > 0) ? childrenInfo[0] : null;
+      let author = 'Użytkownik';
+      if (childObj) {
+        if (childObj.firstName && childObj.lastName) {
+          author = `${childObj.firstName} ${childObj.lastName}`;
+        } else if (childObj.name) {
+          author = childObj.name;
+        }
+      } else if (userData) {
+        if (userData.firstName && userData.lastName) {
+          author = `${userData.firstName} ${userData.lastName}`;
+        } else if (userData.name) {
+          author = userData.name;
+        } else if (userData.email) {
+          author = userData.email;
+        }
+      }
       const res = await apiFetch(`https://vialflow-backend-392406857647.europe-central2.run.app/api/events/questions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
