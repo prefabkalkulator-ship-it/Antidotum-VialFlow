@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, CheckCircle, Sparkles, Mic, MicOff, RefreshCw, Send, X, AlertCircle } from 'lucide-react';
+import { MessageSquare, CheckCircle, Sparkles, Mic, MicOff, RefreshCw, Send, X, AlertCircle, Calendar, User } from 'lucide-react';
 
 interface QuestionItem {
   sheetRow: number;
   questionId: string;
   docId: string;
+  eventId?: string;
+  eventTitle?: string;
   author: string;
   text: string;
   date: string;
@@ -163,12 +165,12 @@ export default function EventQuestions({ onCountChange }: { onCountChange?: (cou
             <MessageSquare className="text-primary" size={32} /> Pytania & Komentarze
           </h1>
           <p className="text-gray-400 mt-1">
-            Zarządzaj otwartymi pytaniami od uczniów oraz wprowadzaj wytyczne dla AI do aktualizacji opisów w Google Docs.
+            Zarządzaj pytaniami od uczestników i uzupełniaj opisy wydarzeń w Google Docs.
           </p>
         </div>
         <button 
           onClick={fetchQuestions}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-gray-800 text-gray-300 hover:text-white hover:border-gray-700 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-gray-800 text-gray-300 hover:text-white hover:border-gray-700 transition-colors shrink-0"
         >
           <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
           Odśwież
@@ -193,29 +195,41 @@ export default function EventQuestions({ onCountChange }: { onCountChange?: (cou
           <p className="text-gray-400">Wszystkie zapytania od uczniów zostały rozwiązane lub przeczytane.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {questions.map((q) => (
-            <div key={q.sheetRow} className="bg-surface border border-gray-800 rounded-2xl p-6 flex flex-col justify-between hover:border-gray-700 transition-colors">
+            <div key={q.sheetRow} className="bg-surface border border-gray-800 rounded-2xl p-5 flex flex-col justify-between hover:border-gray-700 transition-colors shadow-lg">
               <div>
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-xs font-bold px-3 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">
-                    Oczekujące
+                {/* Nagłówek wydarzenia */}
+                <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 mb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Calendar size={16} className="text-primary shrink-0" />
+                    <span className="text-sm font-bold text-primary truncate">
+                      {q.eventTitle || 'Wydarzenie'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
+                    Oczekuje
                   </span>
-                  <span className="text-xs text-gray-500">{new Date(q.date).toLocaleString('pl-PL')}</span>
                 </div>
-                <h4 className="text-lg font-bold text-white mb-1">Autor: {q.author}</h4>
-                <p className="text-xs text-gray-500 mb-4 font-mono">Doc ID: {q.docId}</p>
-                <div className="bg-black/50 border border-gray-800 rounded-xl p-4 mb-6">
-                  <p className="text-gray-200 text-sm leading-relaxed">"{q.text}"</p>
+
+                <div className="flex items-center justify-between text-xs text-gray-400 mb-3">
+                  <span className="flex items-center gap-1 font-bold text-gray-300">
+                    <User size={14} className="text-gray-500" /> {q.author}
+                  </span>
+                  <span>{new Date(q.date).toLocaleDateString('pl-PL')}</span>
+                </div>
+
+                <div className="bg-black/60 border border-gray-800 rounded-xl p-3.5 mb-5">
+                  <p className="text-gray-200 text-sm leading-relaxed italic">"{q.text}"</p>
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-4 border-t border-gray-800">
+              <div className="flex gap-2 pt-3 border-t border-gray-800">
                 <button
                   onClick={() => handleMarkAsRead(q.sheetRow)}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors text-sm font-semibold"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors text-xs font-semibold"
                 >
-                  <CheckCircle size={16} /> Przeczytane
+                  <CheckCircle size={14} /> Przeczytane
                 </button>
                 <button
                   onClick={() => {
@@ -223,9 +237,9 @@ export default function EventQuestions({ onCountChange }: { onCountChange?: (cou
                     setDirective('');
                     setPreviewDraft('');
                   }}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-primary to-primary-dark text-white transition-all hover:shadow-[0_0_15px_rgba(244,114,182,0.4)] text-sm font-bold"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-gradient-to-r from-primary to-primary-dark text-white transition-all hover:shadow-[0_0_15px_rgba(244,114,182,0.4)] text-xs font-bold"
                 >
-                  <Sparkles size={16} /> Reakcja (AI)
+                  <Sparkles size={14} /> Reakcja (AI)
                 </button>
               </div>
             </div>
@@ -233,18 +247,20 @@ export default function EventQuestions({ onCountChange }: { onCountChange?: (cou
         </div>
       )}
 
-      {/* Modal Reakcji (AI Rewrite) */}
+      {/* Modal Reakcji AI (Przepływ Dymkowy) */}
       {activeQuestion && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-surface border border-gray-800 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl">
-            <div className="p-6 border-b border-gray-800 flex items-center justify-between">
+          <div className="bg-surface border border-gray-800 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            
+            {/* Header Dialogu */}
+            <div className="p-5 border-b border-gray-800 flex items-center justify-between bg-surface">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-primary-light flex items-center justify-center text-background font-bold shadow-[0_0_15px_rgba(244,114,182,0.3)]">
                   <Sparkles size={20} />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-white">Reakcja & Korekta przez AI</h3>
-                  <p className="text-xs text-gray-400">Pytanie od: {activeQuestion.author}</p>
+                  <h3 className="text-lg font-bold text-white">Reakcja Organizatora (AI)</h3>
+                  <p className="text-xs text-gray-400">Pytanie uczestnika: <span className="text-primary font-semibold">{activeQuestion.author}</span></p>
                 </div>
               </div>
               <button 
@@ -255,15 +271,28 @@ export default function EventQuestions({ onCountChange }: { onCountChange?: (cou
               </button>
             </div>
 
-            <div className="p-6 overflow-y-auto space-y-6 flex-1">
-              <div className="bg-black/50 border border-gray-800 p-4 rounded-xl">
-                <span className="text-xs font-bold text-gray-400 block mb-1">Treść pytania:</span>
-                <p className="text-white text-sm">"{activeQuestion.text}"</p>
+            <div className="p-6 overflow-y-auto space-y-6 flex-1 bg-[#0B0B0C]">
+              
+              {/* Dymek 1: Pytanie od Uczestnika */}
+              <div className="flex flex-col items-start max-w-[90%]">
+                <div className="bg-gray-800/90 border border-gray-700 text-gray-100 rounded-2xl rounded-tl-none p-4 shadow-md w-full">
+                  <div className="text-xs font-bold text-primary mb-1 flex items-center gap-1.5">
+                    <Calendar size={13} /> {activeQuestion.eventTitle || 'Wydarzenie'}
+                  </div>
+                  <p className="text-sm font-medium leading-relaxed">"{activeQuestion.text}"</p>
+                  <span className="text-[10px] text-gray-400 mt-2 block text-right">Autor: {activeQuestion.author}</span>
+                </div>
+                
+                {/* Dopisek pod dymkiem pytania */}
+                <div className="mt-2 text-xs font-bold text-primary flex items-center gap-1.5 pl-2">
+                  <span>👉 Co dodać do opisu wydarzenia?</span>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-bold text-gray-300 mb-2 flex items-center justify-between">
-                  <span>Wytyczne dla AI (Dyktuj lub Wpisz):</span>
+              {/* Obszar Dyktowania / Wprowadzania wytycznych */}
+              <div className="bg-surface border border-gray-800 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-300">Wpisz lub podyktuj wytyczną:</span>
                   <button
                     type="button"
                     onClick={toggleRecording}
@@ -276,58 +305,68 @@ export default function EventQuestions({ onCountChange }: { onCountChange?: (cou
                     {isRecording ? <MicOff size={14} /> : <Mic size={14} />}
                     {isRecording ? 'Nagrywanie...' : 'Dyktuj głosowo'}
                   </button>
-                </label>
+                </div>
                 <textarea
                   value={directive}
                   onChange={e => setDirective(e.target.value)}
-                  placeholder="Napisz lub podyktuj instrukcję (np. Dopisz, że na konkurs wymagane są tylko różowe stroje)..."
-                  className="w-full bg-background border border-gray-700 rounded-xl p-4 text-white placeholder-gray-500 focus:border-primary focus:outline-none min-h-[90px] text-sm"
+                  placeholder="np. Dopisz, że na półkolonie obowiązują tylko różowe stroje..."
+                  className="w-full bg-black/60 border border-gray-700 rounded-xl p-3.5 text-white placeholder-gray-500 focus:border-primary focus:outline-none min-h-[80px] text-sm resize-none"
                 />
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleGeneratePreview}
+                    disabled={isGenerating || !directive.trim()}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary to-primary-dark hover:brightness-110 text-white rounded-xl font-bold text-xs transition-all disabled:opacity-50 shadow-md"
+                  >
+                    {isGenerating ? <RefreshCw className="animate-spin" size={14} /> : <Sparkles size={14} />}
+                    {isGenerating ? 'Przepisywanie opisu...' : 'Generuj zmianę (AI)'}
+                  </button>
+                </div>
               </div>
 
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={handleGeneratePreview}
-                  disabled={isGenerating}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white rounded-xl font-bold text-sm transition-colors"
-                >
-                  {isGenerating ? <RefreshCw className="animate-spin" size={16} /> : <Sparkles size={16} className="text-primary" />}
-                  {isGenerating ? 'Generowanie...' : 'Generuj zmianę (AI)'}
-                </button>
-              </div>
-
+              {/* Dymek 2: Propozycja Nowej Treści AI */}
               {previewDraft && (
-                <div className="space-y-3 pt-4 border-t border-gray-800">
-                  <label className="block text-sm font-bold text-primary flex items-center gap-2">
-                    <Sparkles size={16} /> Propozycja nowej treści dokumentu GDocs:
-                  </label>
-                  <textarea
-                    value={previewDraft}
-                    onChange={e => setPreviewDraft(e.target.value)}
-                    rows={10}
-                    className="w-full bg-black border border-gray-700 rounded-xl p-4 text-gray-200 text-sm font-mono focus:border-primary focus:outline-none"
-                  />
+                <div className="flex flex-col items-end w-full space-y-2 animate-fadeIn">
+                  <div className="bg-primary/10 border border-primary/30 text-gray-100 rounded-2xl rounded-tr-none p-4 shadow-lg w-full">
+                    <div className="text-xs font-bold text-primary mb-2 flex items-center gap-1.5">
+                      <Sparkles size={14} /> Propozycja zaktualizowanego opisu .gdocx:
+                    </div>
+                    <textarea
+                      value={previewDraft}
+                      onChange={e => setPreviewDraft(e.target.value)}
+                      rows={8}
+                      className="w-full bg-black/80 border border-gray-700 rounded-xl p-3 text-gray-200 text-xs font-mono focus:border-primary focus:outline-none leading-relaxed"
+                    />
+                  </div>
+
+                  {/* Dopisek pod odpowiedzią AI */}
+                  <div className="text-xs font-bold text-amber-400 flex items-center gap-1.5 pr-2">
+                    <span>⚠️ Proszę zatwierdzić zmianę</span>
+                  </div>
                 </div>
               )}
+
             </div>
 
-            <div className="p-6 border-t border-gray-800 flex justify-end gap-3 bg-surface">
+            {/* Footer z Przyciskami */}
+            <div className="p-5 border-t border-gray-800 flex justify-end gap-3 bg-surface">
               <button
                 onClick={() => setActiveQuestion(null)}
-                className="px-5 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold text-sm transition-colors"
+                className="px-5 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold text-xs transition-colors"
               >
                 Anuluj
               </button>
               <button
                 onClick={handleApproveRewrite}
                 disabled={!previewDraft || isSubmitting}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary hover:bg-primary-dark text-white font-bold text-sm transition-all disabled:opacity-50"
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-green-600 hover:bg-green-500 text-white font-bold text-xs transition-all disabled:opacity-50 shadow-[0_0_15px_rgba(22,163,74,0.3)]"
               >
-                {isSubmitting ? <RefreshCw className="animate-spin" size={16} /> : <Send size={16} />}
-                {isSubmitting ? 'Zapisywanie...' : 'Zatwierdź i Nadpisz GDocs'}
+                {isSubmitting ? <RefreshCw className="animate-spin" size={14} /> : <Send size={14} />}
+                {isSubmitting ? 'Zapisywanie w GDocs...' : 'Zatwierdź zmianę'}
               </button>
             </div>
+
           </div>
         </div>
       )}

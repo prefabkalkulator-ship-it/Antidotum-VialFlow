@@ -1127,23 +1127,37 @@ export const getPendingEventQuestions = async () => {
     if (!api) return [];
     
     try {
-      const res = await api.spreadsheets.values.get({
-        spreadsheetId: EVENTS_SPREADSHEET_ID,
-        range: 'Pytania!A:F',
-      });
-      const rows = res.data.values;
+      // Pobieramy pytania (A:G) oraz listę wydarzeń, aby sparować nazwę wydarzenia
+      const [questionsRes, events] = await Promise.all([
+        api.spreadsheets.values.get({
+          spreadsheetId: EVENTS_SPREADSHEET_ID,
+          range: 'Pytania!A:G',
+        }),
+        getEvents()
+      ]);
+
+      const rows = questionsRes.data.values;
       if (!rows || rows.length <= 1) return [];
 
-      return rows.map((row: any[], index: number) => ({
-        sheetRow: index + 1,
-        questionId: row[0] || '',
-        docId: row[1] || '',
-        author: row[2] || '',
-        text: row[3] || '',
-        date: row[4] || '',
-        status: row[5] || ''
-      })).filter((q: any) => q.status && q.status !== 'Status' && !q.status.includes('Rozwiąz') && !q.status.includes('Przeczyt'));
+      return rows.map((row: any[], index: number) => {
+        const docId = row[1] || '';
+        const eventId = row[6] || '';
+        const matchedEvent = events.find((e: any) => (eventId && e.id === eventId) || (docId && (e.docId === docId || e.description === docId)));
+        
+        return {
+          sheetRow: index + 1,
+          questionId: row[0] || '',
+          docId: docId,
+          eventId: eventId,
+          eventTitle: matchedEvent ? matchedEvent.title : 'Wydarzenie',
+          author: row[2] || '',
+          text: row[3] || '',
+          date: row[4] || '',
+          status: row[5] || ''
+        };
+      }).filter((q: any) => q.status && q.status !== 'Status' && !q.status.includes('Rozwiąz') && !q.status.includes('Przeczyt'));
     } catch(e) {
+      console.error('Błąd wczytywania pytań i wydarzeń:', e);
       return [];
     }
   } catch (err) {

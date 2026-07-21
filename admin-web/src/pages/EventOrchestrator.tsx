@@ -218,45 +218,8 @@ export default function EventOrchestrator() {
 
       <div className="bg-surface rounded-none md:rounded-2xl border-0 md:border border-gray-800 p-0 md:p-6 shadow-2xl relative overflow-hidden flex-1 flex flex-col md:flex-row gap-0 md:gap-6 min-h-0">
         
-        {/* Lewa kolumna: Skrzynka Pytan i Czat */}
+        {/* Lewa kolumna: Czat z AI Asystentem */}
         <div className="flex-1 flex flex-col gap-4">
-          
-          {/* Skrzynka Pytań */}
-          {pendingQuestions.length > 0 && (
-            <div className="bg-[#18181B] border border-primary rounded-xl p-4 shadow-lg">
-              <h3 className="text-primary font-bold font-heading mb-3 flex items-center gap-2">
-                <Inbox size={18} /> Skrzynka Pytań od Uczestników ({pendingQuestions.length})
-              </h3>
-              <div className="max-h-48 overflow-y-auto pr-2">
-                {pendingQuestions.map((q) => (
-                  <div key={q.questionId} className="bg-[#0B0B0C] border border-gray-800 rounded-lg p-3 mb-3">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="text-xs text-gray-500 font-bold">Od: {q.author}</span>
-                      <span className="text-xs text-gray-600">{new Date(q.date).toLocaleString()}</span>
-                    </div>
-                    <p className="text-sm text-gray-200 mb-3 font-sans italic">"{q.text}"</p>
-                    <div className="flex gap-2">
-                      <input 
-                        type="text" 
-                        value={answerInputs[q.questionId] || ''}
-                        onChange={e => setAnswerInputs(prev => ({...prev, [q.questionId]: e.target.value}))}
-                        placeholder="Napisz odpowiedź (AI zaktualizuje GDocs)..."
-                        className="flex-1 bg-[#18181B] border border-gray-700 text-sm text-white focus:outline-none focus:border-primary rounded-lg px-3 py-2"
-                      />
-                      <button 
-                        onClick={() => handleAnswerQuestion(q)}
-                        disabled={answering[q.questionId] || !answerInputs[q.questionId]}
-                        className="bg-primary hover:bg-primary-dark text-white px-3 py-2 rounded-lg transition-all disabled:opacity-50 flex items-center justify-center"
-                      >
-                        {answering[q.questionId] ? <Loader2 size={16} className="animate-spin" /> : <Reply size={16} />}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           <div className="flex-1 bg-[#0B0B0C] border-0 md:border border-gray-800 rounded-none md:rounded-xl p-0 md:p-4 overflow-y-auto flex flex-col gap-4 shadow-inner">
             {messages.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
