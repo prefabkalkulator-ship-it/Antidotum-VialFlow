@@ -776,7 +776,8 @@ export const getEvents = async () => {
       startDate: row[3] || '',
       endDate: row[4] || '',
       cost: row[5] || '',
-      description: row[6] || ''
+      description: row[6] || '',
+      docId: row[6] || ''
     }));
   } catch (error) {
     console.error('Błąd pobierania wydarzeń:', error);

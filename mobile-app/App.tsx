@@ -533,7 +533,7 @@ const EventsScreen = ({ childrenInfo }: { childrenInfo: { id: string, name: stri
               <Text style={{ color: COLORS.primary, fontSize: 12, fontWeight: 'bold' }}>{ev.type}</Text>
             </View>
           </View>
-          <Text style={{ color: COLORS.textMuted, marginBottom: 15 }}>{ev.description}</Text>
+          {/* Opis jest w pełnej wersji w GDocs */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 }}>
             <View>
               <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>Termin</Text>
@@ -547,7 +547,7 @@ const EventsScreen = ({ childrenInfo }: { childrenInfo: { id: string, name: stri
 
           <TouchableOpacity 
             style={[styles.payButton, { backgroundColor: '#27272A', marginBottom: 10, borderColor: COLORS.primary, borderWidth: 1 }]}
-            onPress={() => openDocModal(ev.docId)}
+            onPress={() => openDocModal(ev.docId || ev.description)}
           >
             <Text style={[styles.payButtonText, { color: COLORS.primary }]}>
               Szczegóły Eventu & Pytania
