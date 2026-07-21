@@ -33,7 +33,15 @@ app.use(cors());
 app.use(express.json());
 
 // Serve PWA static files
-app.use(express.static(path.join(__dirname, '../public')));
+app.use(express.static(path.join(__dirname, '../public'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html') || filePath.endsWith('manifest.json') || filePath.endsWith('sw.js')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 
 // Global JWT Middleware
 app.use((req, res, next) => {
@@ -891,9 +899,12 @@ app.post('/api/coach/analyze', upload.single('video'), (req, res) => {
   }, 3000);
 });
 
-// Zamiast res.sendFile na ka�d� nieznan� �cie�k� (Faza 2, do obs�ugi PWA), serwujemy index.html
+// Zamiast res.sendFile na kad nieznan ciek (Faza 2, do obsugi PWA), serwujemy index.html
 app.use((req, res) => {
   if (!req.path.startsWith('/api/')) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.sendFile(require('path').join(__dirname, '../public/index.html'));
   } else {
     res.status(404).json({ error: 'Not found' });
@@ -903,7 +914,7 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
-  console.log(`[Server] VialFlow API dzia�a na porcie ${PORT}`);
+  console.log(`[Server] VialFlow API dziaa na porcie ${PORT}`);
   // Uruchom cron jobs
   initCronJobs();
 });
