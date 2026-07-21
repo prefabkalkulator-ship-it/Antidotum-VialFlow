@@ -1139,13 +1139,13 @@ export const getPendingEventQuestions = async () => {
       const rows = questionsRes.data.values;
       if (!rows || rows.length <= 1) return [];
 
-      return rows.map((row: any[], index: number) => {
+      return rows.slice(1).map((row: any[], index: number) => {
         const docId = row[1] || '';
         const eventId = row[6] || '';
         const matchedEvent = events.find((e: any) => (eventId && e.id === eventId) || (docId && (e.docId === docId || e.description === docId)));
         
         return {
-          sheetRow: index + 1,
+          sheetRow: index + 2,
           questionId: row[0] || '',
           docId: docId,
           eventId: eventId,
@@ -1155,7 +1155,7 @@ export const getPendingEventQuestions = async () => {
           date: row[4] || '',
           status: row[5] || ''
         };
-      }).filter((q: any) => q.status && q.status !== 'Status' && !q.status.includes('Rozwiąz') && !q.status.includes('Przeczyt'));
+      }).filter((q: any) => q.status && q.status.toLowerCase().includes('oczek'));
     } catch(e) {
       console.error('Błąd wczytywania pytań i wydarzeń:', e);
       return [];
@@ -1174,11 +1174,11 @@ export const markEventQuestionAsAnswered = async (sheetRow: number) => {
       spreadsheetId: EVENTS_SPREADSHEET_ID,
       range: 'Pytania!F' + sheetRow,
       valueInputOption: 'USER_ENTERED',
-      requestBody: { values: [['Rozwi�zane']] }
+      requestBody: { values: [['Rozwiazane']] }
     });
     return true;
   } catch (err) {
-    console.error('B��d aktualizacji statusu pytania:', err);
+    console.error('Błąd aktualizacji statusu pytania:', err);
     return false;
   }
 };
