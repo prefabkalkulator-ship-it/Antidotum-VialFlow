@@ -1055,9 +1055,11 @@ export const saveEventQuestion = async (docId: string, author: string, text: str
     const spreadSheetInfo = await api.spreadsheets.get({
       spreadsheetId: EVENTS_SPREADSHEET_ID
     });
-    const sheet = spreadSheetInfo.data.sheets?.find((s: any) => s.properties?.title === 'Pytania');
-    if (!sheet) {
-      await api.spreadsheets.batchUpdate({
+    let sheet = spreadSheetInfo.data.sheets?.find((s: any) => s.properties?.title === 'Pytania');
+    let sheetId = sheet ? sheet.properties?.sheetId : null;
+
+    if (sheetId === null || sheetId === undefined) {
+      const addRes = await api.spreadsheets.batchUpdate({
         spreadsheetId: EVENTS_SPREADSHEET_ID,
         requestBody: {
           requests: [
@@ -1069,29 +1071,51 @@ export const saveEventQuestion = async (docId: string, author: string, text: str
           ]
         }
       });
+      sheetId = addRes.data.replies?.[0]?.addSheet?.properties?.sheetId || 0;
       await api.spreadsheets.values.update({
         spreadsheetId: EVENTS_SPREADSHEET_ID,
         range: 'Pytania!A1:F1',
         valueInputOption: 'USER_ENTERED',
-        requestBody: { values: [['ID Pytania', 'ID Dokumentu', 'Autor', 'Tre�� Pytania', 'Data i Czas', 'Status']] }
+        requestBody: { values: [['ID Pytania', 'ID Dokumentu', 'Autor', 'Treść Pytania', 'Data i Czas', 'Status']] }
       });
     }
 
     const questionId = 'Q-' + Date.now();
     const dateStr = new Date().toISOString();
 
-    await api.spreadsheets.values.append({
+    // Wstawienie nowego wiersza pomiędzy wiersz 1 i 2
+    await api.spreadsheets.batchUpdate({
       spreadsheetId: EVENTS_SPREADSHEET_ID,
-      range: 'Pytania!A:F',
+      requestBody: {
+        requests: [
+          {
+            insertDimension: {
+              range: {
+                sheetId: sheetId,
+                dimension: "ROWS",
+                startIndex: 1,
+                endIndex: 2
+              },
+              inheritFromBefore: false
+            }
+          }
+        ]
+      }
+    });
+
+    // Zapisanie danych pytania w wierszu 2 (A2:F2)
+    await api.spreadsheets.values.update({
+      spreadsheetId: EVENTS_SPREADSHEET_ID,
+      range: 'Pytania!A2:F2',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: [[questionId, docId, author, text, dateStr, 'Oczekuj�ce']]
+        values: [[questionId, docId, author, text, dateStr, 'Oczekujące']]
       }
     });
 
     return true;
   } catch (err) {
-    console.error('B��d zapisu pytania:', err);
+    console.error('Błąd zapisu pytania:', err);
     return false;
   }
 };

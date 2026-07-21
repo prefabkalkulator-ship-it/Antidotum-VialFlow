@@ -431,6 +431,7 @@ const EventsScreen = ({ childrenInfo }: { childrenInfo: { id: string, name: stri
 
   // Nowe state'y dla komentarzy GDocs
   const [showDocModal, setShowDocModal] = useState(false);
+  const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [docContent, setDocContent] = useState<string>('');
   const [docLoading, setDocLoading] = useState(false);
@@ -443,9 +444,9 @@ const EventsScreen = ({ childrenInfo }: { childrenInfo: { id: string, name: stri
     setDocLoading(true);
     try {
       const idToFetch = docId || 'mock-doc-123';
-      const res = await apiFetch(`https://vialflow-backend-392406857647.europe-central2.run.app/api/events/${idToFetch}/comments`);
+      const res = await apiFetch(`https://vialflow-backend-392406857647.europe-central2.run.app/api/events/docs/${idToFetch}`);
       const data = await res.json();
-      setDocContent(data.content || 'Tu pojawi się opis pobrany z Google Docs (w symulacji: Vertex AI ma błąd 403).');
+      setDocContent(data.content || 'Brak dodatkowego opisu dla tego wydarzenia.');
     } catch(e) {
       setDocContent('Błąd pobierania dokumentu z Google Docs.');
     }
@@ -457,15 +458,16 @@ const EventsScreen = ({ childrenInfo }: { childrenInfo: { id: string, name: stri
     setSendingComment(true);
     try {
       const author = (childrenInfo && childrenInfo.length > 0) ? childrenInfo[0].name : 'Użytkownik';
-      const res = await apiFetch(`https://vialflow-backend-392406857647.europe-central2.run.app/api/events/${selectedDocId || 'mock-doc-123'}/questions`, {
+      const res = await apiFetch(`https://vialflow-backend-392406857647.europe-central2.run.app/api/events/questions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ comment: commentText, author })
+        body: JSON.stringify({ docId: selectedDocId || 'mock-doc-123', comment: commentText, author })
       });
       const data = await res.json();
       if(data.success) {
         setCommentText('');
-        alert('Pytanie wysłane do organizatora! Odpowiedź pojawi się tutaj oraz w powiadomieniu Push po jej rozpatrzeniu.');
+        alert('Pytanie wysłane do organizatora! Odpowiedź pojawi się wkrótce.');
+        setShowQuestionModal(false);
         setShowDocModal(false);
       } else {
         alert('Błąd wysyłania pytania: ' + data.error);
@@ -599,24 +601,55 @@ const EventsScreen = ({ childrenInfo }: { childrenInfo: { id: string, name: stri
                 <Text style={{ color: COLORS.text, fontSize: 15, lineHeight: 24 }}>{docContent}</Text>
               </ScrollView>
               
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: Platform.OS === 'ios' ? 20 : 0 }}>
-                <TextInput
-                  style={{ flex: 1, backgroundColor: COLORS.surface, color: COLORS.text, borderRadius: 10, padding: 15 }}
-                  placeholder="Masz pytanie do organizatora?"
-                  placeholderTextColor={COLORS.textMuted}
-                  value={commentText}
-                  onChangeText={setCommentText}
-                />
-                <TouchableOpacity 
-                  style={{ backgroundColor: COLORS.primary, padding: 15, borderRadius: 10 }}
-                  onPress={handleSendComment}
-                  disabled={sendingComment}
-                >
-                  {sendingComment ? <ActivityIndicator size="small" color="#fff" /> : <Edit2 color="#fff" size={24} />}
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity 
+                style={[styles.payButton, { marginTop: 10, marginBottom: Platform.OS === 'ios' ? 20 : 0 }]}
+                onPress={() => setShowQuestionModal(true)}
+              >
+                <Text style={styles.payButtonText}>Zadaj pytanie lub skomentuj</Text>
+              </TouchableOpacity>
             </>
           )}
+        </View>
+      </Modal>
+
+      {/* Dedykowany Modal do Zadawania Pytań */}
+      <Modal visible={showQuestionModal} animationType="slide" transparent>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: COLORS.surface, width: '100%', padding: 25, borderRadius: 20, borderWidth: 1, borderColor: '#333' }}>
+            <Text style={{ color: COLORS.text, fontSize: 20, fontWeight: 'bold', marginBottom: 15 }}>
+              Zadaj pytanie organizatorowi
+            </Text>
+            <TextInput
+              style={{
+                backgroundColor: '#000', color: COLORS.text, fontSize: 15, borderRadius: 12, padding: 15, marginBottom: 20, borderWidth: 1, borderColor: '#333', minHeight: 100, textAlignVertical: 'top'
+              }}
+              placeholder="Wpisz treść pytania (np. Jaki strój wziąć?)..."
+              placeholderTextColor={COLORS.textMuted}
+              value={commentText}
+              onChangeText={setCommentText}
+              multiline
+              autoFocus
+            />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity 
+                style={{ flex: 1, padding: 15, backgroundColor: '#333', borderRadius: 12, alignItems: 'center' }} 
+                onPress={() => setShowQuestionModal(false)}
+              >
+                <Text style={{ color: COLORS.text, fontWeight: 'bold' }}>Anuluj</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={{ flex: 1, padding: 15, backgroundColor: COLORS.primary, borderRadius: 12, alignItems: 'center' }} 
+                onPress={handleSendComment} 
+                disabled={sendingComment}
+              >
+                {sendingComment ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={{ color: '#fff', fontWeight: 'bold' }}>Wyślij</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </Modal>
     </ScrollView>

@@ -594,6 +594,17 @@ app.post('/api/events/bookings/:sheetRow/pay', async (req, res) => {
 });
 
 // Endpoint do czytania dokumentu wydarzenia z GDocs
+app.get('/api/events/docs/:docId', async (req, res) => {
+  try {
+    const { docId } = req.params;
+    const result = await readEventDocument(docId);
+    res.json(result);
+  } catch (err) {
+    console.error('Błąd pobierania dokumentu:', err);
+    res.status(500).json({ error: 'Wystąpił błąd podczas pobierania Google Docs.' });
+  }
+});
+
 app.get('/api/events/:docId/comments', async (req, res) => {
   try {
     const { docId } = req.params;
@@ -605,7 +616,24 @@ app.get('/api/events/:docId/comments', async (req, res) => {
   }
 });
 
-// Zapisanie pytania do Skrzynki (z aplikacji mobilnej)
+// Zapisanie pytania do Skrzynki (POST /api/events/questions)
+app.post('/api/events/questions', async (req, res) => {
+  try {
+    const { docId, comment, author } = req.body;
+    if (!docId || !comment || !author) return res.status(400).json({ error: 'Brak docId, komentarza lub autora' });
+
+    const success = await saveEventQuestion(docId, author, comment);
+    if (success) {
+      res.json({ success: true, message: 'Pytanie trafiło do organizatora!' });
+    } else {
+      res.status(500).json({ error: 'Błąd zapisywania pytania.' });
+    }
+  } catch (err) {
+    console.error('Błąd zapisu pytania:', err);
+    res.status(500).json({ error: 'Wystąpił błąd podczas zapisu pytania.' });
+  }
+});
+
 app.post('/api/events/:docId/questions', async (req, res) => {
   try {
     const { docId } = req.params;
