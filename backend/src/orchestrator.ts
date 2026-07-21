@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import { VertexAI } from '@google-cloud/vertexai';
+import path from 'path';
 
 const PROJECT_ID = 'antidotum-vialflow-mvp';
 const LOCATION = 'europe-central2';
@@ -9,6 +10,7 @@ const vertexAI = new VertexAI({ project: PROJECT_ID, location: LOCATION });
 
 function getGoogleAuth() {
   return new google.auth.GoogleAuth({
+    keyFile: path.join(__dirname, '../service-account.json'),
     scopes: [
       'https://www.googleapis.com/auth/drive',
       'https://www.googleapis.com/auth/spreadsheets',
@@ -38,38 +40,67 @@ export async function runEventOrchestration(messages: {role: string, content: st
     }
 
     const model = vertexAI.preview.getGenerativeModel({
-      model: 'gemini-2.5-flash-002',
+      model: 'gemini-2.5-flash',
+      generationConfig: { responseMimeType: 'application/json' } as any,
     });
 
     const systemPrompt = `
-      Jesteś Asystentem Organizacyjnym Szkoły Tańca Antidotum (Event Orchestrator).
-      Zanim utworzysz wydarzenie, musisz wypytać administratora o kluczowe szczegóły wydarzenia: 
-      kiedy się odbędzie, gdzie, ile kosztuje, jakie są wymagania dot. stroju, itp.
-      Zadawaj maksymalnie 1-2 pytania w jednej wiadomości.
-      
-      ZASADY OPRACOWANE PRZEZ ADMINISTRATORA:
+      Jesteś Asystentem Organizacyjnym Szkoły Tańca Antidotum.
+      Pomagasz administratorowi stworzyć ogłoszenie o nowym wydarzeniu.
+
+      ZASADA 1 – CZYTAJ HISTORIĘ:
+      Dokładnie przeanalizuj CAŁĄ historię rozmowy zanim zadasz pytanie.
+      Jeśli administrator podał już jakąś informację — NIE PYTAJ O NIĄ PONOWNIE.
+
+      ZASADA 2 – ZBIERANIE DANYCH:
+      Zanim przejdziesz dalej, upewnij się że znasz:
+      - Typ wydarzenia, Datę rozpoczęcia, Datę zakończenia, Miejsce/salę, Koszt, Wymagania dot. stroju
+      Zadawaj maksymalnie 2 pytania naraz, w przyjaznym tonie.
+      Kończ pytania słowami: "(brakuje: [lista] — podaj proszę lub zaznaczę jako nieokreślone)"
+
+      ZASADA 3 – KROK PREVIEW (OBOWIĄZKOWY):
+      Gdy masz wszystkie dane — NIE twórz jeszcze wydarzenia.
+      Zwróć status "preview". W polu "message" napisz TYLKO:
+      - Krótką, rzeczową informację dla administratora (bez emoji, 2-3 zdania) że oto projekt ogłoszenia
+      - Pełny tekst ogłoszenia dla uczniów/rodziców z emoji (zachęcający, pełen energii)
+      - Na końcu: "Napisz 'Zatwierdzam' aby zapisać wydarzenie, lub wskaż co zmienić."
+      W polu "draft" umieść TYLKO tekst ogłoszenia (bez wstępu administratora).
+
+      ZASADA 4 – TWORZENIE:
+      Gdy administrator napisze 'zatwierdzam', 'ok', 'tworz', 'zapisz' lub podobne —
+      zwróć status "complete" z "detailedDescription" równym polu "draft" z poprzedniego preview.
+
+      ZASADY DODATKOWE SZKOŁY:
       ${externalRules}
 
-      Jeśli uważasz, że wciąż brakuje ważnych informacji, i administrator nie powiedział żeby przejść dalej, 
-      zwróć odpowiedź w formacie JSON z pytaniem do użytkownika:
+      === FORMAT ODPOWIEDZI (TYLKO JSON, bez żadnego tekstu przed ani po) ===
+
+      Zbierasz dane:
+      { "status": "ask", "message": "Twoja wiadomość do administratora." }
+
+      Proponujesz ogłoszenie do zatwierdzenia:
       {
-        "status": "ask",
-        "message": "Twoja wiadomość i pytania do administratora"
+        "status": "preview",
+        "message": "Projekt ogłoszenia gotowy. Sprawdź poniższy tekst:\n\n[TEKST OGŁOSZENIA Z EMOJI]\n\nNapisz 'Zatwierdzam' aby zapisać wydarzenie, lub wskaż co zmienić.",
+        "draft": "Tylko tekst ogłoszenia z emoji — bez wstępu administratora. To trafi do Google Docs."
       }
 
-      Jeśli zgromadziłeś wystarczające dane, lub administrator kazał Ci generować (np. "utwórz teraz", "wystarczy to co jest"), zwróć JSON z poleceniami utworzenia wydarzenia, włączając BARDZO SZCZEGÓŁOWY opis wydarzenia (w formacie tekstowym, który będzie wpisany do Google Docs):
+      Tworzysz wydarzenie po zatwierdzeniu:
       {
         "status": "complete",
         "eventName": "krótka nazwa",
-        "date": "data w formacie YYYY-MM-DD",
+        "type": "Typ",
+        "startDate": "YYYY-MM-DD",
+        "endDate": "YYYY-MM-DD",
+        "cost": "300 PLN",
         "needsCalendar": true,
         "needsFolders": true,
         "needsSpreadsheet": true,
-        "posterPrompt": "bardzo szczegółowy prompt po angielsku dla generatora obrazów (np. Imagen 3) opisujący plakat",
-        "detailedDescription": "Pełny, długi opis wydarzenia, zawierający wszystkie zgromadzone informacje (daty, ceny, stroje). To będzie główna treść ogłoszenia w GDocs."
+        "posterPrompt": "detailed English prompt for poster generator",
+        "detailedDescription": "Skopiuj tu pole draft z poprzedniego preview."
       }
 
-      MUSISZ zwrócić wyłącznie poprawny obiekt JSON, bez znaczników markdown \`\`\`json.
+      ZWRÓĆ WYŁĄCZNIE OBIEKT JSON. Żadnego tekstu przed ani po. Żadnych znaczników \`\`\`json.
     `;
 
     // Mapuj wiadomości z frontendu do formatu Vertex AI
@@ -86,17 +117,32 @@ export async function runEventOrchestration(messages: {role: string, content: st
     });
 
     const result = await chatSession.sendMessage(lastMessage);
-    const jsonText = result.response.text().trim().replace(/^```json/, '').replace(/```$/, '').trim();
+    const rawText = result.response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    
+    // Wyciągnij JSON przez wyważone nawiasy (niezawodne przy tekście przed/po JSON)
+    function extractJSON(text: string): string | null {
+      const start = text.indexOf('{');
+      if (start === -1) return null;
+      let depth = 0;
+      for (let i = start; i < text.length; i++) {
+        if (text[i] === '{') depth++;
+        else if (text[i] === '}') { depth--; if (depth === 0) return text.substring(start, i + 1); }
+      }
+      return null;
+    }
+    const jsonText = extractJSON(rawText);
     
     let aiResponse;
     try {
+      if (!jsonText) throw new Error('no json');
       aiResponse = JSON.parse(jsonText);
     } catch(err) {
-      console.error("Failed to parse JSON from AI", jsonText);
-      return { status: "ask", message: "Przepraszam, wystąpił błąd w formacie mojej odpowiedzi. Mógłbyś powtórzyć?" };
+      // Model odpowiedział czystym tekstem – traktujemy jako "ask"
+      console.warn("AI returned plain text, treating as ask:", rawText.substring(0, 80));
+      return { status: "ask", message: rawText.trim() };
     }
 
-    if (aiResponse.status === 'ask') {
+    if (aiResponse.status === 'ask' || aiResponse.status === 'preview') {
       return aiResponse;
     }
     
@@ -122,37 +168,44 @@ export async function runEventOrchestration(messages: {role: string, content: st
       } catch (e: any) {}
     }
 
-    // Tworzenie głównego pliku GDoc
-    try {
-      const docRes = await drive.files.create({
-        requestBody: {
-          name: `Opis Wydarzenia - ${eventName}`,
-          mimeType: 'application/vnd.google-apps.document',
-          parents: folderId !== 'brak-id' ? [folderId] : [MASTER_FOLDER_ID]
-        },
-        fields: 'id'
-      });
-      docId = docRes.data.id || 'brak-id';
-
-      if (docId !== 'brak-id') {
-        await docs.documents.batchUpdate({
-          documentId: docId,
-          requestBody: {
-            requests: [
-              {
-                insertText: {
-                  location: { index: 1 },
-                  text: `=== ${eventName} ===\n\nOpis Główny:\n${detailedDescription}\n\n---\nSEKCJA Q&A / KOMENTARZE\n\n`
-                }
-              }
-            ]
-          }
+      // Tworzenie głównego pliku GDoc przez Webhook GAS (GAS sam wpisuje treść)
+      try {
+        const gasUrl = "https://script.google.com/macros/s/AKfycbxNuE6UoXPwaXFZb4TyRvhbM23Et459rQp_QZZxTULDex5LJpnstNRUpK5jDPGIFU19/exec";
+        console.log("[GAS] Calling webhook with content length:", detailedDescription ? detailedDescription.length : 0);
+        const gasRes = await fetch(gasUrl, {
+          method: "POST",
+          body: JSON.stringify({
+            name: `Opis Wydarzenia - ${eventName}`,
+            folderId: '17zuZ6MOqYv_XqhJIW7-fgva7vT4KlpUG',
+            content: `=== ${eventName} ===\n\n${detailedDescription}\n\n---\nSEKCJA Q&A / KOMENTARZE\n\n`
+          }),
+          headers: { "Content-Type": "text/plain" }
         });
+        const gasData = await gasRes.json();
+        console.log("[GAS] Response:", JSON.stringify(gasData));
+        docId = gasData.id || 'brak-id';
+      } catch (e: any) {
+        console.error("GDocs error", e);
       }
-    } catch (e: any) {
-      console.error("GDocs error", e);
-    }
     
+    
+    // Zapis do arkusza Lista_Wydarzen
+    try {
+      const { saveEventToList } = require('./sheetsApi');
+      const eventId = 'E-' + Date.now();
+      await saveEventToList({
+        id: eventId,
+        type: aiResponse.type || 'Inne',
+        title: eventName,
+        startDate: aiResponse.startDate || eventDate,
+        endDate: aiResponse.endDate || eventDate,
+        cost: aiResponse.cost || 'Nieokreślone',
+        description: docId
+      });
+    } catch(err) {
+      console.error("Błąd zapisu do arkusza wydarzeń:", err);
+    }
+
     if (aiResponse.needsCalendar) {
       try {
         await calendar.events.insert({
@@ -198,7 +251,7 @@ export async function rewriteEventDocumentWithComment(docId: string, newComment:
     });
 
     const model = vertexAI.preview.getGenerativeModel({
-      model: 'gemini-2.5-flash-002',
+      model: 'gemini-2.5-flash',
     });
 
     const prompt = `
@@ -218,7 +271,7 @@ export async function rewriteEventDocumentWithComment(docId: string, newComment:
     `;
 
     const result = await model.generateContent(prompt);
-    const newContent = result.response.text();
+    const newContent = result.response.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
     const currentLength = docMeta.data.body?.content?.[docMeta.data.body.content.length - 1]?.endIndex || 2;
     
@@ -265,7 +318,7 @@ export async function readEventDocument(docId: string) {
     });
     return { success: true, content: currentContent };
   } catch (err: any) {
-    console.error('B��d pobierania dokumentu:', err);
+    console.error('B��d pobierania dokumentu:', err);
     throw err;
   }
 }

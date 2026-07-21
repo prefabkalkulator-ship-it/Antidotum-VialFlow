@@ -1307,3 +1307,52 @@ export const getNotificationsForUser = async (groupId: string, groupName: string
     return [];
   }
 };
+
+
+export const saveEventToList = async (event: { id: string, type: string, title: string, startDate: string, endDate: string, cost: string, description: string }) => {
+  try {
+    const api = await initAuth();
+    if (!api) throw new Error("Brak autoryzacji");
+    
+    const spreadSheetInfo = await api.spreadsheets.get({
+      spreadsheetId: EVENTS_SPREADSHEET_ID
+    });
+    const sheet = spreadSheetInfo.data.sheets?.find((s: any) => s.properties?.title === 'Lista_Wydarzen');
+    const sheetId = sheet ? sheet.properties.sheetId : 0;
+
+    const rowData = [event.id, event.type, event.title, event.startDate, event.endDate, event.cost, event.description];
+
+    // Insert row between 1 and 2
+    await api.spreadsheets.batchUpdate({
+      spreadsheetId: EVENTS_SPREADSHEET_ID,
+      requestBody: {
+        requests: [
+          {
+            insertDimension: {
+              range: {
+                sheetId: sheetId,
+                dimension: "ROWS",
+                startIndex: 1,
+                endIndex: 2
+              }
+            }
+          }
+        ]
+      }
+    });
+
+    await api.spreadsheets.values.update({
+      spreadsheetId: EVENTS_SPREADSHEET_ID,
+      range: 'Lista_Wydarzen!A2:G2',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [rowData]
+      }
+    });
+
+    return true;
+  } catch (err) {
+    console.error('Błąd zapisu nowego wydarzenia:', err);
+    return false;
+  }
+};

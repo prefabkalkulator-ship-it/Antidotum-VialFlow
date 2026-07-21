@@ -155,10 +155,16 @@ export default function EventOrchestrator() {
 
       const data = await response.json();
 
-      if (data.status === 'ask') {
+      if (data.status === 'ask' || data.status === 'preview') {
         setMessages([...newMessages, { role: 'assistant', content: data.message }]);
       } else if (data.status === 'complete') {
-        setMessages([...newMessages, { role: 'assistant', content: `Wszystko jasne! Utworzyłem wydarzenie: ${data.eventName}.\nID Dokumentu Google Docs: ${data.docId}\nLink do folderu: ${data.folderId}` }]);
+        const docLink = data.docId && data.docId !== 'brak-id' ? `https://docs.google.com/document/d/${data.docId}/edit` : null;
+        const folderLink = data.folderId && data.folderId !== 'brak-id' ? `https://drive.google.com/drive/folders/${data.folderId}` : null;
+        const linksPart = [
+          docLink ? `📄 [Otwórz opis wydarzenia](${docLink})` : '',
+          folderLink ? `📁 [Otwórz folder na Dysku](${folderLink})` : ''
+        ].filter(Boolean).join('\n');
+        setMessages([...newMessages, { role: 'assistant', content: `✅ Wydarzenie "${data.eventName}" zostało utworzone!\n\n${linksPart}` }]);
         
         setLogs(prev => [
           ...prev, 
@@ -255,7 +261,18 @@ export default function EventOrchestrator() {
             {messages.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[80%] rounded-xl p-4 ${msg.role === 'user' ? 'bg-primary text-white' : 'bg-gray-800 text-gray-200'}`}>
-                  <p className="whitespace-pre-wrap font-sans text-sm">{msg.content}</p>
+                  <p className="whitespace-pre-wrap font-sans text-sm">
+                    {msg.role === 'assistant'
+                      ? msg.content.split(/\n/).map((line, li) => {
+                          const linkMatch = line.match(/^(.*)\[(.+?)\]\((.+?)\)(.*)$/);
+                          if (linkMatch) {
+                            return <span key={li}>{linkMatch[1]}<a href={linkMatch[3]} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary-light">{linkMatch[2]}</a>{linkMatch[4]}<br/></span>;
+                          }
+                          return <span key={li}>{line}<br/></span>;
+                        })
+                      : msg.content
+                    }
+                  </p>
                 </div>
               </div>
             ))}
