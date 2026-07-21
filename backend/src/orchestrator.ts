@@ -316,7 +316,10 @@ export async function readEventDocument(docId: string) {
         });
       }
     });
-    return { success: true, content: currentContent };
+    let cleanContent = currentContent.replace(/^===\s*.*?\s*===\s*\n*/g, '');
+    cleanContent = cleanContent.split(/---\s*\n*SEKCJA Q&A/i)[0];
+    cleanContent = cleanContent.trim();
+    return { success: true, content: cleanContent };
   } catch (err: any) {
     console.error('B��d pobierania dokumentu:', err);
     throw err;

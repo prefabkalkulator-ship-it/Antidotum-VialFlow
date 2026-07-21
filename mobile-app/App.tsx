@@ -614,20 +614,21 @@ const EventsScreen = ({ childrenInfo }: { childrenInfo: { id: string, name: stri
 
       {/* Dedykowany Modal do Zadawania Pytań */}
       <Modal visible={showQuestionModal} animationType="slide" transparent>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <View style={{ backgroundColor: COLORS.surface, width: '100%', padding: 25, borderRadius: 20, borderWidth: 1, borderColor: '#333' }}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-start', alignItems: 'center', padding: 20, paddingTop: Platform.OS === 'ios' ? 80 : 60, paddingBottom: 60 }}>
+          <View style={{ backgroundColor: COLORS.surface, width: '100%', padding: 25, borderRadius: 20, borderWidth: 1, borderColor: '#333', marginBottom: 40 }}>
             <Text style={{ color: COLORS.text, fontSize: 20, fontWeight: 'bold', marginBottom: 15 }}>
               Zadaj pytanie organizatorowi
             </Text>
             <TextInput
               style={{
-                backgroundColor: '#000', color: COLORS.text, fontSize: 15, borderRadius: 12, padding: 15, marginBottom: 20, borderWidth: 1, borderColor: '#333', minHeight: 100, textAlignVertical: 'top'
+                backgroundColor: '#000', color: COLORS.text, fontSize: 15, borderRadius: 12, padding: 15, marginBottom: 20, borderWidth: 1, borderColor: '#333', minHeight: 160, textAlignVertical: 'top'
               }}
               placeholder="Wpisz treść pytania (np. Jaki strój wziąć?)..."
               placeholderTextColor={COLORS.textMuted}
               value={commentText}
               onChangeText={setCommentText}
               multiline
+              numberOfLines={7}
               autoFocus
             />
             <View style={{ flexDirection: 'row', gap: 10 }}>
