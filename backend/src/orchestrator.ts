@@ -321,7 +321,97 @@ export async function readEventDocument(docId: string) {
     cleanContent = cleanContent.trim();
     return { success: true, content: cleanContent };
   } catch (err: any) {
-    console.error('B��d pobierania dokumentu:', err);
+    console.error('Błąd pobierania dokumentu:', err);
+    throw err;
+  }
+}
+
+export async function generateEventRewriteDraft(docId: string, directive: string, author: string) {
+  try {
+    const auth = getGoogleAuth();
+    const docs = google.docs({ version: 'v1', auth });
+
+    const docMeta = await docs.documents.get({ documentId: docId });
+    let currentContent = '';
+    docMeta.data.body?.content?.forEach(c => {
+      if (c.paragraph) {
+        c.paragraph.elements?.forEach(e => {
+          if (e.textRun) currentContent += e.textRun.content;
+        });
+      }
+    });
+
+    const model = vertexAI.preview.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+    });
+
+    const prompt = `
+      Jesteś administratorem wydarzeń w szkole tańca Antidotum.
+      Otrzymujesz aktualną treść ogłoszenia w Google Docs oraz nową wytyczną / odpowiedź organizatora odnośnie pytania ucznia "${author}".
+      
+      WYTYCZNA / INSTRUKCJA DLA AI:
+      "${directive}"
+      
+      AKTUALNA TREŚĆ DOKUMENTU GOOGLE DOCS:
+      """
+      ${currentContent}
+      """
+
+      Twoim zadaniem jest poprawić i zaktualizować zawartość dokumentu. 
+      Przekształć treść tak, aby wytyczna była zgrabnie i naturalnie wbudowana w treść ogłoszenia.
+      Używaj entuzjastycznego tonu z odpowiednimi emoji (np. 🎉, 👟, 💃, 📍, 🗓️).
+      Zachowaj czystą strukturę z sekcjami:
+      === [Tytuł Wydarzenia] ===
+      [Główny Opis i Szczegóły]
+      ---
+      SEKCJA Q&A / KOMENTARZE
+      [Dodany wpis z nowym pytaniem i odpowiedzią w sekcji Q&A na dole]
+
+      Zwróć TYLKO nową, gotową pełną treść dokumentu.
+    `;
+
+    const result = await model.generateContent(prompt);
+    const newContent = result.response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    return newContent.trim();
+  } catch (err: any) {
+    console.error("Błąd generowania propozycji zmian:", err);
+    throw err;
+  }
+}
+
+export async function applyEventRewrite(docId: string, newContent: string) {
+  try {
+    const auth = getGoogleAuth();
+    const docs = google.docs({ version: 'v1', auth });
+
+    const docMeta = await docs.documents.get({ documentId: docId });
+    const currentLength = docMeta.data.body?.content?.[docMeta.data.body.content.length - 1]?.endIndex || 2;
+
+    await docs.documents.batchUpdate({
+      documentId: docId,
+      requestBody: {
+        requests: [
+          {
+            deleteContentRange: {
+              range: {
+                startIndex: 1,
+                endIndex: currentLength - 1
+              }
+            }
+          },
+          {
+            insertText: {
+              location: { index: 1 },
+              text: newContent
+            }
+          }
+        ]
+      }
+    });
+
+    return { success: true, updatedContent: newContent };
+  } catch (err: any) {
+    console.error("Błąd nadpisywania dokumentu GDocs:", err);
     throw err;
   }
 }

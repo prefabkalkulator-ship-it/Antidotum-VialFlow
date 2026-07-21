@@ -1126,29 +1126,28 @@ export const getPendingEventQuestions = async () => {
     const api = await initAuth();
     if (!api) return [];
     
-    // Upewnijmy si�, �e zak�adka istnieje by nie wywala� b��du GET
     try {
-        const res = await api.spreadsheets.values.get({
+      const res = await api.spreadsheets.values.get({
         spreadsheetId: EVENTS_SPREADSHEET_ID,
         range: 'Pytania!A:F',
-        });
-        const rows = res.data.values;
-        if (!rows || rows.length <= 1) return [];
+      });
+      const rows = res.data.values;
+      if (!rows || rows.length <= 1) return [];
 
-        return rows.map((row: any[], index: number) => ({
-            sheetRow: index + 1,
-            questionId: row[0] || '',
-            docId: row[1] || '',
-            author: row[2] || '',
-            text: row[3] || '',
-            date: row[4] || '',
-            status: row[5] || ''
-        })).filter((q: any) => q.status === 'Oczekuj�ce');
+      return rows.map((row: any[], index: number) => ({
+        sheetRow: index + 1,
+        questionId: row[0] || '',
+        docId: row[1] || '',
+        author: row[2] || '',
+        text: row[3] || '',
+        date: row[4] || '',
+        status: row[5] || ''
+      })).filter((q: any) => q.status && q.status !== 'Status' && !q.status.includes('Rozwiąz') && !q.status.includes('Przeczyt'));
     } catch(e) {
-        return [];
+      return [];
     }
   } catch (err) {
-    console.error('B��d pobierania pyta�:', err);
+    console.error('Błąd pobierania pytań:', err);
     return [];
   }
 };

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { Menu, FlaskConical } from 'lucide-react';
 import Sidebar from './components/Sidebar';
@@ -31,14 +31,26 @@ function InfoPlaceholder() {
   );
 }
 
+import EventQuestions from './pages/EventQuestions';
+
 function MainApp({ userEmail }: { userEmail: string }) {
   const location = useLocation();
   const isKioskMode = location.pathname === '/reception';
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    fetch('/api/events/questions/pending')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setPendingCount(data.length);
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="flex h-screen bg-background text-white overflow-hidden relative w-full">
-      {!isKioskMode && <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />}
+      {!isKioskMode && <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} pendingCount={pendingCount} />}
       
       <div className="flex-1 flex flex-col min-w-0">
         {!isKioskMode && (
@@ -56,6 +68,7 @@ function MainApp({ userEmail }: { userEmail: string }) {
           <Routes>
             <Route path="/" element={<UsersPage />} />
             <Route path="/events" element={<EventOrchestrator />} />
+            <Route path="/questions" element={<EventQuestions onCountChange={setPendingCount} />} />
             <Route path="/coach" element={<AiVideoCoach />} />
             <Route path="/chat" element={<RagChat />} />
             <Route path="/finances" element={<FinanceDashboard userEmail={userEmail} />} />

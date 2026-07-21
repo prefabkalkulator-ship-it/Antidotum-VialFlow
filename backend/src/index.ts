@@ -5,7 +5,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import multer from 'multer';
-import { runEventOrchestration, rewriteEventDocumentWithComment, readEventDocument } from './orchestrator';
+import { runEventOrchestration, rewriteEventDocumentWithComment, readEventDocument, generateEventRewriteDraft, applyEventRewrite } from './orchestrator';
 import { initCronJobs, runPassGenerationJob, runPassRemindersJob } from './cron';
 import { processVideo } from './videoPipeline';
 import { chatWithRAG, refreshKnowledgeBase, generatePushDraft, refinePushDraft } from './rag';
@@ -671,24 +671,58 @@ app.get('/api/events/questions/pending', async (req, res) => {
   }
 });
 
-// Endpoint do dodawania odpowiedzi i przepisywania dokumentu przez AI
+// Oznaczanie pytania jako przeczytane/rozwiązane bez nadpisywania opisu
+app.post('/api/events/questions/:sheetRow/mark-answered', async (req, res) => {
+  try {
+    const { sheetRow } = req.params;
+    const success = await markEventQuestionAsAnswered(Number(sheetRow));
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(500).json({ error: 'Błąd aktualizacji statusu' });
+    }
+  } catch (err) {
+    console.error('Błąd mark-answered:', err);
+    res.status(500).json({ error: 'Błąd serwera' });
+  }
+});
+
+// Generowanie podglądu zmian w dokumencie z udziałem AI na podstawie dyrektyw admina
+app.post('/api/events/questions/preview-rewrite', async (req, res) => {
+  try {
+    const { docId, originalQuestion, author, directive } = req.body;
+    if (!docId) return res.status(400).json({ error: 'Brak docId' });
+
+    const combinedDirective = `PYTANIE OD ${author || 'Ucznia'}: "${originalQuestion || ''}" \n WYTYCZNE ORGANIZATORA: "${directive || 'Uwzględnij to uściślenie w opisie.'}"`;
+    const draft = await generateEventRewriteDraft(docId, combinedDirective, author || 'Uczeń');
+    res.json({ success: true, draft });
+  } catch (err: any) {
+    console.error('Błąd generowania podglądu zmian:', err);
+    res.status(500).json({ error: err.message || 'Błąd AI' });
+  }
+});
+
+// Endpoint do zatwierdzania odpowiedzi i nadpisywania GDocs
 app.post('/api/events/questions/:sheetRow/answer', async (req, res) => {
   try {
     const { sheetRow } = req.params;
-    const { docId, originalQuestion, author, answer } = req.body;
+    const { docId, approvedContent, originalQuestion, author, answer } = req.body;
     
-    // Złożenie pełnego kontekstu dla AI (pytanie + odpowiedź admina)
-    const combinedContext = `PYTANIE: ${originalQuestion} \n ODPOWIEDŹ ORGANIZATORA: ${answer}`;
-
-    // 1. Wywołanie Vertex AI do nadpisania GDocs
-    const result = await rewriteEventDocumentWithComment(docId, combinedContext, author);
+    let result;
+    if (approvedContent) {
+      // Bezpośredni zapis zatwierdzonego podglądu
+      result = await applyEventRewrite(docId, approvedContent);
+    } else {
+      // Tradycyjny fallback
+      const combinedContext = `PYTANIE: ${originalQuestion} \n ODPOWIEDŹ ORGANIZATORA: ${answer}`;
+      result = await rewriteEventDocumentWithComment(docId, combinedContext, author);
+    }
     
-    // 2. Jeśli sukces, zmiana statusu w Arkuszach na "Rozwiązane"
     if (result && result.success) {
       await markEventQuestionAsAnswered(Number(sheetRow));
       res.json(result);
     } else {
-      res.status(500).json({ error: 'AI Error' });
+      res.status(500).json({ error: 'Błąd zapisu GDocs' });
     }
   } catch (err) {
     console.error('Błąd odpowiedzi i nadpisywania:', err);

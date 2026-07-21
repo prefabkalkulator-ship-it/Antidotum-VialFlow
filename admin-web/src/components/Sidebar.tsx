@@ -1,11 +1,12 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Users, Calendar, Info, FlaskConical, Sparkles, Wallet } from 'lucide-react';
+import { Users, Calendar, Info, FlaskConical, Sparkles, Wallet, MessageSquare } from 'lucide-react';
 
-export default function Sidebar({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
+export default function Sidebar({ isOpen, onClose, pendingCount = 0 }: { isOpen: boolean; onClose: () => void; pendingCount?: number }) {
   const navItems = [
     { to: '/', icon: <Users size={20} />, label: 'Uczniowie' },
     { to: '/events', icon: <Calendar size={20} />, label: 'Wydarzenia' },
+    { to: '/questions', icon: <MessageSquare size={20} />, label: 'Pytania & Komentarze', badge: pendingCount },
     { to: '/coach', icon: <FlaskConical size={20} />, label: 'AI Trener' },
     { to: '/chat', icon: <Sparkles size={20} />, label: 'Asystent' },
     { to: '/finances', icon: <Wallet size={20} />, label: 'Finanse' },
@@ -29,7 +30,7 @@ export default function Sidebar({ isOpen, onClose }: { isOpen: boolean, onClose:
             key={item.to}
             to={item.to}
             className={({ isActive }) => 
-              `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
+              `flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300 ${
                 isActive 
                   ? 'bg-primary/10 text-primary font-bold shadow-[inset_4px_0_0_0_rgba(244,114,182,1)]' 
                   : 'text-gray-400 hover:bg-white/5 hover:text-white'
@@ -37,8 +38,15 @@ export default function Sidebar({ isOpen, onClose }: { isOpen: boolean, onClose:
             }
             onClick={onClose}
           >
-            {item.icon}
-            {item.label}
+            <div className="flex items-center gap-3">
+              {item.icon}
+              <span className="truncate">{item.label}</span>
+            </div>
+            {!!item.badge && item.badge > 0 && (
+              <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]">
+                {item.badge}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>
