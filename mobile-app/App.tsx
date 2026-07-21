@@ -424,7 +424,7 @@ function WalletScreen({ userData, role, onLogout }: { userData: any, role: strin
 }
 
 // --- EKRAN WYDARZEŃ (Faza 2) ---
-const EventsScreen = ({ childrenInfo }: { childrenInfo: { id: string, name: string }[] }) => {
+const EventsScreen = ({ childrenInfo, userData }: { childrenInfo: { id: string, name: string }[], userData: any }) => {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [bookingStatus, setBookingStatus] = useState<Record<string, string>>({});
@@ -457,19 +457,12 @@ const EventsScreen = ({ childrenInfo }: { childrenInfo: { id: string, name: stri
     if (!commentText.trim()) return;
     setSendingComment(true);
     try {
-      const childObj = (childrenInfo && childrenInfo.length > 0) ? childrenInfo[0] : null;
       let author = 'Użytkownik';
-      if (childObj) {
-        if (childObj.firstName && childObj.lastName) {
-          author = `${childObj.firstName} ${childObj.lastName}`;
-        } else if (childObj.name) {
-          author = childObj.name;
-        }
-      } else if (userData) {
-        if (userData.firstName && userData.lastName) {
-          author = `${userData.firstName} ${userData.lastName}`;
-        } else if (userData.name) {
+      if (userData) {
+        if (userData.name) {
           author = userData.name;
+        } else if (userData.firstName) {
+          author = userData.firstName + (userData.lastName ? ' ' + userData.lastName : '');
         } else if (userData.email) {
           author = userData.email;
         }
@@ -2495,8 +2488,8 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       {activeTab === 'wallet' && <WalletScreen userData={userData} role={role} onLogout={() => { setRole(null); setUserData(null); AsyncStorage.removeItem('jwtToken'); }} />}
-      {activeTab === 'events' && <EventsScreen childrenInfo={role === 'Rodzic' ? userData?.children?.map((c:any) => ({ id: c.id, name: c.firstName })) : [{ id: userData?.id, name: userData?.firstName }]} />}
-      {activeTab === 'payment' && <PaymentScreen childrenInfo={role === 'Rodzic' ? userData?.children?.map((c:any) => ({ id: c.id, name: c.firstName })) : [{ id: userData?.id, name: userData?.firstName }]} />}
+      {activeTab === 'events' && <EventsScreen childrenInfo={role === 'Rodzic' ? userData?.children?.map((c:any) => ({ id: c.id, name: c.firstName + (c.lastName ? ' ' + c.lastName : '') })) : [{ id: userData?.id, name: (userData?.name || (userData?.firstName + (userData?.lastName ? ' ' + userData?.lastName : '')) || 'Uczeń') }]} userData={userData} />}
+      {activeTab === 'payment' && <PaymentScreen childrenInfo={role === 'Rodzic' ? userData?.children?.map((c:any) => ({ id: c.id, name: c.firstName + (c.lastName ? ' ' + c.lastName : '') })) : [{ id: userData?.id, name: (userData?.name || (userData?.firstName + (userData?.lastName ? ' ' + userData?.lastName : '')) || 'Uczeń') }]} />}
       {activeTab === 'coach' && <AiCoachScreen />}
       {activeTab === 'chat' && <ChatScreen userData={userData} isKeyboardVisible={isKeyboardVisible} keyboardHeight={keyboardHeight} />}
       {activeTab === 'profile' && <ProfileScreen userData={userData} role={role} />}

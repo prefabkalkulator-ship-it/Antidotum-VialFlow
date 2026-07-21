@@ -276,10 +276,10 @@ export default function EventQuestions({ onCountChange }: { onCountChange?: (cou
 
             <div className="p-6 overflow-y-auto space-y-6 flex-1 bg-[#0B0B0C]">
               
-              {/* Dymek Pytania od Uczestnika */}
-              <div className="flex flex-col items-start w-full">
-                <div className="bg-gray-800/90 border border-gray-700 text-gray-100 rounded-2xl rounded-tl-none p-4.5 shadow-md w-full max-w-3xl">
-                  <div className="text-xs font-bold text-primary mb-1.5 flex items-center gap-2">
+              {/* Dymek Pytania od Uczestnika - Pełna szerokość i symetryczne marginesy */}
+              <div className="w-full">
+                <div className="bg-gray-800/90 border border-gray-700 text-gray-100 rounded-2xl p-5 shadow-md w-full">
+                  <div className="text-xs font-bold text-primary mb-2 flex items-center gap-2">
                     <Calendar size={15} /> {activeQuestion.eventTitle || 'Wydarzenie'}
                   </div>
                   <p className="text-base font-medium leading-relaxed break-words whitespace-pre-wrap">"{activeQuestion.text}"</p>
@@ -287,29 +287,31 @@ export default function EventQuestions({ onCountChange }: { onCountChange?: (cou
                 </div>
               </div>
 
-              {/* Pola Dyktowania / Wprowadzania Wytycznych */}
+              {/* Pola Dyktowania / Wprowadzania Wytycznych z Mikrofonem wewnątrz Textarea */}
               <div className="bg-surface border border-gray-800 rounded-2xl p-5 space-y-3 shadow-md">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-gray-200">Wpisz lub podyktuj wytyczną dla AI:</span>
+                  <span className="text-sm font-bold text-gray-200">👉 Co dodać / zmienić w opisie wydarzenia?</span>
+                </div>
+                <div className="relative w-full">
+                  <textarea
+                    value={directive}
+                    onChange={e => setDirective(e.target.value)}
+                    placeholder="Wpisz lub podyktuj wytyczną dla AI (np. Dopisz, że na półkolonie obowiązują tylko różowe stroje)..."
+                    className="w-full bg-black/60 border border-gray-700 rounded-xl pl-5 pr-14 py-4 text-white placeholder-gray-500 focus:border-primary focus:outline-none min-h-[90px] text-sm md:text-base resize-none"
+                  />
                   <button
                     type="button"
                     onClick={toggleRecording}
-                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    className={`absolute right-4 bottom-4 p-2.5 rounded-xl transition-all ${
                       isRecording 
                         ? 'bg-red-500 text-white animate-pulse' 
-                        : 'bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30'
+                        : 'bg-transparent text-primary hover:bg-primary/20'
                     }`}
+                    title="Dyktuj głosowo"
                   >
-                    {isRecording ? <MicOff size={16} /> : <Mic size={16} />}
-                    {isRecording ? 'Nagrywanie...' : 'Dyktuj głosowo'}
+                    {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
                   </button>
                 </div>
-                <textarea
-                  value={directive}
-                  onChange={e => setDirective(e.target.value)}
-                  placeholder="Wpisz lub podyktuj wytyczną dla AI (np. Dopisz, że na półkolonie obowiązują tylko różowe stroje)..."
-                  className="w-full bg-black/60 border border-gray-700 rounded-xl p-4 text-white placeholder-gray-500 focus:border-primary focus:outline-none min-h-[90px] text-sm md:text-base resize-none"
-                />
                 <div className="flex justify-end">
                   <button
                     type="button"
@@ -323,17 +325,17 @@ export default function EventQuestions({ onCountChange }: { onCountChange?: (cou
                 </div>
               </div>
 
-              {/* Dymek 2: Propozycja Nowej Treści GDocs z Powiększoną Czcionką */}
+              {/* Dymek 2: Propozycja Nowej Treści GDocs z Powiększoną Czcionką i prawidłowymi paddingami */}
               {previewDraft && (
                 <div className="flex flex-col items-end w-full space-y-2 animate-fadeIn flex-1">
-                  <div className="bg-primary/10 border border-primary/40 text-gray-100 rounded-2xl rounded-tr-none p-5 shadow-xl w-full flex-1 flex flex-col min-h-[350px]">
+                  <div className="bg-primary/10 border border-primary/40 text-gray-100 rounded-2xl p-5 shadow-xl w-full flex-1 flex flex-col min-h-[350px]">
                     <div className="text-sm font-bold text-primary mb-3 flex items-center gap-2">
                       <Sparkles size={18} /> Propozycja zaktualizowanego opisu .gdocx:
                     </div>
                     <textarea
                       value={previewDraft}
                       onChange={e => setPreviewDraft(e.target.value)}
-                      className="w-full flex-1 bg-black/90 border border-gray-700 rounded-xl p-4.5 text-gray-100 text-sm md:text-base font-mono font-medium focus:border-primary focus:outline-none leading-relaxed min-h-[300px]"
+                      className="w-full flex-1 bg-black/90 border border-gray-700 rounded-xl p-5 text-gray-100 text-sm md:text-base font-mono font-medium focus:border-primary focus:outline-none leading-relaxed min-h-[300px]"
                     />
                   </div>
                 </div>
