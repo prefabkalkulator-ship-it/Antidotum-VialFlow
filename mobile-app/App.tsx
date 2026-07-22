@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, Dimensions, TouchableOpacity, ScrollView, SafeA
 import QRCode from 'react-native-qrcode-svg';
 import InstallPrompt from './components/InstallPrompt';
 import QRScannerModal from './components/QRScannerModal';
-import { User, Clock, MapPin, ChevronRight, CreditCard, ScanLine, Smartphone, Camera, QrCode, CheckCircle2, Loader2, Sparkles, ShieldCheck, LogOut, FlaskConical, Calendar, CalendarDays, Mic, Square, Volume2, Edit2, Send, Home } from 'lucide-react-native';
+import { User, Clock, MapPin, ChevronRight, CreditCard, ScanLine, Smartphone, Camera, QrCode, CheckCircle2, Loader2, Sparkles, ShieldCheck, LogOut, FlaskConical, Calendar, CalendarDays, Mic, Square, Volume2, Edit2, Send, Home, MessageSquare, Bell, Bot, BookOpen } from 'lucide-react-native';
 import * as Speech from 'expo-speech';
 // Video intro removed
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
@@ -1823,49 +1823,181 @@ function ChatScreen({ userData, isKeyboardVisible, keyboardHeight }: { userData?
 }
 
 function OnboardingScreen({ onFinish }: { onFinish: () => void }) {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
+  const [currentStep, setCurrentStep] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
+  const handleNext = () => {
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-      Animated.spring(slideAnim, { toValue: 0, friction: 8, tension: 40, useNativeDriver: true })
-    ]).start();
-  }, [fadeAnim, slideAnim]);
+      Animated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: -15, duration: 200, useNativeDriver: true })
+    ]).start(() => {
+      setCurrentStep(1);
+      slideAnim.setValue(15);
+      Animated.parallel([
+        Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+        Animated.timing(slideAnim, { toValue: 0, duration: 250, useNativeDriver: true })
+      ]).start();
+    });
+  };
 
-  const cards = [
-    { title: 'Witaj w Antidotum! 🕺', desc: 'Zarządzaj swoimi zajęciami, płatnościami i komunikacją w jednym miejscu. Aplikacja w pełni ułatwi Ci życie w szkole tańca.', icon: <User color={COLORS.primary} size={48} /> },
-    { title: 'Twój Asystent AI 🤖', desc: 'Nasz Trener AI przeanalizuje Twoje ruchy z nagrań i podpowie co poprawić. Asystent AI błyskawicznie odpowie na pytania o grafik.', icon: <FlaskConical color={COLORS.primary} size={48} /> },
-    { title: 'Błyskawiczny kontakt 🚀', desc: 'Wykorzystuj gotowe powiadomienia (Push), aby jednym kliknięciem dać znać trenerowi o spóźnieniu lub zapytać o strój.', icon: <Sparkles color={COLORS.primary} size={48} /> }
+  const steps = [
+    {
+      title: 'Nowy standard w Twojej szkole',
+      subtitle: 'Wygodna obsługa na wejściu i mądry trening w domu.',
+      cards: [
+        {
+          title: 'Samoobsługowy Check-In QR',
+          desc: 'Nie marnujemy pierwszych minut zajęć. Przyłóż kod QR z aplikacji na recepcji przed wejściem na salę – trener od razu wie, że jesteś.',
+          icon: <QrCode color={COLORS.primary} size={24} />
+        },
+        {
+          title: 'Analiza Ruchu Wideo',
+          desc: 'Ćwiczysz układ przed lustrem? Wgraj krótkie wideo z domu – system porówna Twój ruch z nagraniem trenera klatka po klatce i pokaże, gdzie gubisz rytm.',
+          icon: <Sparkles color={COLORS.primary} size={24} />
+        }
+      ]
+    },
+    {
+      title: 'Komunikacja bez chaosu',
+      subtitle: 'Wszystkie ważne ustalenia zawsze pod ręką.',
+      cards: [
+        {
+          title: 'Żywe Ogłoszenia',
+          desc: 'Zero duplikowania pytań na czatach. Gdy ktokolwiek zapyta o szczegół wydarzenia (np. godzinę wyjazdu), odpowiedź automatycznie dopisuje się do głównego ogłoszenia dla wszystkich.',
+          icon: <MessageSquare color={COLORS.primary} size={24} />
+        },
+        {
+          title: 'Baza Wiedzy 24/7',
+          desc: 'Masz pytanie o cennik, stroje lub odrabianie zajęć? Wpisz pytanie na czacie – Asystent Szkolny wyciągnie precyzyjną odpowiedź z regulaminów w kilka sekund.',
+          icon: <Bot color={COLORS.primary} size={24} />
+        }
+      ]
+    }
   ];
 
+  const currentData = steps[currentStep];
+
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.background }}>
-      <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }}>
-        {cards.map((card, i) => (
-          <View key={i} style={{ width: width, padding: 40, justifyContent: 'center', alignItems: 'center' }}>
-            <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }], alignItems: 'center', backgroundColor: COLORS.surface, padding: 30, borderRadius: 30, width: '100%', shadowColor: COLORS.primary, shadowOffset: {width:0, height:10}, shadowOpacity: 0.3, shadowRadius: 20, borderWidth: 1, borderColor: '#333' }}>
-              <View style={{ marginBottom: 30, backgroundColor: 'rgba(244,114,182,0.1)', padding: 20, borderRadius: 50 }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
+      {/* Top Bar with Skip button */}
+      <View style={{ height: 50, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: 20 }}>
+        {currentStep === 0 && (
+          <TouchableOpacity onPress={onFinish} style={{ padding: 10 }}>
+            <Text style={{ color: COLORS.textMuted, fontSize: 14, fontWeight: '600' }}>Pomiń</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 25, paddingBottom: 40 }}>
+        <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }], width: '100%', maxWidth: 500, alignSelf: 'center' }}>
+          {/* Header */}
+          <Text style={{ color: COLORS.text, fontSize: 28, fontWeight: '800', marginBottom: 10, textAlign: 'center', fontFamily: Platform.OS === 'ios' ? 'HelveticaNeue-Bold' : 'sans-serif' }}>
+            {currentData.title}
+          </Text>
+          <Text style={{ color: COLORS.textMuted, fontSize: 15, textAlign: 'center', marginBottom: 35, lineHeight: 22, paddingHorizontal: 10 }}>
+            {currentData.subtitle}
+          </Text>
+
+          {/* Cards */}
+          {currentData.cards.map((card, idx) => (
+            <View 
+              key={idx} 
+              style={{
+                backgroundColor: COLORS.surface,
+                borderRadius: 24,
+                borderWidth: 1,
+                borderColor: '#27272A',
+                padding: 22,
+                flexDirection: 'row',
+                gap: 18,
+                width: '100%',
+                marginBottom: 16,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 6 },
+                shadowOpacity: 0.15,
+                shadowRadius: 10,
+                elevation: 4
+              }}
+            >
+              {/* Icon Container with subtle glow/aura */}
+              <View 
+                style={{ 
+                  width: 50, 
+                  height: 50, 
+                  borderRadius: 16, 
+                  backgroundColor: 'rgba(244,114,182,0.08)', 
+                  borderWidth: 1,
+                  borderColor: 'rgba(244,114,182,0.15)',
+                  justifyContent: 'center', 
+                  alignItems: 'center',
+                  shadowColor: COLORS.primary,
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 6
+                }}
+              >
                 {card.icon}
               </View>
-              <Text style={{ color: COLORS.text, fontSize: 26, fontWeight: '900', marginBottom: 20, textAlign: 'center' }}>{card.title}</Text>
-              <Text style={{ color: COLORS.textMuted, fontSize: 16, lineHeight: 26, textAlign: 'center' }}>{card.desc}</Text>
-            </Animated.View>
-            
-            {i === cards.length - 1 && (
-              <Animated.View style={{ opacity: fadeAnim, width: '100%', marginTop: 40 }}>
-                <TouchableOpacity style={styles.payButton} onPress={onFinish}>
-                  <Text style={styles.payButtonText}>Rozpocznij (Zaloguj się)</Text>
-                </TouchableOpacity>
-              </Animated.View>
-            )}
-            {i < cards.length - 1 && (
-              <Text style={{ color: COLORS.textMuted, marginTop: 40, fontWeight: 'bold' }}>Przesuń w lewo 👈</Text>
-            )}
-          </View>
-        ))}
+              {/* Text info */}
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: COLORS.text, fontSize: 16, fontWeight: '700', marginBottom: 6 }}>
+                  {card.title}
+                </Text>
+                <Text style={{ color: COLORS.textMuted, fontSize: 13, lineHeight: 19 }}>
+                  {card.desc}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </Animated.View>
       </ScrollView>
-    </View>
+
+      {/* Footer Area with Dots and CTA */}
+      <View style={{ paddingHorizontal: 25, paddingBottom: 40, width: '100%', maxWidth: 500, alignSelf: 'center', alignItems: 'center' }}>
+        {/* Pagination Dots */}
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 30, alignItems: 'center' }}>
+          <View 
+            style={{ 
+              height: 8, 
+              borderRadius: 4, 
+              backgroundColor: currentStep === 0 ? COLORS.primary : '#3F3F46', 
+              width: currentStep === 0 ? 20 : 8,
+              transition: 'all 0.3s ease'
+            } as any} 
+          />
+          <View 
+            style={{ 
+              height: 8, 
+              borderRadius: 4, 
+              backgroundColor: currentStep === 1 ? COLORS.primary : '#3F3F46', 
+              width: currentStep === 1 ? 20 : 8,
+              transition: 'all 0.3s ease'
+            } as any} 
+          />
+        </View>
+
+        {/* CTA Button */}
+        {currentStep === 0 ? (
+          <TouchableOpacity 
+            style={[styles.payButton, { width: '100%', height: 56, borderRadius: 28, justifyContent: 'center', backgroundColor: COLORS.primary }]} 
+            onPress={handleNext}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <Text style={[styles.payButtonText, { fontSize: 16, fontWeight: '700' }]}>Dalej</Text>
+              <ChevronRight color="#FFFFFF" size={20} />
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity 
+            style={[styles.payButton, { width: '100%', height: 56, borderRadius: 28, justifyContent: 'center', backgroundColor: COLORS.primary }]} 
+            onPress={onFinish}
+          >
+            <Text style={[styles.payButtonText, { fontSize: 16, fontWeight: '700' }]}>Zaczynamy!</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 
