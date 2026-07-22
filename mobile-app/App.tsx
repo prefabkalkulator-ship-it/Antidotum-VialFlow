@@ -1864,7 +1864,7 @@ function OnboardingScreen({ onFinish }: { onFinish: () => void }) {
       cards: [
         {
           title: 'Żywe Ogłoszenia',
-          desc: 'Zero duplikowania pytań na czatach. Gdy ktokolwiek zapyta o szczegół wydarzenia (np. godzinę wyjazdu), odpowiedź automatycznie dopisuje się do głównego ogłoszenia dla wszystkich.',
+          desc: 'Zero przewijania długich chatów. Gdy ktokolwiek zapyta o szczegół wydarzenia (np. godzinę wyjazdu), odpowiedź automatycznie dopisuje się do głównego ogłoszenia dla wszystkich.',
           icon: <MessageSquare color={COLORS.primary} size={24} />
         },
         {
@@ -1884,7 +1884,7 @@ function OnboardingScreen({ onFinish }: { onFinish: () => void }) {
       <View style={{ height: 50, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: 20 }}>
         {currentStep === 0 && (
           <TouchableOpacity onPress={onFinish} style={{ padding: 10 }}>
-            <Text style={{ color: COLORS.textMuted, fontSize: 14, fontWeight: '600' }}>Pomiń</Text>
+            <Text style={{ color: COLORS.textMuted, fontSize: 15, fontWeight: '600' }}>Pomiń</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -1895,7 +1895,7 @@ function OnboardingScreen({ onFinish }: { onFinish: () => void }) {
           <Text style={{ color: COLORS.text, fontSize: 28, fontWeight: '800', marginBottom: 10, textAlign: 'center', fontFamily: Platform.OS === 'ios' ? 'HelveticaNeue-Bold' : 'sans-serif' }}>
             {currentData.title}
           </Text>
-          <Text style={{ color: COLORS.textMuted, fontSize: 15, textAlign: 'center', marginBottom: 35, lineHeight: 22, paddingHorizontal: 10 }}>
+          <Text style={{ color: COLORS.textMuted, fontSize: 16, textAlign: 'center', marginBottom: 35, lineHeight: 23, paddingHorizontal: 10 }}>
             {currentData.subtitle}
           </Text>
 
@@ -1944,7 +1944,7 @@ function OnboardingScreen({ onFinish }: { onFinish: () => void }) {
                 <Text style={{ color: COLORS.text, fontSize: 16, fontWeight: '700', marginBottom: 6 }}>
                   {card.title}
                 </Text>
-                <Text style={{ color: COLORS.textMuted, fontSize: 13, lineHeight: 19 }}>
+                <Text style={{ color: COLORS.textMuted, fontSize: 14.5, lineHeight: 21 }}>
                   {card.desc}
                 </Text>
               </View>
