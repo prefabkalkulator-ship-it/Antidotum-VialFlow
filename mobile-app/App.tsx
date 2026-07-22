@@ -529,6 +529,27 @@ const EventsScreen = ({ childrenInfo, userData }: { childrenInfo: { id: string, 
     }
   };
 
+  const matchGroupName = (userGroup: string, userGroupId: string, targetGroup: string): boolean => {
+    if (!userGroup || !targetGroup) return false;
+    const ug = userGroup.toLowerCase().trim();
+    const ugId = (userGroupId || '').toLowerCase().trim();
+    const tg = targetGroup.toLowerCase().trim();
+
+    // 1. Equal / Substring
+    if (ug === tg || ug.includes(tg) || tg.includes(ug)) return true;
+    if (ugId === tg || ugId.includes(tg) || tg.includes(ugId)) return true;
+
+    // 2. Normalized space/hyphen matching
+    const normUg = ug.replace(/[-\s]+/g, '');
+    const normUgId = ugId.replace(/[-\s]+/g, '');
+    const normTg = tg.replace(/[-\s]+/g, '');
+
+    if (normUg === normTg || normUg.includes(normTg) || normTg.includes(normUg)) return true;
+    if (normUgId === normTg || normUgId.includes(normTg) || normTg.includes(normUgId)) return true;
+
+    return false;
+  };
+
   // Filter events based on targetGroups
   const filteredEvents = events.filter(ev => {
     // If the logged-in user is staff (Admin, Instruktor, Recepcjonista, etc.), show everything
@@ -543,18 +564,20 @@ const EventsScreen = ({ childrenInfo, userData }: { childrenInfo: { id: string, 
 
     const targetGroupsArr = target.split(',').map((g: string) => g.trim().toLowerCase());
 
-    const userGroups: string[] = [];
+    const userGroups: { name: string, id: string }[] = [];
     if (userData?.children && Array.isArray(userData.children)) {
       userData.children.forEach((c: any) => {
-        if (c.groupName) userGroups.push(c.groupName.trim().toLowerCase());
+        userGroups.push({ name: c.groupName || '', id: c.groupId || '' });
       });
     }
-    if (userData?.groupName) {
-      userGroups.push(userData.groupName.trim().toLowerCase());
+    if (userData?.groupName || userData?.groupId) {
+      userGroups.push({ name: userData.groupName || '', id: userData.groupId || '' });
     }
 
     // Return true if there is an overlap
-    return targetGroupsArr.some((tg: string) => userGroups.includes(tg));
+    return targetGroupsArr.some((tg: string) => 
+      userGroups.some(ug => matchGroupName(ug.name, ug.id, tg))
+    );
   });
 
   if (loading) return <View style={{flex:1, justifyContent:'center', alignItems:'center'}}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
@@ -598,8 +621,9 @@ const EventsScreen = ({ childrenInfo, userData }: { childrenInfo: { id: string, 
             const isAll = eventTarget.includes('wszyscy') || eventTarget === '';
             const targetGroupsArr = eventTarget.split(',').map((g: string) => g.trim().toLowerCase());
             
-            const childGroup = (childDetails?.groupName || '').trim().toLowerCase();
-            const isEligible = isAll || targetGroupsArr.includes(childGroup);
+            const childGroupName = childDetails?.groupName || '';
+            const childGroupId = childDetails?.groupId || '';
+            const isEligible = isAll || targetGroupsArr.some((tg: string) => matchGroupName(childGroupName, childGroupId, tg));
 
             // If child is not in the target group, hide their sign-up button
             if (!isEligible) return null;

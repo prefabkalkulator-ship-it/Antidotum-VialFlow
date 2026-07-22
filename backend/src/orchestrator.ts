@@ -39,6 +39,18 @@ export async function runEventOrchestration(messages: {role: string, content: st
       console.warn('Nie udalo sie pobrac zewnetrznych regul z Dysku. Ignoruje...');
     }
 
+    // Pobranie Oficjalnych Grup z bazy
+    let availableGroupsList: string[] = [];
+    try {
+      const { getGroups } = require('./sheetsApi');
+      const groupsData = await getGroups();
+      if (Array.isArray(groupsData)) {
+        availableGroupsList = groupsData.map((g: any) => g.name);
+      }
+    } catch (e) {
+      console.warn('Nie udalo sie pobrac oficjalnych grup. Ignoruje...');
+    }
+
     const model = vertexAI.preview.getGenerativeModel({
       model: 'gemini-2.5-flash',
       generationConfig: { responseMimeType: 'application/json' } as any,
@@ -58,6 +70,9 @@ export async function runEventOrchestration(messages: {role: string, content: st
       Jesteś Asystentem Organizacyjnym Szkoły Tańca Antidotum.
       Pomagasz administratorowi stworzyć ogłoszenie o nowym wydarzeniu.
 
+      OFICJALNE GRUPY W BAZIE DANYCH SZKOŁY:
+      ${availableGroupsList.join(', ')}
+
       BIEŻĄCY CZAS (Zawsze bierz pod uwagę bieżący rok, miesiąc i dzień tygodnia przy ustalaniu dat):
       Dzisiejsza data, dzień tygodnia i godzina: ${currentDateStr}.
 
@@ -70,6 +85,9 @@ export async function runEventOrchestration(messages: {role: string, content: st
       - Typ wydarzenia, Datę rozpoczęcia, Datę zakończenia, Miejsce/salę, Koszt, Wymagania dot. stroju, Grupy docelowe (konkretne nazwy grup, np. "Grupa A, Grupa B", lub cała szkoła/wszyscy)
       Zadawaj maksymalnie 2 pytania naraz, w przyjaznym tonie.
       Kończ pytania słowami: "(brakuje: [lista] — podaj proszę lub zaznaczę jako nieokreślone)"
+
+      ZASADA DOPASOWANIA GRUP DO BAZY DANYCH:
+      Gdy administrator podaje grupy docelowe dla wydarzenia (np. "Junior 2" lub "Hobby"), dopasuj te potoczne nazwy do ich PEŁNYCH oficjalnych nazw z powyższej listy "OFICJALNE GRUPY W BAZIE DANYCH SZKOŁY" (np. "Junior 2" pasuje do "JUNIOR 2 2026-27"). W polu "targetGroups" (przy statusie "complete") wpisz dokładnie te oficjalne nazwy z listy (oddzielone przecinkami, jeśli jest ich więcej niż jedna). Jeśli wydarzenie jest dla całej szkoły, wpisz "Wszyscy". Kategorycznie unikaj wpisywania skróconych, potocznych lub błędnych nazw w polu "targetGroups" – wartości te muszą dokładnie odpowiadać nazwom z powyższej listy grup.
 
       ZASADA 3 – KROK PREVIEW (OBOWIĄZKOWY):
       Gdy masz wszystkie dane — NIE twórz jeszcze wydarzenia.
