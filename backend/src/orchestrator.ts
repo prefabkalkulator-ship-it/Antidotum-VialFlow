@@ -358,7 +358,7 @@ export async function readEventDocument(docId: string) {
     let commentsContent = parts[1] ? parts[1].trim() : '';
 
     // Anonimizacja autorów pytań: zamiana np. "Tomasz Kowalski (22.07.2026, 09:16):" lub "PYTANIE OD Marta:" na "Pytanie:"
-    commentsContent = commentsContent.replace(/^(?!\s*(?:odpowiedź|odpowiedz|organizator)\b)[A-ZĄĆĘŁŃÓŚŹŻa-ząćęłńóśźż\s]+(?:\s*\([^)]+\))?\s*:/gim, 'Pytanie:');
+    commentsContent = commentsContent.replace(/^(?!\s*(?:odpowiedź|odpowiedz|organizator))[A-ZĄĆĘŁŃÓŚŹŻa-ząćęłńóśźż\s]+(?:\s*\([^)]+\))?\s*:/gim, 'Pytanie:');
 
     return { success: true, content: mainContent, comments: commentsContent };
   } catch (err: any) {
