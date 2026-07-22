@@ -44,9 +44,22 @@ export async function runEventOrchestration(messages: {role: string, content: st
       generationConfig: { responseMimeType: 'application/json' } as any,
     });
 
+    const currentDateStr = new Date().toLocaleString('pl-PL', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Europe/Warsaw'
+    });
+
     const systemPrompt = `
       Jesteś Asystentem Organizacyjnym Szkoły Tańca Antidotum.
       Pomagasz administratorowi stworzyć ogłoszenie o nowym wydarzeniu.
+
+      BIEŻĄCY CZAS (Zawsze bierz pod uwagę bieżący rok, miesiąc i dzień tygodnia przy ustalaniu dat):
+      Dzisiejsza data, dzień tygodnia i godzina: ${currentDateStr}.
 
       ZASADA 1 – CZYTAJ HISTORIĘ:
       Dokładnie przeanalizuj CAŁĄ historię rozmowy zanim zadasz pytanie.
@@ -69,6 +82,9 @@ export async function runEventOrchestration(messages: {role: string, content: st
       ZASADA 4 – TWORZENIE:
       Gdy administrator napisze 'zatwierdzam', 'ok', 'tworz', 'zapisz' lub podobne —
       zwróć status "complete" z "detailedDescription" równym polu "draft" z poprzedniego preview.
+
+      ZASADA 5 – ZWIĘZŁOŚĆ I ABSOLUTNY BRAK LANIA WODY / MARKETINGOWEGO ZAPYCHANIA:
+      Opis wydarzenia i pole 'draft' MUSZĄ być zwięzłe i zawierać tylko konkretne fakty. KATEGORYCZNIE unikaj wklejania ogólnych, marketingowych formułek-zapychaczy o emocjach, rywalizacji czy pasji scenicznej (np. "Przygotujcie się na dzień pełen pasji, rywalizacji i niezapomnianych wrażeń!", "To idealna okazja, by zaprezentować swoje umiejętności..."), chyba że administrator wyraźnie zażądał ich dodania. Trzymaj się konkretnych informacji (Kto, Kiedy, Gdzie, Koszt, Strój).
 
       ZASADY DODATKOWE SZKOŁY:
       ${externalRules}
@@ -345,10 +361,23 @@ export async function generateEventRewriteDraft(docId: string, directive: string
       model: 'gemini-2.5-flash',
     });
 
+    const currentDateStr = new Date().toLocaleString('pl-PL', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Europe/Warsaw'
+    });
+
     const prompt = `
       Jesteś administratorem wydarzeń w szkole tańca Antidotum.
       Otrzymujesz aktualną treść ogłoszenia w Google Docs oraz nową wytyczną / odpowiedź organizatora odnośnie pytania ucznia "${author}".
       
+      BIEŻĄCY CZAS (Weź pod uwagę przy datowaniu):
+      Dzisiejsza data i czas: ${currentDateStr}.
+
       WYTYCZNA / INSTRUKCJA DLA AI:
       "${directive}"
       
@@ -360,6 +389,11 @@ export async function generateEventRewriteDraft(docId: string, directive: string
       Twoim zadaniem jest poprawić i zaktualizować zawartość dokumentu. 
       Przekształć treść tak, aby wytyczna była zgrabnie i naturalnie wbudowana w treść ogłoszenia.
       Używaj entuzjastycznego tonu z odpowiednimi emoji (np. 🎉, 👟, 💃, 📍, 🗓️).
+      
+      ZASADA ZWIĘZŁOŚĆI I ABSOLUTNEGO BRAKU LANIA WODY:
+      Pisz krótko i na temat. Zmień lub stwórz treść tak, aby zawierała wyłącznie konkretne fakty. 
+      KATEGORYCZNIE wyklucz generowanie ogólnych, marketingowych formułek-zapychaczy o emocjach, rywalizacji czy pasji scenicznej (np. "Przygotujcie się na dzień pełen pasji, rywalizacji i niezapomnianych wrażeń!", "To idealna okazja, by zaprezentować swoje umiejętności..."), chyba że administrator wyraźnie zażądał ich dodania. Skup się wyłącznie na konkretnych informacjach.
+
       Zachowaj czystą strukturę z sekcjami:
       === [Tytuł Wydarzenia] ===
       [Główny Opis i Szczegóły]
