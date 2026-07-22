@@ -1826,6 +1826,7 @@ function OnboardingScreen({ onFinish }: { onFinish: () => void }) {
   const [currentStep, setCurrentStep] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const handleNext = () => {
     Animated.parallel([
@@ -1834,6 +1835,9 @@ function OnboardingScreen({ onFinish }: { onFinish: () => void }) {
     ]).start(() => {
       setCurrentStep(1);
       slideAnim.setValue(15);
+      if (scrollViewRef.current) {
+        scrollViewRef.current.scrollTo({ y: 0, animated: false });
+      }
       Animated.parallel([
         Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
         Animated.timing(slideAnim, { toValue: 0, duration: 250, useNativeDriver: true })
@@ -1848,7 +1852,7 @@ function OnboardingScreen({ onFinish }: { onFinish: () => void }) {
       cards: [
         {
           title: 'Samoobsługowy Check-In QR',
-          desc: 'Nie marnujemy pierwszych minut zajęć. Przyłóż kod QR z aplikacji na recepcji przed wejściem na salę – trener od razu wie, że jesteś.',
+          desc: 'Nie marnujemy pierwszych minut zajęć. Zeskanuj kod QR z aplikacji na recepcji przed wejściem na salę – trener od razu wie, że jesteś.',
           icon: <QrCode color={COLORS.primary} size={24} />
         },
         {
@@ -1889,7 +1893,7 @@ function OnboardingScreen({ onFinish }: { onFinish: () => void }) {
         )}
       </View>
 
-      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 25, paddingBottom: 40 }}>
+      <ScrollView ref={scrollViewRef} contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 25, paddingBottom: 40 }}>
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }], width: '100%', maxWidth: 500, alignSelf: 'center' }}>
           {/* Header */}
           <Text style={{ color: COLORS.text, fontSize: 28, fontWeight: '800', marginBottom: 10, textAlign: 'center', fontFamily: Platform.OS === 'ios' ? 'HelveticaNeue-Bold' : 'sans-serif' }}>
