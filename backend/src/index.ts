@@ -603,7 +603,7 @@ app.post('/api/events/bookings/:sheetRow/pay', async (req, res) => {
         title: title || 'Opłata za wydarzenie',
         type: 'Wydarzenie',
         method: method || 'BLIK',
-        status: 'Zatwierdzona'
+        status: 'Zakończona'
       });
     }
     res.json({ success: result });
@@ -797,7 +797,7 @@ app.post('/api/payments/passes/:childId/pay', async (req, res) => {
         title: title || 'Opłata za karnet',
         type: 'Karnet',
         method: method || 'BLIK',
-        status: 'Zatwierdzona'
+        status: 'Zakończona'
       });
     }
     res.json({ success: result });
