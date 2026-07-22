@@ -2146,6 +2146,52 @@ export default function App() {
     return () => { showSub.remove(); hideSub.remove(); };
   }, []);
 
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
+
+  useEffect(() => {
+    const restoreSession = async () => {
+      try {
+        const savedRole = await AsyncStorage.getItem('userRole');
+        const savedUserData = await AsyncStorage.getItem('userData');
+        const savedActiveTab = await AsyncStorage.getItem('activeTab');
+        if (savedRole && savedUserData) {
+          setRole(savedRole as any);
+          setUserData(JSON.parse(savedUserData));
+          if (savedActiveTab) {
+            setActiveTab(savedActiveTab as any);
+          }
+        }
+      } catch (e) {
+        console.log('Blad odtwarzania sesji:', e);
+      } finally {
+        setIsRestoringSession(false);
+      }
+    };
+    restoreSession();
+  }, []);
+
+  useEffect(() => {
+    if (role !== null) {
+      AsyncStorage.setItem('userRole', role);
+    } else {
+      AsyncStorage.removeItem('userRole');
+    }
+  }, [role]);
+
+  useEffect(() => {
+    if (userData !== null) {
+      AsyncStorage.setItem('userData', JSON.stringify(userData));
+    } else {
+      AsyncStorage.removeItem('userData');
+    }
+  }, [userData]);
+
+  useEffect(() => {
+    if (activeTab) {
+      AsyncStorage.setItem('activeTab', activeTab);
+    }
+  }, [activeTab]);
+
   useEffect(() => {
     if (Platform.OS === 'web') {
       getFirebaseMessaging().then(messaging => {
@@ -2409,7 +2455,7 @@ export default function App() {
     setIsVerifyingPin(false);
   };
 
-  if (showIntro || promptActive) {
+  if (showIntro || promptActive || isRestoringSession) {
     return (
       <View style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}>
         <Image source={require('./assets/antidotum-intro.gif')} style={{ width: '100%', height: '100%', resizeMode: 'cover', position: 'absolute' }} />
