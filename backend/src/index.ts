@@ -573,7 +573,7 @@ app.post('/api/events/book', async (req, res) => {
     const { childId, eventId } = req.body;
     if (!childId || !eventId) return res.status(400).json({ error: 'Brak childId lub eventId' });
     const result = await bookEvent(childId, eventId);
-    res.json(result);
+    res.json({ success: result });
   } catch (err) {
     console.error('Blad /api/events/book:', err);
     res.status(500).json({ error: 'Blad serwera' });
@@ -582,8 +582,9 @@ app.post('/api/events/book', async (req, res) => {
 
 app.put('/api/events/bookings/:sheetRow/approve', async (req, res) => {
   try {
-    const result = await approveEventBooking(Number(req.params.sheetRow));
-    res.json(result);
+    const { status } = req.body;
+    const result = await approveEventBooking(Number(req.params.sheetRow), status || 'Zatwierdzony');
+    res.json({ success: result });
   } catch (err) {
     console.error('Blad /api/events/bookings/approve:', err);
     res.status(500).json({ error: 'Blad serwera' });
@@ -592,9 +593,20 @@ app.put('/api/events/bookings/:sheetRow/approve', async (req, res) => {
 
 app.post('/api/events/bookings/:sheetRow/pay', async (req, res) => {
   try {
-    const { blikCode, method } = req.body;
-    const result = await payEventBooking(Number(req.params.sheetRow), blikCode, method);
-    res.json(result);
+    const { blikCode, method, childId, childName, amount, title } = req.body;
+    const result = await payEventBooking(Number(req.params.sheetRow));
+    if (result) {
+      await addPaymentTransaction({
+        childId: childId || '',
+        childName: childName || 'Nieznany',
+        amount: Number(amount) || 0,
+        title: title || 'Opłata za wydarzenie',
+        type: 'Wydarzenie',
+        method: method || 'BLIK',
+        status: 'Zatwierdzona'
+      });
+    }
+    res.json({ success: result });
   } catch (err) {
     console.error('Blad /api/events/bookings/pay:', err);
     res.status(500).json({ error: 'Blad serwera' });
@@ -775,9 +787,20 @@ app.post('/api/payments/passes/generate/:childId', async (req, res) => {
 
 app.post('/api/payments/passes/:childId/pay', async (req, res) => {
   try {
-    const { blikCode, method } = req.body;
-    const result = await payStudentPass(req.params.childId, blikCode, method);
-    res.json(result);
+    const { blikCode, method, childName, amount, title } = req.body;
+    const result = await payStudentPass(req.params.childId);
+    if (result) {
+      await addPaymentTransaction({
+        childId: req.params.childId,
+        childName: childName || 'Nieznany',
+        amount: Number(amount) || 0,
+        title: title || 'Opłata za karnet',
+        type: 'Karnet',
+        method: method || 'BLIK',
+        status: 'Zatwierdzona'
+      });
+    }
+    res.json({ success: result });
   } catch (err) {
     console.error('Blad /api/payments/passes/pay:', err);
     res.status(500).json({ error: 'Blad serwera' });
