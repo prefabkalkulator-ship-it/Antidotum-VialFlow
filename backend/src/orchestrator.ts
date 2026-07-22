@@ -353,9 +353,14 @@ export async function readEventDocument(docId: string) {
       }
     });
     let cleanContent = currentContent.replace(/^===\s*.*?\s*===\s*\n*/g, '');
-    cleanContent = cleanContent.split(/---\s*\n*SEKCJA Q&A/i)[0];
-    cleanContent = cleanContent.trim();
-    return { success: true, content: cleanContent };
+    const parts = cleanContent.split(/---\s*\n*SEKCJA Q&A/i);
+    const mainContent = parts[0].trim();
+    let commentsContent = parts[1] ? parts[1].trim() : '';
+
+    // Anonimizacja autorów pytań: zamiana "PYTANIE OD Marta Kowalska:" na "PYTANIE:"
+    commentsContent = commentsContent.replace(/PYTANIE OD [^:]+:/gi, 'PYTANIE:');
+
+    return { success: true, content: mainContent, comments: commentsContent };
   } catch (err: any) {
     console.error('Błąd pobierania dokumentu:', err);
     throw err;

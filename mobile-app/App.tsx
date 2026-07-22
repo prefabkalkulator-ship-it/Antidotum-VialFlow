@@ -434,6 +434,7 @@ const EventsScreen = ({ childrenInfo, userData }: { childrenInfo: { id: string, 
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [docContent, setDocContent] = useState<string>('');
+  const [docComments, setDocComments] = useState<string>('');
   const [docLoading, setDocLoading] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [sendingComment, setSendingComment] = useState(false);
@@ -447,8 +448,10 @@ const EventsScreen = ({ childrenInfo, userData }: { childrenInfo: { id: string, 
       const res = await apiFetch(`https://vialflow-backend-392406857647.europe-central2.run.app/api/events/docs/${idToFetch}`);
       const data = await res.json();
       setDocContent(data.content || 'Brak dodatkowego opisu dla tego wydarzenia.');
+      setDocComments(data.comments || '');
     } catch(e) {
       setDocContent('Błąd pobierania dokumentu z Google Docs.');
+      setDocComments('');
     }
     setDocLoading(false);
   };
@@ -671,7 +674,17 @@ const EventsScreen = ({ childrenInfo, userData }: { childrenInfo: { id: string, 
           ) : (
             <>
               <ScrollView style={{ flex: 1, backgroundColor: COLORS.surface, borderRadius: 10, padding: 15, marginBottom: 15 }}>
-                <Text style={{ color: COLORS.text, fontSize: 15, lineHeight: 24 }}>{docContent}</Text>
+                <Text style={{ color: COLORS.text, fontSize: 15, lineHeight: 24, marginBottom: 20 }}>{docContent}</Text>
+                {docComments ? (
+                  <View style={{ borderTopWidth: 1, borderColor: '#333', paddingTop: 15, marginTop: 15 }}>
+                    <Text style={{ color: COLORS.primary, fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>
+                      💬 Historia pytań i odpowiedzi
+                    </Text>
+                    <Text style={{ color: COLORS.text, fontSize: 14, lineHeight: 22, fontStyle: 'italic' }}>
+                      {docComments}
+                    </Text>
+                  </View>
+                ) : null}
               </ScrollView>
               
               <TouchableOpacity 
