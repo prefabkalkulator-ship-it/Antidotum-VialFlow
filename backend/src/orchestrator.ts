@@ -353,12 +353,12 @@ export async function readEventDocument(docId: string) {
       }
     });
     let cleanContent = currentContent.replace(/^===\s*.*?\s*===\s*\n*/g, '');
-    const parts = cleanContent.split(/---\s*\n*SEKCJA Q&A/i);
+    const parts = cleanContent.split(/[-\s]*SEKCJA Q&A[^\n]*\n/i);
     const mainContent = parts[0].trim();
     let commentsContent = parts[1] ? parts[1].trim() : '';
 
-    // Anonimizacja autorów pytań: zamiana "PYTANIE OD Marta Kowalska:" na "PYTANIE:"
-    commentsContent = commentsContent.replace(/PYTANIE OD [^:]+:/gi, 'PYTANIE:');
+    // Anonimizacja autorów pytań: zamiana np. "Tomasz Kowalski (22.07.2026, 09:16):" lub "PYTANIE OD Marta:" na "Pytanie:"
+    commentsContent = commentsContent.replace(/^(?!\s*(?:odpowiedź|odpowiedz|organizator)\b)[A-ZĄĆĘŁŃÓŚŹŻa-ząćęłńóśźż\s]+(?:\s*\([^)]+\))?\s*:/gim, 'Pytanie:');
 
     return { success: true, content: mainContent, comments: commentsContent };
   } catch (err: any) {
