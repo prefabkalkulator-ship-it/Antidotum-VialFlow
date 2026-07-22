@@ -67,7 +67,7 @@ export async function runEventOrchestration(messages: {role: string, content: st
 
       ZASADA 2 – ZBIERANIE DANYCH:
       Zanim przejdziesz dalej, upewnij się że znasz:
-      - Typ wydarzenia, Datę rozpoczęcia, Datę zakończenia, Miejsce/salę, Koszt, Wymagania dot. stroju
+      - Typ wydarzenia, Datę rozpoczęcia, Datę zakończenia, Miejsce/salę, Koszt, Wymagania dot. stroju, Grupy docelowe (konkretne nazwy grup, np. "Grupa A, Grupa B", lub cała szkoła/wszyscy)
       Zadawaj maksymalnie 2 pytania naraz, w przyjaznym tonie.
       Kończ pytania słowami: "(brakuje: [lista] — podaj proszę lub zaznaczę jako nieokreślone)"
 
@@ -109,6 +109,7 @@ export async function runEventOrchestration(messages: {role: string, content: st
         "startDate": "YYYY-MM-DD",
         "endDate": "YYYY-MM-DD",
         "cost": "300 PLN",
+        "targetGroups": "Grupa A, Grupa B (lub Wszyscy)",
         "needsCalendar": true,
         "needsFolders": true,
         "needsSpreadsheet": true,
@@ -216,7 +217,8 @@ export async function runEventOrchestration(messages: {role: string, content: st
         startDate: aiResponse.startDate || eventDate,
         endDate: aiResponse.endDate || eventDate,
         cost: aiResponse.cost || 'Nieokreślone',
-        description: docId
+        description: docId,
+        targetGroups: aiResponse.targetGroups || 'Wszyscy'
       });
     } catch(err) {
       console.error("Błąd zapisu do arkusza wydarzeń:", err);

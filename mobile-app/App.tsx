@@ -529,12 +529,40 @@ const EventsScreen = ({ childrenInfo, userData }: { childrenInfo: { id: string, 
     }
   };
 
+  // Filter events based on targetGroups
+  const filteredEvents = events.filter(ev => {
+    // If the logged-in user is staff (Admin, Instruktor, Recepcjonista, etc.), show everything
+    if (userData?.role && userData.role !== 'Rodzic' && userData.role !== 'Uczeń' && userData.role !== 'Uczen_Dorosly' && userData.role !== 'Uczen_Nieletni') {
+      return true;
+    }
+
+    const target = (ev.targetGroups || 'Wszyscy').toLowerCase();
+    if (target.includes('wszyscy') || target === '') {
+      return true;
+    }
+
+    const targetGroupsArr = target.split(',').map((g: string) => g.trim().toLowerCase());
+
+    const userGroups: string[] = [];
+    if (userData?.children && Array.isArray(userData.children)) {
+      userData.children.forEach((c: any) => {
+        if (c.groupName) userGroups.push(c.groupName.trim().toLowerCase());
+      });
+    }
+    if (userData?.groupName) {
+      userGroups.push(userData.groupName.trim().toLowerCase());
+    }
+
+    // Return true if there is an overlap
+    return targetGroupsArr.some((tg: string) => userGroups.includes(tg));
+  });
+
   if (loading) return <View style={{flex:1, justifyContent:'center', alignItems:'center'}}><ActivityIndicator size="large" color={COLORS.primary} /></View>;
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
       <Text style={styles.sectionTitle}>Nadchodzące Wydarzenia</Text>
-      {events.map((ev, i) => (
+      {filteredEvents.map((ev, i) => (
         <View key={i} style={[styles.paymentCard, { marginBottom: 20 }]}>
           <View style={styles.paymentHeader}>
             <Text style={styles.paymentTitle}>{ev.title}</Text>
@@ -564,6 +592,18 @@ const EventsScreen = ({ childrenInfo, userData }: { childrenInfo: { id: string, 
           </TouchableOpacity>
           
           {childrenInfo?.map(child => {
+            // Find child group details
+            const childDetails = userData?.children?.find((c: any) => c.id === child.id) || userData;
+            const eventTarget = (ev.targetGroups || 'Wszyscy').toLowerCase();
+            const isAll = eventTarget.includes('wszyscy') || eventTarget === '';
+            const targetGroupsArr = eventTarget.split(',').map((g: string) => g.trim().toLowerCase());
+            
+            const childGroup = (childDetails?.groupName || '').trim().toLowerCase();
+            const isEligible = isAll || targetGroupsArr.includes(childGroup);
+
+            // If child is not in the target group, hide their sign-up button
+            if (!isEligible) return null;
+
             const bStatus = bookingStatus[`${ev.id}-${child.id}`];
             return (
               <TouchableOpacity 
@@ -588,7 +628,7 @@ const EventsScreen = ({ childrenInfo, userData }: { childrenInfo: { id: string, 
           })}
         </View>
       ))}
-      {events.length === 0 && <Text style={{color: COLORS.textMuted, textAlign: 'center'}}>Brak aktualnych wydarzeń.</Text>}
+      {filteredEvents.length === 0 && <Text style={{color: COLORS.textMuted, textAlign: 'center'}}>Brak aktualnych wydarzeń.</Text>}
 
       <Modal visible={showDocModal} animationType="slide" presentationStyle="pageSheet">
         <View style={{ flex: 1, backgroundColor: COLORS.background, padding: 20 }}>

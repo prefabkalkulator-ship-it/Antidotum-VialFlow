@@ -763,7 +763,7 @@ export const getEvents = async () => {
 
     const res = await api.spreadsheets.values.get({
       spreadsheetId: EVENTS_SPREADSHEET_ID,
-      range: 'Lista_Wydarzen!A:G',
+      range: 'Lista_Wydarzen!A:H',
     });
 
     const rows = res.data.values;
@@ -777,7 +777,8 @@ export const getEvents = async () => {
       endDate: row[4] || '',
       cost: row[5] || '',
       description: row[6] || '',
-      docId: row[6] || ''
+      docId: row[6] || '',
+      targetGroups: row[7] || 'Wszyscy'
     }));
   } catch (error) {
     console.error('Błąd pobierania wydarzeń:', error);
@@ -1347,7 +1348,7 @@ export const getNotificationsForUser = async (groupId: string, groupName: string
 };
 
 
-export const saveEventToList = async (event: { id: string, type: string, title: string, startDate: string, endDate: string, cost: string, description: string }) => {
+export const saveEventToList = async (event: { id: string, type: string, title: string, startDate: string, endDate: string, cost: string, description: string, targetGroups?: string }) => {
   try {
     const api = await initAuth();
     if (!api) throw new Error("Brak autoryzacji");
@@ -1358,7 +1359,16 @@ export const saveEventToList = async (event: { id: string, type: string, title: 
     const sheet = spreadSheetInfo.data.sheets?.find((s: any) => s.properties?.title === 'Lista_Wydarzen');
     const sheetId = sheet ? sheet.properties.sheetId : 0;
 
-    const rowData = [event.id, event.type, event.title, event.startDate, event.endDate, event.cost, event.description];
+    const rowData = [
+      event.id, 
+      event.type, 
+      event.title, 
+      event.startDate, 
+      event.endDate, 
+      event.cost, 
+      event.description,
+      event.targetGroups || 'Wszyscy'
+    ];
 
     // Insert row between 1 and 2
     await api.spreadsheets.batchUpdate({
@@ -1381,7 +1391,7 @@ export const saveEventToList = async (event: { id: string, type: string, title: 
 
     await api.spreadsheets.values.update({
       spreadsheetId: EVENTS_SPREADSHEET_ID,
-      range: 'Lista_Wydarzen!A2:G2',
+      range: 'Lista_Wydarzen!A2:H2',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [rowData]
