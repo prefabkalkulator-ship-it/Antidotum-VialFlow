@@ -920,7 +920,7 @@ const ProfileScreen = ({ userData, role }: { userData: any, role: string }) => {
 
 
             {Object.entries(c).map(([key, val]) => {
-              if (key === 'id' || key === 'email' || key === 'phone' || key === 'firstName' || key === 'lastName' || key === 'groupId' || key === 'pin' || key === 'op2Pin') return null;
+              if (key === 'id' || key === 'email' || key === 'phone' || key === 'firstName' || key === 'lastName' || key === 'groupId' || key === 'pin' || key === 'op2Pin' || key === 'expoPushToken' || key === 'deviceToken' || key === 'ExpoPushToken') return null;
               if (!val) return null;
               return (
                 <View key={key} style={{ marginBottom: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)', paddingBottom: 8 }}>
@@ -951,7 +951,7 @@ const ProfileScreen = ({ userData, role }: { userData: any, role: string }) => {
           {renderField('phone', 'Telefon kontaktowy', phone, true)}
           
           {Object.entries(userData || {}).map(([key, val]) => {
-            if (key === 'id' || key === 'email' || key === 'phone' || key === 'firstName' || key === 'lastName' || key === 'groupId' || key === 'pin') return null;
+            if (key === 'id' || key === 'email' || key === 'phone' || key === 'firstName' || key === 'lastName' || key === 'groupId' || key === 'pin' || key === 'expoPushToken' || key === 'deviceToken' || key === 'ExpoPushToken') return null;
             if (!val) return null;
             return (
               <View key={key} style={{ marginBottom: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)', paddingBottom: 8 }}>
