@@ -596,14 +596,16 @@ app.post('/api/events/bookings/:sheetRow/pay', async (req, res) => {
     const { blikCode, method, childId, childName, amount, title } = req.body;
     const result = await payEventBooking(Number(req.params.sheetRow));
     if (result) {
+      const cleanAmount = Number(String(amount || '').replace(/[^0-9.]/g, '')) || 0;
       await addPaymentTransaction({
         childId: childId || '',
         childName: childName || 'Nieznany',
-        amount: Number(amount) || 0,
+        amount: cleanAmount,
         title: title || 'Opłata za wydarzenie',
         type: 'Wydarzenie',
         method: method || 'BLIK',
-        status: 'Zakończona'
+        status: 'Zakończona',
+        handledByEmail: 'System BLIK'
       });
     }
     res.json({ success: result });
@@ -790,14 +792,16 @@ app.post('/api/payments/passes/:childId/pay', async (req, res) => {
     const { blikCode, method, childName, amount, title } = req.body;
     const result = await payStudentPass(req.params.childId);
     if (result) {
+      const cleanAmount = Number(String(amount || '').replace(/[^0-9.]/g, '')) || 0;
       await addPaymentTransaction({
         childId: req.params.childId,
         childName: childName || 'Nieznany',
-        amount: Number(amount) || 0,
+        amount: cleanAmount,
         title: title || 'Opłata za karnet',
         type: 'Karnet',
         method: method || 'BLIK',
-        status: 'Zakończona'
+        status: 'Zakończona',
+        handledByEmail: 'System BLIK'
       });
     }
     res.json({ success: result });
