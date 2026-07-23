@@ -1176,8 +1176,13 @@ function PaymentScreen({ childrenInfo }: { childrenInfo: { id: string, name: str
             <Text style={styles.paymentAmount}>{pass.price || 150} PLN</Text>
           </View>
           <Text style={styles.paymentDesc}>{pass.childName} - {pass.group} - Ważny do: {pass.validUntil}</Text>
-          <View style={{ marginTop: 10, backgroundColor: pass.status === 'Aktywny' ? 'rgba(74,222,128,0.2)' : 'rgba(239,68,68,0.2)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 5, alignSelf: 'flex-start' }}>
-            <Text style={{ color: pass.status === 'Aktywny' ? '#4ADE80' : '#EF4444', fontWeight: 'bold' }}>{pass.status}</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+            <View style={{ backgroundColor: 'rgba(168,85,247,0.2)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 5 }}>
+              <Text style={{ color: '#A855F7', fontWeight: 'bold' }}>Karnet</Text>
+            </View>
+            <View style={{ backgroundColor: pass.status === 'Aktywny' || pass.status === 'Opłacony' ? 'rgba(74,222,128,0.2)' : 'rgba(239,68,68,0.2)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 5 }}>
+              <Text style={{ color: pass.status === 'Aktywny' || pass.status === 'Opłacony' ? '#4ADE80' : '#EF4444', fontWeight: 'bold' }}>{pass.status}</Text>
+            </View>
           </View>
         </TouchableOpacity>
       ))}
@@ -1226,7 +1231,9 @@ function PaymentScreen({ childrenInfo }: { childrenInfo: { id: string, name: str
               <Text style={{ color: COLORS.textMuted, fontSize: 14, fontWeight: 'bold' }}>✕</Text>
             </TouchableOpacity>
           </View>
-          <Text style={{ color: COLORS.primary, fontWeight: 'bold', marginBottom: 15, fontSize: 16 }}>Opłacasz: {selectedPaymentItem.title} ({selectedPaymentItem.amount} PLN)</Text>
+          <Text style={{ color: COLORS.primary, fontWeight: 'bold', marginBottom: 15, fontSize: 16 }}>
+            Opłacasz: {selectedPaymentItem.type === 'Karnet' ? `Karnet - ${selectedPaymentItem.title}` : selectedPaymentItem.type === 'Wydarzenie' ? `Wydarzenie - ${selectedPaymentItem.title}` : selectedPaymentItem.title} ({selectedPaymentItem.amount} PLN)
+          </Text>
           <Text style={styles.blikDesc}>Wpisz 6-cyfrowy kod z aplikacji bankowej</Text>
           
           <TextInput
