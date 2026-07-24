@@ -12,6 +12,7 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { getFirebaseMessaging, getToken, onMessage } from './firebaseConfig';
+import AiTrainer3DContainer from './components/AiTrainer/AiTrainer3DContainer';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -1291,126 +1292,17 @@ function PaymentScreen({ childrenInfo }: { childrenInfo: { id: string, name: str
   );
 }
 
-function AiCoachScreen() {
-  const [selectedTask, setSelectedTask] = useState<string | null>(null);
-  const tasks = [
-    { id: 't1', title: 'Kroki Modern Jazz - Część 1', deadline: '12 Lipca 2026', instructor: 'Zosia Kowalska', status: 'pending' },
-    { id: 't2', title: 'Balet: Piruety', deadline: '15 Lipca 2026', instructor: 'Jan Nowak', status: 'completed', score: 92 }
-  ];
-  
-  const [isRecording, setIsRecording] = useState(false);
-  const [report, setReport] = useState<any>(null);
+interface AiCoachScreenProps {
+  childId: string;
+  childName: string;
+  groupId: string;
+}
 
-  const handleRecord = () => {
-    setIsRecording(true);
-    setTimeout(() => {
-      setIsRecording(false);
-      setReport({
-        score: 85,
-        timingAccuracy: 92,
-        postureAccuracy: 80,
-        feedback: [
-          "Świetnie trzymasz ramę w pierwszej sekwencji!",
-          "Kąt ugięcia kolan przy zejściu w dół jest zbyt mały w stosunku do referencji (-15%).",
-          "Masz tendencję do przyspieszania tempa."
-        ]
-      });
-    }, 4000);
-  };
-
+function AiCoachScreen({ childId, childName, groupId }: AiCoachScreenProps) {
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
-      <Text style={styles.sectionTitle}>Zadania Domowe (AI)</Text>
-      
-      {!selectedTask ? (
-        <>
-          {tasks.map(t => (
-            <TouchableOpacity 
-              key={t.id} 
-              style={{ backgroundColor: COLORS.surface, padding: 20, borderRadius: 15, marginBottom: 15, borderWidth: 1, borderColor: t.status === 'completed' ? '#4ADE80' : '#333' }}
-              onPress={() => t.status === 'pending' && setSelectedTask(t.id)}
-            >
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
-                <Text style={{ color: COLORS.text, fontSize: 18, fontWeight: 'bold' }}>{t.title}</Text>
-                {t.status === 'completed' ? (
-                  <View style={{ backgroundColor: 'rgba(74,222,128,0.2)', paddingHorizontal: 10, paddingVertical: 2, borderRadius: 10 }}>
-                    <Text style={{ color: '#4ADE80', fontWeight: 'bold' }}>{t.score}%</Text>
-                  </View>
-                ) : (
-                  <View style={{ backgroundColor: 'rgba(244,114,182,0.2)', paddingHorizontal: 10, paddingVertical: 2, borderRadius: 10 }}>
-                    <Text style={{ color: COLORS.primary, fontWeight: 'bold' }}>Nowe</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={{ color: COLORS.textMuted, fontSize: 14 }}>Termin: {t.deadline}</Text>
-              <Text style={{ color: COLORS.textMuted, fontSize: 14 }}>Zlecił: {t.instructor}</Text>
-            </TouchableOpacity>
-          ))}
-        </>
-      ) : (
-        <>
-          <TouchableOpacity style={{ marginBottom: 20 }} onPress={() => { setSelectedTask(null); setReport(null); }}>
-            <Text style={{ color: COLORS.primary, fontWeight: 'bold' }}>← Wróć do listy zadań</Text>
-          </TouchableOpacity>
-
-          {!report && !isRecording && (
-            <>
-              <View style={[styles.paymentCard, { padding: 0, overflow: 'hidden', marginBottom: 20 }]}>
-                <View style={{ backgroundColor: '#000', height: 200, justifyContent: 'center', alignItems: 'center' }}>
-                  <Text style={{ color: COLORS.textMuted }}>Odtwarzacz Wideo Referencyjnego</Text>
-                  <Text style={{ color: COLORS.primary, marginTop: 10, fontWeight: 'bold' }}>▶ Odtwórz Instrukcję</Text>
-                </View>
-                <View style={{ padding: 20 }}>
-                  <Text style={{ color: COLORS.text, fontSize: 18, fontWeight: 'bold', marginBottom: 5 }}>Kroki Modern Jazz - Część 1</Text>
-                  <Text style={{ color: COLORS.textMuted, lineHeight: 20 }}>Obejrzyj dokładnie układ instruktora, a następnie spróbuj powtórzyć ruchy przed kamerą swojego telefonu.</Text>
-                </View>
-              </View>
-              
-              <View style={styles.paymentCard}>
-                 <Text style={{ color: COLORS.textMuted, marginBottom: 20, textAlign: 'center', lineHeight: 22 }}>Nagraj swoje wykonanie i wyślij do weryfikacji przez sztuczną inteligencję.</Text>
-                 <TouchableOpacity style={[styles.payButton, {flexDirection: 'row', gap: 10, justifyContent: 'center'}]} onPress={handleRecord}>
-                   <Camera color={COLORS.background} size={24} />
-                   <Text style={styles.payButtonText}>Uruchom Kamerę</Text>
-                 </TouchableOpacity>
-              </View>
-            </>
-          )}
-
-          {isRecording && (
-            <View style={[styles.paymentCard, {alignItems: 'center', padding: 40}]}>
-              <ActivityIndicator size="large" color={COLORS.primary} />
-              <Text style={{ color: COLORS.text, marginTop: 20, fontSize: 18, fontWeight: 'bold' }}>Analiza ruchu w toku...</Text>
-              <Text style={{ color: COLORS.textMuted, textAlign: 'center', marginTop: 10, lineHeight: 20 }}>Trener AI analizuje kąty postawy, rytm i precyzję klatka po klatce.</Text>
-            </View>
-          )}
-
-          {report && (
-            <View style={[styles.paymentCard, {borderColor: '#4ADE80'}]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <Text style={{ color: COLORS.text, fontSize: 20, fontWeight: 'bold' }}>Raport Trenera AI</Text>
-                <View style={{ backgroundColor: 'rgba(74,222,128,0.2)', paddingHorizontal: 15, paddingVertical: 5, borderRadius: 20 }}>
-                  <Text style={{ color: '#4ADE80', fontWeight: 'bold', fontSize: 18 }}>{report.score}/100</Text>
-                </View>
-              </View>
-              
-              <Text style={{ color: COLORS.textMuted, marginBottom: 5 }}>Zgodność Rytmiczna: <Text style={{ color: COLORS.text, fontWeight: 'bold' }}>{report.timingAccuracy}%</Text></Text>
-              <Text style={{ color: COLORS.textMuted, marginBottom: 20 }}>Postawa (Kąty): <Text style={{ color: COLORS.text, fontWeight: 'bold' }}>{report.postureAccuracy}%</Text></Text>
-
-              <Text style={{ color: COLORS.primary, fontWeight: 'bold', marginBottom: 10 }}>Spersonalizowane Uwagi:</Text>
-              {report.feedback.map((f: string, i: number) => (
-                <View key={i} style={{ flexDirection: 'row', marginBottom: 10, gap: 10 }}>
-                  {f.includes("Świetnie") ? <CheckCircle2 color="#4ADE80" size={20} /> : <Text style={{ color: '#FCD34D', fontSize: 18 }}>⚠️</Text>}
-                  <Text style={{ color: COLORS.text, flex: 1, lineHeight: 20 }}>{f}</Text>
-                </View>
-              ))}
-              
-              <TouchableOpacity style={[styles.payButton, { marginTop: 20 }]} onPress={() => { setSelectedTask(null); setReport(null); }}>
-                <Text style={styles.payButtonText}>Zakończ (Zapisano dla Trenera)</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </>
-      )}
+      <Text style={styles.sectionTitle}>Wirtualny AI Trener 3D</Text>
+      <AiTrainer3DContainer childId={childId} childName={childName} groupId={groupId} />
     </ScrollView>
   );
 }
@@ -2703,12 +2595,16 @@ export default function App() {
     return <SafeAreaView style={styles.container}><RegistrationScreen onBack={() => setRole(null)} /></SafeAreaView>;
   }
 
+  const studentId = selectedProfile?.id || userData?.id || '';
+  const studentName = selectedProfile ? `${selectedProfile.firstName}${selectedProfile.lastName ? ' ' + selectedProfile.lastName : ''}` : (userData?.name || (userData?.firstName ? `${userData.firstName}${userData.lastName ? ' ' + userData.lastName : ''}` : 'Uczeń'));
+  const studentGroup = selectedProfile?.group || selectedProfile?.groupName || userData?.group || userData?.groupName || '';
+
   return (
     <SafeAreaView style={styles.container}>
       {activeTab === 'wallet' && <WalletScreen userData={userData} role={role} onLogout={() => { setRole(null); setUserData(null); AsyncStorage.removeItem('jwtToken'); }} />}
       {activeTab === 'events' && <EventsScreen childrenInfo={role === 'Rodzic' ? userData?.children?.map((c:any) => ({ id: c.id, name: c.firstName + (c.lastName ? ' ' + c.lastName : '') })) : [{ id: userData?.id, name: (userData?.name || (userData?.firstName + (userData?.lastName ? ' ' + userData?.lastName : '')) || 'Uczeń') }]} userData={userData} />}
       {activeTab === 'payment' && <PaymentScreen childrenInfo={role === 'Rodzic' ? userData?.children?.map((c:any) => ({ id: c.id, name: c.firstName + (c.lastName ? ' ' + c.lastName : '') })) : [{ id: userData?.id, name: (userData?.name || (userData?.firstName + (userData?.lastName ? ' ' + userData?.lastName : '')) || 'Uczeń') }]} />}
-      {activeTab === 'coach' && <AiCoachScreen />}
+      {activeTab === 'coach' && <AiCoachScreen childId={studentId} childName={studentName} groupId={studentGroup} />}
       {activeTab === 'chat' && <ChatScreen userData={userData} isKeyboardVisible={isKeyboardVisible} keyboardHeight={keyboardHeight} />}
       {activeTab === 'profile' && <ProfileScreen userData={userData} role={role} />}
 
