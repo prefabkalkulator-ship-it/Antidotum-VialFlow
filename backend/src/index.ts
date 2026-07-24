@@ -4,6 +4,7 @@ import { Expo } from 'expo-server-sdk';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import multer from 'multer';
 import { runEventOrchestration, rewriteEventDocumentWithComment, readEventDocument, generateEventRewriteDraft, applyEventRewrite } from './orchestrator';
 import { initCronJobs, runPassGenerationJob, runPassRemindersJob } from './cron';
@@ -1032,20 +1033,25 @@ app.use((req, res) => {
     res.setHeader('Expires', '0');
     
     try {
-      let html = require('fs').readFileSync(require('path').join(__dirname, '../public/index.html'), 'utf8');
-      if (!html.includes('/_expo/static/js/web/')) {
-        const jsDir = require('path').join(__dirname, '../public/_expo/static/js/web');
-        if (require('fs').existsSync(jsDir)) {
-          const files = require('fs').readdirSync(jsDir);
-          const mainJs = files.find((f: string) => f.startsWith('index-') && f.endsWith('.js'));
-          if (mainJs) {
-            html = html.replace('</body>', `<script src="/_expo/static/js/web/${mainJs}" defer></script></body>`);
-          }
+      const publicDir = path.resolve(process.cwd(), 'public');
+      const indexPath = path.join(publicDir, 'index.html');
+      let html = fs.readFileSync(indexPath, 'utf8');
+
+      const jsDir = path.join(publicDir, '_expo/static/js/web');
+      if (fs.existsSync(jsDir)) {
+        const files = fs.readdirSync(jsDir);
+        const mainJs = files.find((f: string) => f.startsWith('index-') && f.endsWith('.js'));
+        if (mainJs) {
+          html = html.replace(/<script src="\/_expo\/static\/js\/web\/index-[^"]+\.js"[^>]*><\/script>/g, '');
+          html = html.replace('</body>', `<script src="/_expo/static/js/web/${mainJs}" defer></script></body>`);
         }
       }
-      res.type('html').send(html);
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(html);
     } catch (e) {
-      res.sendFile(require('path').join(__dirname, '../public/index.html'));
+      console.error('Błąd przetwarzania index.html:', e);
+      res.sendFile(path.resolve(process.cwd(), 'public/index.html'));
     }
   } else {
     res.status(404).json({ error: 'Not found' });
