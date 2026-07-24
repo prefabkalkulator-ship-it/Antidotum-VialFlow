@@ -33,8 +33,17 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Serve PWA static files
-app.use(express.static(path.join(__dirname, '../public'), {
+// Serve PWA static files z jednolitą ścieżką w kontenerze
+const possiblePublicDirs = [
+  path.resolve(__dirname, '../public'),
+  path.resolve(__dirname, '../../public'),
+  path.resolve(process.cwd(), 'public'),
+  path.resolve(process.cwd(), 'backend/public')
+];
+const PUBLIC_DIR = possiblePublicDirs.find(d => fs.existsSync(d)) || path.resolve(process.cwd(), 'public');
+
+app.use(express.static(PUBLIC_DIR, {
+  dotfiles: 'allow',
   setHeaders: (res, filePath) => {
     if (filePath.endsWith('.html') || filePath.endsWith('manifest.json') || filePath.endsWith('sw.js')) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -1168,29 +1177,19 @@ app.post('/api/coach/transition', (req, res) => {
   res.send(buffer);
 });
 
-// Obsługa PWA fallback z gwarancją wstrzyknięcia aktualnej paczki JS
+// Obsługa PWA fallback z gwarancją serwowania index.html
 app.use((req, res) => {
-  if (req.path.startsWith('/_expo/') || req.path.startsWith('/assets/')) {
-    return res.status(404).send('Asset not found');
-  }
-
   if (!req.path.startsWith('/api/')) {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
     
     try {
-      const possibleDirs = [
-        path.resolve(__dirname, '../public'),
-        path.resolve(__dirname, '../../public'),
-        path.resolve(process.cwd(), 'public'),
-        path.resolve(process.cwd(), 'backend/public')
-      ];
-      const publicDir = possibleDirs.find(d => fs.existsSync(d)) || path.resolve(process.cwd(), 'public');
-      const indexPath = path.join(publicDir, 'index.html');
+      const indexPath = path.join(PUBLIC_DIR, 'index.html');
       let html = fs.readFileSync(indexPath, 'utf8');
 
-      const jsDir = path.join(publicDir, '_expo/static/js/web');
+      // Gwarancja wstrzyknięcia skryptu PWA jeśli szablon index.html jest bez skryptu
+      const jsDir = path.join(PUBLIC_DIR, '_expo/static/js/web');
       if (fs.existsSync(jsDir)) {
         const files = fs.readdirSync(jsDir);
         const jsFiles = files
@@ -1202,17 +1201,16 @@ app.use((req, res) => {
           .sort((a, b) => b.mtime - a.mtime);
 
         const mainJs = jsFiles.length > 0 ? jsFiles[0].name : null;
-        if (mainJs) {
-          html = html.replace(/<script src="\/_expo\/static\/js\/web\/index-[^"]+\.js"[^>]*><\/script>/g, '');
+        if (mainJs && !html.includes(mainJs)) {
           html = html.replace('</body>', `<script src="/_expo/static/js/web/${mainJs}" defer></script></body>`);
         }
       }
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.send(html);
+      return res.send(html);
     } catch (e) {
-      console.error('Błąd przetwarzania index.html:', e);
-      res.sendFile(path.resolve(process.cwd(), 'public/index.html'));
+      console.error('Błąd odczytu index.html:', e);
+      return res.status(404).send('Index not found');
     }
   } else {
     res.status(404).json({ error: 'Not found' });
