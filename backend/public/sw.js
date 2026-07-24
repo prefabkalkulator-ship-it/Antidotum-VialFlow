@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vialflow-assets-v1';
+const CACHE_NAME = 'vialflow-assets-v2';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -41,34 +41,53 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
+  const isLargeAsset = 
+    url.pathname.endsWith('.glb') || 
+    url.pathname.endsWith('.mp3') || 
+    url.pathname.endsWith('.gif') || 
+    url.pathname.endsWith('.png');
 
-      return fetch(event.request).then((response) => {
-        const isStaticAsset = 
-          event.request.destination === 'image' ||
-          event.request.destination === 'script' ||
-          event.request.destination === 'style' ||
-          url.pathname.endsWith('.glb') ||
-          url.pathname.endsWith('.mp3');
+  if (isLargeAsset) {
+    // Cache-First strategy for large assets
+    event.respondWith(
+      caches.match(event.request).then((cachedResponse) => {
+        if (cachedResponse) {
+          return cachedResponse;
+        }
 
-        if (response && response.status === 200 && isStaticAsset) {
-          const responseToCache = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
+        return fetch(event.request).then((response) => {
+          if (response && response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return response;
+        });
+      })
+    );
+  } else {
+    // Network-First strategy for index.html, JS bundles, styles
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return response;
+        })
+        .catch(() => {
+          return caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) return cachedResponse;
+            if (event.request.headers.get('accept')?.includes('text/html')) {
+              return caches.match('/index.html');
+            }
+            throw new Error('Offline and asset not in cache');
           });
-        }
-
-        return response;
-      }).catch((err) => {
-        if (event.request.headers.get('accept')?.includes('text/html')) {
-          return caches.match('/index.html');
-        }
-        throw err;
-      });
-    })
-  );
+        })
+    );
+  }
 });
