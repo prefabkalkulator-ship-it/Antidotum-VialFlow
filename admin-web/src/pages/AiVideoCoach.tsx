@@ -39,6 +39,30 @@ export default function AiVideoCoach() {
   const [customSequence, setCustomSequence] = useState<ChoreographySequence>(DEFAULT_CHOREOGRAPHY_SEQUENCE);
   const [audioUrl, setAudioUrl] = useState('https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=hip-hop-beat-112702.mp3');
 
+  // AI Choreography Generator stany
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+
+  const handleGenerateAiChoreo = async (promptToUse?: string) => {
+    setIsGeneratingAi(true);
+    try {
+      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://vialflow-backend-392406857647.europe-central2.run.app';
+      const res = await fetch(`${backendUrl}/api/coach/generate-choreo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: promptToUse || aiPrompt })
+      });
+      const data = await res.json();
+      if (data.success && data.sequence) {
+        setCustomSequence(data.sequence);
+      }
+    } catch (err) {
+      console.error('Błąd generowania choreografii przez AI:', err);
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
+
   // Zadania Domowe (nowe stany)
   const [showHomeworkModal, setShowHomeworkModal] = useState(false);
   const [targetGroup, setTargetGroup] = useState('');
@@ -568,6 +592,58 @@ export default function AiVideoCoach() {
             <div className="bg-[#18181B] border border-gray-700 rounded-2xl p-6 md:p-8 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto">
               <h2 className="text-2xl font-bold font-heading text-white mb-6">Nowe Zadanie Domowe</h2>
               
+              {/* Sekcja Generatora AI dla Choreografa */}
+              <div className="mb-4 bg-gradient-to-r from-primary/10 to-purple-500/10 border border-primary/30 p-4 rounded-xl">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-1.5">
+                    <Sparkles size={16} /> Asystent AI Choreografa
+                  </span>
+                  <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded-full font-mono">Gemini AI</span>
+                </div>
+                
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    placeholder="np. Układ K-Pop z ostrym bitem i blokadami..."
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    className="flex-1 bg-[#27272A] text-white p-2.5 rounded-lg text-xs border border-gray-700 focus:outline-none focus:border-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleGenerateAiChoreo()}
+                    disabled={isGeneratingAi}
+                    className="bg-primary hover:bg-primary-dark text-white px-3 py-2.5 rounded-lg font-bold text-xs flex items-center gap-1.5 shrink-0 transition-colors disabled:opacity-50"
+                  >
+                    {isGeneratingAi ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
+                    <span>Generuj 3D</span>
+                  </button>
+                </div>
+
+                {/* Szybkie opcje styli */}
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="text-[10px] text-gray-500 self-center">Szybki styl:</span>
+                  {[
+                    { label: '★ Hip-Hop Groove', prompt: 'Hip-Hop z bouncem i toprockiem' },
+                    { label: '★ K-Pop Sharp', prompt: 'K-Pop ostry z blokadami rąk' },
+                    { label: '★ High Heels Sassy', prompt: 'High Heels zmysłowy z obcasami' },
+                    { label: '★ B-Boy Street', prompt: 'Breakdance z Indian Stepem' }
+                  ].map((chip, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setAiPrompt(chip.prompt);
+                        handleGenerateAiChoreo(chip.prompt);
+                      }}
+                      className="bg-[#27272A] hover:bg-primary/20 text-gray-300 hover:text-primary text-[10px] px-2 py-0.5 rounded border border-gray-700 hover:border-primary/40 transition-colors"
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Interaktywny Sekwencer 3D & Podgląd Awatara */}
               <AdminChoreoPreview sequence={customSequence} audioUrl={audioUrl} />
 
