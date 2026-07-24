@@ -1404,3 +1404,260 @@ export const saveEventToList = async (event: { id: string, type: string, title: 
     return false;
   }
 };
+
+export const createHomeworkTask = async (task: {
+  title: string,
+  choreoId: string,
+  targetType: string,
+  targetValue: string,
+  videoUrl: string,
+  deadline: string,
+  instructor: string
+}) => {
+  try {
+    const api = await initAuth();
+    if (!api) throw new Error("Brak autoryzacji");
+
+    const spreadSheetInfo = await api.spreadsheets.get({
+      spreadsheetId: USERS_SPREADSHEET_ID
+    });
+    
+    let sheet = spreadSheetInfo.data.sheets?.find((s: any) => s.properties?.title === 'Zadania_Domowe');
+    let sheetId = sheet ? sheet.properties.sheetId : 0;
+    
+    if (!sheet) {
+      const addRes = await api.spreadsheets.batchUpdate({
+        spreadsheetId: USERS_SPREADSHEET_ID,
+        requestBody: {
+          requests: [
+            {
+              addSheet: {
+                properties: { title: 'Zadania_Domowe' }
+              }
+            }
+          ]
+        }
+      });
+      sheetId = addRes.data.replies?.[0]?.addSheet?.properties?.sheetId || 0;
+      await api.spreadsheets.values.update({
+        spreadsheetId: USERS_SPREADSHEET_ID,
+        range: 'Zadania_Domowe!A1:H1',
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [['ID Zadania', 'Tytuł', 'ID Choreografii', 'Typ Odbiorcy', 'Odbiorca', 'Link Video', 'Termin', 'Instruktor']]
+        }
+      });
+    }
+
+    const taskId = 'HWT-' + Date.now();
+    const rowData = [
+      taskId,
+      task.title,
+      task.choreoId,
+      task.targetType,
+      task.targetValue,
+      task.videoUrl,
+      task.deadline,
+      task.instructor
+    ];
+
+    // Insert row between 1 and 2
+    await api.spreadsheets.batchUpdate({
+      spreadsheetId: USERS_SPREADSHEET_ID,
+      requestBody: {
+        requests: [
+          {
+            insertDimension: {
+              range: {
+                sheetId: sheetId,
+                dimension: "ROWS",
+                startIndex: 1,
+                endIndex: 2
+              }
+            }
+          }
+        ]
+      }
+    });
+
+    await api.spreadsheets.values.update({
+      spreadsheetId: USERS_SPREADSHEET_ID,
+      range: 'Zadania_Domowe!A2:H2',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [rowData]
+      }
+    });
+
+    return { success: true, taskId };
+  } catch (err) {
+    console.error('Błąd zapisu zadania domowego:', err);
+    return { success: false, error: String(err) };
+  }
+};
+
+export const getHomeworkTasks = async (childName: string, groupId: string) => {
+  try {
+    const api = await initAuth();
+    if (!api) return [];
+
+    const spreadSheetInfo = await api.spreadsheets.get({
+      spreadsheetId: USERS_SPREADSHEET_ID
+    });
+    
+    let sheet = spreadSheetInfo.data.sheets?.find((s: any) => s.properties?.title === 'Zadania_Domowe');
+    if (!sheet) return [];
+
+    const response = await api.spreadsheets.values.get({
+      spreadsheetId: USERS_SPREADSHEET_ID,
+      range: 'Zadania_Domowe!A2:H',
+    });
+
+    const rows = response.data.values || [];
+    // Map rows to task objects
+    const tasks = rows.map((row: any[]) => ({
+      id: row[0],
+      title: row[1],
+      choreoId: row[2],
+      targetType: row[3],
+      targetValue: row[4],
+      videoUrl: row[5],
+      deadline: row[6],
+      instructor: row[7]
+    }));
+
+    // Filter tasks intended for this group or this student individually
+    return tasks.filter((t: any) => {
+      if (t.targetType === 'group') {
+        return String(t.targetValue).toLowerCase() === String(groupId).toLowerCase();
+      } else if (t.targetType === 'student') {
+        return String(t.targetValue).toLowerCase() === String(childName).toLowerCase();
+      }
+      return false;
+    });
+  } catch (err) {
+    console.error('Błąd pobierania zadań domowych:', err);
+    return [];
+  }
+};
+
+export const submitHomeworkResult = async (result: {
+  taskId: string,
+  studentId: string,
+  studentName: string,
+  notes: string
+}) => {
+  try {
+    const api = await initAuth();
+    if (!api) throw new Error("Brak autoryzacji");
+
+    const spreadSheetInfo = await api.spreadsheets.get({
+      spreadsheetId: USERS_SPREADSHEET_ID
+    });
+    
+    let sheet = spreadSheetInfo.data.sheets?.find((s: any) => s.properties?.title === 'Wyniki_Zadan_Domowych');
+    let sheetId = sheet ? sheet.properties.sheetId : 0;
+    
+    if (!sheet) {
+      const addRes = await api.spreadsheets.batchUpdate({
+        spreadsheetId: USERS_SPREADSHEET_ID,
+        requestBody: {
+          requests: [
+            {
+              addSheet: {
+                properties: { title: 'Wyniki_Zadan_Domowych' }
+              }
+            }
+          ]
+        }
+      });
+      sheetId = addRes.data.replies?.[0]?.addSheet?.properties?.sheetId || 0;
+      await api.spreadsheets.values.update({
+        spreadsheetId: USERS_SPREADSHEET_ID,
+        range: 'Wyniki_Zadan_Domowych!A1:G1',
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [['ID Zaliczenia', 'ID Zadania', 'ID Ucznia', 'Uczeń', 'Data', 'Status', 'Notatka']]
+        }
+      });
+    }
+
+    const submissionId = 'SUB-' + Date.now();
+    const submissionDate = new Date().toISOString();
+    const rowData = [
+      submissionId,
+      result.taskId,
+      result.studentId,
+      result.studentName,
+      submissionDate,
+      'Oddane',
+      result.notes || ''
+    ];
+
+    // Insert row between 1 and 2
+    await api.spreadsheets.batchUpdate({
+      spreadsheetId: USERS_SPREADSHEET_ID,
+      requestBody: {
+        requests: [
+          {
+            insertDimension: {
+              range: {
+                sheetId: sheetId,
+                dimension: "ROWS",
+                startIndex: 1,
+                endIndex: 2
+              }
+            }
+          }
+        ]
+      }
+    });
+
+    await api.spreadsheets.values.update({
+      spreadsheetId: USERS_SPREADSHEET_ID,
+      range: 'Wyniki_Zadan_Domowych!A2:G2',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [rowData]
+      }
+    });
+
+    return { success: true, submissionId };
+  } catch (err) {
+    console.error('Błąd zapisu zaliczenia zadania:', err);
+    return { success: false, error: String(err) };
+  }
+};
+
+export const getAllHomeworkResults = async () => {
+  try {
+    const api = await initAuth();
+    if (!api) return [];
+
+    const spreadSheetInfo = await api.spreadsheets.get({
+      spreadsheetId: USERS_SPREADSHEET_ID
+    });
+    
+    let sheet = spreadSheetInfo.data.sheets?.find((s: any) => s.properties?.title === 'Wyniki_Zadan_Domowych');
+    if (!sheet) return [];
+
+    const response = await api.spreadsheets.values.get({
+      spreadsheetId: USERS_SPREADSHEET_ID,
+      range: 'Wyniki_Zadan_Domowych!A2:G',
+    });
+
+    const rows = response.data.values || [];
+    return rows.map((row: any[]) => ({
+      submissionId: row[0],
+      taskId: row[1],
+      studentId: row[2],
+      studentName: row[3],
+      submissionDate: row[4],
+      status: row[5],
+      notes: row[6] || ''
+    }));
+  } catch (err) {
+    console.error('Błąd pobierania wszystkich wyników zadań:', err);
+    return [];
+  }
+};

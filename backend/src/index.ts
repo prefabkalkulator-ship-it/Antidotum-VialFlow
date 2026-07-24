@@ -9,7 +9,7 @@ import { runEventOrchestration, rewriteEventDocumentWithComment, readEventDocume
 import { initCronJobs, runPassGenerationJob, runPassRemindersJob } from './cron';
 import { processVideo } from './videoPipeline';
 import { chatWithRAG, refreshKnowledgeBase, generatePushDraft, refinePushDraft } from './rag';
-import { getPaymentHistory, addPaymentTransaction, getStudentPasses, getAllPasses, generateStudentPass, payStudentPass, getGroups, getUsersAndParents, addStudent, deleteStudent, updateStudentFullData, approveStudent, getTeamRoles, getSchedule, addAttendance, getEvents, bookEvent, getEventBookings, approveEventBooking, payEventBooking, saveEventQuestion, getPendingEventQuestions, markEventQuestionAsAnswered, updateUserProfile, setParentDeviceToken, removeDeviceToken, updateUserPin, setExpoPushToken , saveNotification, getNotificationsForUser } from './sheetsApi';
+import { getPaymentHistory, addPaymentTransaction, getStudentPasses, getAllPasses, generateStudentPass, payStudentPass, getGroups, getUsersAndParents, addStudent, deleteStudent, updateStudentFullData, approveStudent, getTeamRoles, getSchedule, addAttendance, getEvents, bookEvent, getEventBookings, approveEventBooking, payEventBooking, saveEventQuestion, getPendingEventQuestions, markEventQuestionAsAnswered, updateUserProfile, setParentDeviceToken, removeDeviceToken, updateUserPin, setExpoPushToken , saveNotification, getNotificationsForUser, createHomeworkTask, getHomeworkTasks, submitHomeworkResult, getAllHomeworkResults } from './sheetsApi';
 import jwt from 'jsonwebtoken';
 import { authenticateJWT } from './middleware';
 import { logConsentToWORM, deleteEphemeralVideo } from './audit';
@@ -958,6 +958,61 @@ app.post('/api/coach/analyze', upload.single('video'), (req, res) => {
       ]
     });
   }, 3000);
+});
+
+app.post('/api/coach/tasks', async (req, res) => {
+  try {
+    const result = await createHomeworkTask(req.body);
+    res.json(result);
+  } catch (err) {
+    console.error('Błąd POST /api/coach/tasks:', err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+app.get('/api/coach/tasks', async (req, res) => {
+  try {
+    const { childName, groupId } = req.query;
+    const tasks = await getHomeworkTasks(childName as string || '', groupId as string || '');
+    res.json(tasks);
+  } catch (err) {
+    console.error('Błąd GET /api/coach/tasks:', err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+app.post('/api/coach/submit', async (req, res) => {
+  try {
+    const result = await submitHomeworkResult(req.body);
+    res.json(result);
+  } catch (err) {
+    console.error('Błąd POST /api/coach/submit:', err);
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
+app.get('/api/coach/homework/results', async (req, res) => {
+  try {
+    const results = await getAllHomeworkResults();
+    res.json(results);
+  } catch (err) {
+    console.error('Błąd GET /api/coach/homework/results:', err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+app.post('/api/coach/transition', (req, res) => {
+  console.log('[Vertex AI Proxy] Żądanie in-betweening dla figur...');
+  const numJoints = 24;
+  const dof = 6;
+  const numFrames = 120;
+  const buffer = Buffer.alloc(numJoints * dof * numFrames * 4);
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  for (let i = 0; i < numJoints * dof * numFrames; i++) {
+    view.setFloat32(i * 4, Math.sin(i * 0.05), true);
+  }
+  res.set('Content-Type', 'application/octet-stream');
+  res.send(buffer);
 });
 
 // Zamiast res.sendFile na kad nieznan ciek (Faza 2, do obsugi PWA), serwujemy index.html
