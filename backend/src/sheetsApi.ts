@@ -1548,6 +1548,35 @@ export const getHomeworkTasks = async (childName: string, groupId: string) => {
       instructor: row[7]
     }));
 
+    const cleanChildName = String(childName || '').trim();
+    const cleanGroupId = String(groupId || '').trim();
+
+    // IF BOTH childName AND groupId ARE EMPTY (i.e. Admin requested all active tasks), RETURN ALL TASKS!
+    if (!cleanChildName && !cleanGroupId) {
+      return tasks;
+    }
+
+    let effectiveGroupId = cleanGroupId;
+    if (!effectiveGroupId && cleanChildName) {
+      try {
+        const parents = await getUsersAndParents();
+        for (const p of parents) {
+          if (p.children) {
+            const found = p.children.find((c: any) => {
+              const fullName = `${c.firstName} ${c.lastName}`.trim().toLowerCase();
+              return fullName === cleanChildName.toLowerCase() || c.firstName.toLowerCase() === cleanChildName.toLowerCase();
+            });
+            if (found && (found.groupName || found.groupId)) {
+              effectiveGroupId = found.groupName || found.groupId;
+              break;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error resolving student group fallback:', err);
+      }
+    }
+
     // Filter tasks intended for this group or this student individually
     return tasks.filter((t: any) => {
       const typeLower = String(t.targetType || '').toLowerCase().trim();
@@ -1556,21 +1585,23 @@ export const getHomeworkTasks = async (childName: string, groupId: string) => {
         return true;
       }
       
+      const normSheetTarget = String(t.targetValue).toLowerCase().replace(/\s+/g, ' ').trim();
+      const normQueryGroup = String(effectiveGroupId).toLowerCase().replace(/\s+/g, ' ').trim();
+      const normQueryName = String(cleanChildName).toLowerCase().replace(/\s+/g, ' ').trim();
+
       if (typeLower === 'group' || typeLower === 'grupa') {
-        const normSheetGroup = String(t.targetValue).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-        const normQueryGroup = String(effectiveGroupId).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-        return normSheetGroup === normQueryGroup || normSheetGroup === 'wszyscy' || normSheetGroup === 'all';
+        if (!normQueryGroup) return false;
+        return normSheetTarget === normQueryGroup || normSheetTarget.includes(normQueryGroup) || normQueryGroup.includes(normSheetTarget);
       }
       
       if (typeLower === 'student' || typeLower === 'uczen' || typeLower === 'uczeń' || typeLower === 'individual') {
-        return String(t.targetValue).toLowerCase().trim() === String(childName).toLowerCase().trim();
+        if (!normQueryName) return false;
+        return normSheetTarget === normQueryName || normSheetTarget.includes(normQueryName) || normQueryName.includes(normSheetTarget);
       }
 
-      // Fallback: If targetType is empty or custom, check direct value match against group or student name
-      const normVal = String(t.targetValue).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      const normGroup = String(effectiveGroupId).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      if (normVal && normGroup && normVal === normGroup) return true;
-      if (childName && String(t.targetValue).toLowerCase().trim() === String(childName).toLowerCase().trim()) return true;
+      // Fallback matching
+      if (normSheetTarget && normQueryGroup && (normSheetTarget === normQueryGroup || normSheetTarget.includes(normQueryGroup))) return true;
+      if (normSheetTarget && normQueryName && (normSheetTarget === normQueryName || normSheetTarget.includes(normQueryName))) return true;
 
       return false;
     });

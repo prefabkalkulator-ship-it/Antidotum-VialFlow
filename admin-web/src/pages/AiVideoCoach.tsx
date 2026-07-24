@@ -109,14 +109,22 @@ export default function AiVideoCoach() {
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) {
+          const seen = new Set<string>();
           const allKids: Student[] = [];
           data.forEach(p => {
             if (p.children && Array.isArray(p.children)) {
-              p.children.forEach((c: any) => allKids.push({
-                id: c.id,
-                name: `${c.firstName} ${c.lastName}`,
-                groupName: c.groupName || c.group || ''
-              }));
+              p.children.forEach((c: any) => {
+                const name = `${c.firstName} ${c.lastName}`.trim();
+                const key = c.id || name.toLowerCase();
+                if (!seen.has(key)) {
+                  seen.add(key);
+                  allKids.push({
+                    id: c.id,
+                    name,
+                    groupName: c.groupName || c.group || ''
+                  });
+                }
+              });
             }
           });
           setStudents(allKids);

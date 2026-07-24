@@ -78,7 +78,7 @@ export default function AiTrainer3DContainer({
   // 2. Fetch animation buffer when task or choreo ID changes
   const fetchAnimationData = async () => {
     const activeTask = tasks.find(t => t.id === selectedTaskId);
-    if (!selectedTaskId) return;
+    const choreoIdToUse = activeTask?.choreoId || '1';
 
     setIsLoadingAnimation(true);
     setIsPlaying(false);
