@@ -1033,14 +1033,28 @@ app.use((req, res) => {
     res.setHeader('Expires', '0');
     
     try {
-      const publicDir = path.resolve(process.cwd(), 'public');
+      const possibleDirs = [
+        path.resolve(__dirname, '../public'),
+        path.resolve(__dirname, '../../public'),
+        path.resolve(process.cwd(), 'public'),
+        path.resolve(process.cwd(), 'backend/public')
+      ];
+      const publicDir = possibleDirs.find(d => fs.existsSync(d)) || path.resolve(process.cwd(), 'public');
       const indexPath = path.join(publicDir, 'index.html');
       let html = fs.readFileSync(indexPath, 'utf8');
 
       const jsDir = path.join(publicDir, '_expo/static/js/web');
       if (fs.existsSync(jsDir)) {
         const files = fs.readdirSync(jsDir);
-        const mainJs = files.find((f: string) => f.startsWith('index-') && f.endsWith('.js'));
+        const jsFiles = files
+          .filter((f: string) => f.startsWith('index-') && f.endsWith('.js'))
+          .map((f: string) => ({
+            name: f,
+            mtime: fs.statSync(path.join(jsDir, f)).mtimeMs
+          }))
+          .sort((a, b) => b.mtime - a.mtime);
+
+        const mainJs = jsFiles.length > 0 ? jsFiles[0].name : null;
         if (mainJs) {
           html = html.replace(/<script src="\/_expo\/static\/js\/web\/index-[^"]+\.js"[^>]*><\/script>/g, '');
           html = html.replace('</body>', `<script src="/_expo/static/js/web/${mainJs}" defer></script></body>`);

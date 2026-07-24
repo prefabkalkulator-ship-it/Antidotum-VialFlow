@@ -4,25 +4,32 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { SMPL_JOINT_MAP } from './aiTrainerService';
+import { MotionEngine } from './MotionEngine';
+import { ChoreographySequence } from './DanceMoveLibrary';
 
 interface ThreeDViewerProps {
   currentFrame: number;
   animationFrames: THREE.Quaternion[][] | null;
   isMirrorMode: boolean;
   cameraMode: 'front' | 'back' | 'profile' | 'feet';
+  sequence?: ChoreographySequence | null;
+  audioTimeSeconds?: number;
 }
 
 export default function ThreeDViewer({
   currentFrame,
   animationFrames,
   isMirrorMode,
-  cameraMode
+  cameraMode,
+  sequence,
+  audioTimeSeconds = 0
 }: ThreeDViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
+  const motionEngineRef = useRef<MotionEngine>(new MotionEngine());
   
   // Keep refs for updates inside loop without rebuilding scene
-  const paramsRef = useRef({ currentFrame, animationFrames, isMirrorMode, cameraMode });
-  paramsRef.current = { currentFrame, animationFrames, isMirrorMode, cameraMode };
+  const paramsRef = useRef({ currentFrame, animationFrames, isMirrorMode, cameraMode, sequence, audioTimeSeconds });
+  paramsRef.current = { currentFrame, animationFrames, isMirrorMode, cameraMode, sequence, audioTimeSeconds };
 
   useEffect(() => {
     if (Platform.OS !== 'web' || !mountRef.current) return;
@@ -130,6 +137,9 @@ export default function ThreeDViewer({
           }
         });
         
+        // Rejestracja kości szkieletu w silniku ruchu MotionEngine
+        motionEngineRef.current.bindSkeleton(gltf.scene);
+
         // Scale model appropriately (1.0 is 1.8m human size)
         yBotModel.scale.set(1, 1, 1);
         yBotModel.position.set(0, 0, 0);
@@ -190,7 +200,7 @@ export default function ThreeDViewer({
     const animate = () => {
       requestID = requestAnimationFrame(animate);
 
-      const { currentFrame, animationFrames, isMirrorMode, cameraMode } = paramsRef.current;
+      const { currentFrame, animationFrames, isMirrorMode, cameraMode, sequence, audioTimeSeconds } = paramsRef.current;
 
       // 1. Mirror Mode & Human Scale (1.0)
       if (yBotModel) {
@@ -201,8 +211,10 @@ export default function ThreeDViewer({
         }
       }
 
-      // 2. Apply Joint Rotations (6-DOF data mapping)
-      if (animationFrames && animationFrames.length > 0) {
+      // 2. Apply Dynamic Choreography Pose or Raw Joint Rotations
+      if (sequence && sequence.blocks && sequence.blocks.length > 0) {
+        motionEngineRef.current.updatePose(sequence, audioTimeSeconds, isMirrorMode);
+      } else if (animationFrames && animationFrames.length > 0) {
         const frameIdx = currentFrame % animationFrames.length;
         const currentRotations = animationFrames[frameIdx];
         

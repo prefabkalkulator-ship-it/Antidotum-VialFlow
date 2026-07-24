@@ -6,6 +6,7 @@ import ThreeDViewer from './ThreeDViewer';
 import TimelineController from './TimelineController';
 import HomeworkTasksList from './HomeworkTasksList';
 import { parse6DofBuffer } from './aiTrainerService';
+import { DEFAULT_CHOREOGRAPHY_SEQUENCE } from './DanceMoveLibrary';
 
 interface AiTrainer3DContainerProps {
   childId: string;
@@ -199,6 +200,8 @@ export default function AiTrainer3DContainer({
             animationFrames={animationFrames}
             isMirrorMode={isMirrorMode}
             cameraMode={cameraMode}
+            sequence={DEFAULT_CHOREOGRAPHY_SEQUENCE}
+            audioTimeSeconds={(currentFrame * 0.0333) * playbackSpeed}
           />
         )}
 
