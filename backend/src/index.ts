@@ -58,10 +58,15 @@ app.use((req, res, next) => {
     '/api/checkin',
     '/api/groups',
     '/api/notifications',
-    '/api/users'
+    '/api/users',
+    '/api/coach/tasks',
+    '/api/coach/choreographies',
+    '/api/coach/transition',
+    '/api/coach/homework/results',
+    '/api/coach/submit'
   ];
   
-  if (!req.path.startsWith('/api/') || publicRoutes.includes(req.path) || req.path.startsWith('/api/events') || req.path.startsWith('/api/drive/webhook') || req.path.startsWith('/api/debug/cron')) {
+  if (!req.path.startsWith('/api/') || publicRoutes.includes(req.path) || req.path.startsWith('/api/events') || req.path.startsWith('/api/coach') || req.path.startsWith('/api/drive/webhook') || req.path.startsWith('/api/debug/cron')) {
     return next();
   }
   
