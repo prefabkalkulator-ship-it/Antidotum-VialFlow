@@ -35,6 +35,8 @@ export default function AiVideoCoach() {
   // Zadania Domowe (nowe stany)
   const [showHomeworkModal, setShowHomeworkModal] = useState(false);
   const [targetGroup, setTargetGroup] = useState('');
+  const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
+  const [isSubmittingTask, setIsSubmittingTask] = useState(false);
   const [showStudentSearchModal, setShowStudentSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -162,22 +164,13 @@ export default function AiVideoCoach() {
   };
 
   const handleCreateTask = async () => {
-    if (!selectedChoreoId || !targetGroup) return;
+    const targetsToUse = selectedTargets.length > 0 ? selectedTargets : (targetGroup ? [targetGroup] : []);
+    if (!selectedChoreoId || targetsToUse.length === 0 || isSubmittingTask) return;
     
     const choreo = choreographies.find(c => c.id === selectedChoreoId);
     if (!choreo) return;
 
-    const isGroup = Array.isArray(groups) && groups.some(g => g.name === targetGroup);
-
-    const taskPayload = {
-      title: choreo.title,
-      choreoId: selectedChoreoId,
-      targetType: isGroup ? 'group' : 'student',
-      targetValue: targetGroup,
-      videoUrl: refLink,
-      deadline: deadlineDate,
-      instructor: choreo.instructor || 'Instruktor'
-    };
+    setIsSubmittingTask(true);
 
     try {
       const token = localStorage.getItem('jwtToken');
@@ -186,27 +179,47 @@ export default function AiVideoCoach() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const res = await fetch('http://localhost:3000/api/coach/tasks', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(taskPayload)
+      const requests = targetsToUse.map(tgt => {
+        const isAll = tgt === 'all' || tgt === 'Wszystkie Grupy';
+        const isGrp = isAll ? false : Array.isArray(groups) && groups.some(g => g.name === tgt);
+        
+        const taskPayload = {
+          title: choreo.title,
+          choreoId: selectedChoreoId,
+          targetType: isAll ? 'all' : (isGrp ? 'group' : 'student'),
+          targetValue: isAll ? 'Wszystkie Grupy' : tgt,
+          videoUrl: refLink,
+          deadline: deadlineDate,
+          instructor: choreo.instructor || 'Instruktor'
+        };
+
+        return fetch('http://localhost:3000/api/coach/tasks', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(taskPayload)
+        }).then(r => r.json());
       });
-      const data = await res.json();
-      if (data.success || data.id) {
-        alert('Zadanie domowe zostało pomyślnie zlecone!');
+
+      const results = await Promise.all(requests);
+      const allSuccess = results.every(d => d.success || d.id);
+
+      if (allSuccess) {
+        alert(`Zadanie domowe zostało pomyślnie zlecone dla (${targetsToUse.length}) adresatów!`);
         setShowHomeworkModal(false);
         setRefLink('');
         setDeadlineDate('');
         setTargetGroup('');
-        
-        // Dynamic reload
+        setSelectedTargets([]);
         fetchTasksAndResults();
       } else {
-        alert('Błąd podczas zlecania zadania: ' + (data.error || 'nieznany błąd'));
+        alert('Część zadań została wysłana z błędami.');
+        fetchTasksAndResults();
       }
     } catch (err: any) {
       console.error(err);
       alert('Błąd połączenia z serwerem: ' + err.message);
+    } finally {
+      setIsSubmittingTask(false);
     }
   };
 
@@ -556,20 +569,22 @@ export default function AiVideoCoach() {
               </div>
 
               <div className="mb-4">
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Adresat Zadania (Grupa lub Uczeń)</label>
-                <div className="relative">
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Adresaci Zadania (Możesz wybrać kilka grup lub uczniów)</label>
+                <div className="relative mb-2">
                   <select 
                     className="w-full bg-[#27272A] text-white p-3 pr-12 rounded-lg font-sans text-sm focus:outline-none focus:border-primary border border-transparent appearance-none cursor-pointer"
-                    value={targetGroup}
+                    value=""
                     onChange={(e) => {
-                      if (e.target.value === 'individual') {
+                      const val = e.target.value;
+                      if (val === 'individual') {
                         setShowStudentSearchModal(true);
-                      } else {
-                        setTargetGroup(e.target.value);
+                      } else if (val && !selectedTargets.includes(val)) {
+                        setSelectedTargets([...selectedTargets, val]);
                       }
                     }}
                   >
-                    <option value="" disabled>-- Wybierz grupę lub ucznia --</option>
+                    <option value="" disabled>-- Dodaj grupę lub ucznia --</option>
+                    <option value="Wszystkie Grupy">★ Wszystkie Grupy (Cała Szkoła)</option>
                     <optgroup label="Grupy Zorganizowane">
                       {Array.isArray(groups) && groups.map(g => (
                         <option key={g.id} value={g.name}>Cała Grupa: {g.name}</option>
@@ -580,6 +595,28 @@ export default function AiVideoCoach() {
                     </optgroup>
                   </select>
                   <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
+                </div>
+
+                {/* Tag badges of selected targets */}
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {selectedTargets.map((tgt, idx) => (
+                    <span 
+                      key={idx} 
+                      className="inline-flex items-center gap-1 bg-primary/20 text-primary border border-primary/40 text-xs font-bold px-2.5 py-1 rounded-md"
+                    >
+                      {tgt}
+                      <button 
+                        type="button" 
+                        onClick={() => setSelectedTargets(selectedTargets.filter(t => t !== tgt))}
+                        className="hover:text-white ml-1 font-extrabold"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                  {selectedTargets.length === 0 && (
+                    <span className="text-xs text-gray-500 italic">Nie wybrano jeszcze żadnego adresata.</span>
+                  )}
                 </div>
               </div>
 
@@ -612,17 +649,26 @@ export default function AiVideoCoach() {
                     setRefLink('');
                     setDeadlineDate('');
                     setTargetGroup('');
+                    setSelectedTargets([]);
                   }} 
-                  className="flex-1 py-3 rounded-xl font-bold text-white bg-gray-800 hover:bg-gray-700 transition-colors"
+                  disabled={isSubmittingTask}
+                  className="flex-1 py-3 rounded-xl font-bold text-white bg-gray-800 hover:bg-gray-700 transition-colors disabled:opacity-50"
                 >
                   Anuluj
                 </button>
                 <button 
                   onClick={handleCreateTask} 
-                  disabled={!targetGroup || targetGroup === 'individual' || !selectedChoreoId}
-                  className="flex-1 py-3 rounded-xl font-bold text-white bg-primary hover:bg-primary-dark transition-colors disabled:opacity-50"
+                  disabled={selectedTargets.length === 0 || !selectedChoreoId || isSubmittingTask}
+                  className="flex-1 py-3 rounded-xl font-bold text-white bg-primary hover:bg-primary-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  Zleć Zadanie
+                  {isSubmittingTask ? (
+                    <>
+                      <Loader2 className="animate-spin" size={18} />
+                      <span>Zlecanie...</span>
+                    </>
+                  ) : (
+                    <span>Zleć Zadanie ({selectedTargets.length})</span>
+                  )}
                 </button>
               </div>
             </div>
@@ -652,7 +698,9 @@ export default function AiVideoCoach() {
                     <button 
                       key={s.id}
                       onClick={() => {
-                        setTargetGroup(s.name);
+                        if (!selectedTargets.includes(s.name)) {
+                          setSelectedTargets([...selectedTargets, s.name]);
+                        }
                         setShowStudentSearchModal(false);
                       }}
                       className="w-full text-left p-3 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
@@ -668,11 +716,10 @@ export default function AiVideoCoach() {
               <button 
                 onClick={() => {
                   setShowStudentSearchModal(false);
-                  setTargetGroup('');
                 }} 
                 className="w-full py-3 rounded-xl font-bold text-white bg-gray-800 hover:bg-gray-700 transition-colors"
               >
-                Cofnij
+                Gotowe
               </button>
             </div>
           </div>

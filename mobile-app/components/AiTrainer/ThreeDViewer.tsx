@@ -130,8 +130,8 @@ export default function ThreeDViewer({
           }
         });
         
-        // Scale model down to 0.01 to convert Mixamo centimeters to meters (height 1.8m)
-        yBotModel.scale.set(0.01, 0.01, 0.01);
+        // Scale model appropriately (1.0 is 1.8m human size)
+        yBotModel.scale.set(1, 1, 1);
         yBotModel.position.set(0, 0, 0);
         scene.add(yBotModel);
 
@@ -192,12 +192,12 @@ export default function ThreeDViewer({
 
       const { currentFrame, animationFrames, isMirrorMode, cameraMode } = paramsRef.current;
 
-      // 1. Mirror Mode & Correct Human Scale (0.01)
+      // 1. Mirror Mode & Human Scale (1.0)
       if (yBotModel) {
         if (isMirrorMode) {
-          yBotModel.scale.set(-0.01, 0.01, 0.01);
+          yBotModel.scale.set(-1, 1, 1);
         } else {
-          yBotModel.scale.set(0.01, 0.01, 0.01);
+          yBotModel.scale.set(1, 1, 1);
         }
       }
 
