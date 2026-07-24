@@ -121,8 +121,8 @@ export default function ThreeDViewer({
           }
         });
         
-        // Scale and position model appropriately
-        yBotModel.scale.set(0.01, 0.01, 0.01);
+        // Scale and position model appropriately (Xbot.glb is in meters, so 1.0 is correct)
+        yBotModel.scale.set(1, 1, 1);
         yBotModel.position.set(0, 0, 0);
         scene.add(yBotModel);
       },
@@ -130,16 +130,17 @@ export default function ThreeDViewer({
       (err) => console.error('Error loading Y-Bot.glb:', err)
     );
 
-    // Resize handler
-    const handleResize = () => {
-      if (!mountRef.current) return;
-      const w = mountRef.current.clientWidth;
-      const h = mountRef.current.clientHeight;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-    };
-    window.addEventListener('resize', handleResize);
+    // ResizeObserver handles mounting and layout changes robustly
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const w = entry.contentRect.width || 300;
+        const h = entry.contentRect.height || 300;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+      }
+    });
+    resizeObserver.observe(mountRef.current);
 
     // Main animation loop
     let requestID: number;
@@ -152,9 +153,9 @@ export default function ThreeDViewer({
       // 1. Mirror Mode
       if (yBotModel) {
         if (isMirrorMode) {
-          yBotModel.scale.set(-0.01, 0.01, 0.01); // Mirror on X axis
+          yBotModel.scale.set(-1, 1, 1); // Mirror on X axis
         } else {
-          yBotModel.scale.set(0.01, 0.01, 0.01);
+          yBotModel.scale.set(1, 1, 1);
         }
       }
 
@@ -214,7 +215,10 @@ export default function ThreeDViewer({
 
     // Clean up WebGL resources to prevent memory leaks
     return () => {
-      window.removeEventListener('resize', handleResize);
+      if (mountRef.current) {
+        resizeObserver.unobserve(mountRef.current);
+      }
+      resizeObserver.disconnect();
       cancelAnimationFrame(requestID);
       renderer.dispose();
       

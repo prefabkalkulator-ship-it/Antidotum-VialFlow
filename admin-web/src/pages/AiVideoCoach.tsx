@@ -82,14 +82,26 @@ export default function AiVideoCoach() {
     fetch('http://localhost:3000/api/coach/choreographies')
       .then(r => r.json())
       .then(data => {
-        setChoreographies(data);
-        if (data.length > 0) setSelectedChoreoId(data[0].id);
+        if (Array.isArray(data)) {
+          setChoreographies(data);
+          if (data.length > 0) setSelectedChoreoId(data[0].id);
+        } else {
+          console.error('Expected choreographies to be array, got:', data);
+          setChoreographies([]);
+        }
+      })
+      .catch(e => {
+        console.error('Error fetching choreographies:', e);
+        setChoreographies([]);
       });
 
     fetch('http://localhost:3000/api/groups')
       .then(r => r.json())
       .then(data => setGroups(Array.isArray(data) ? data : []))
-      .catch(e => console.error(e));
+      .catch(e => {
+        console.error('Error fetching groups:', e);
+        setGroups([]);
+      });
 
     fetch('http://localhost:3000/api/users')
       .then(r => r.json())
@@ -106,9 +118,14 @@ export default function AiVideoCoach() {
             }
           });
           setStudents(allKids);
+        } else {
+          setStudents([]);
         }
       })
-      .catch(e => console.error(e));
+      .catch(e => {
+        console.error('Error fetching students:', e);
+        setStudents([]);
+      });
 
     fetchTasksAndResults();
   }, [selectedActiveTaskId]);
@@ -356,7 +373,7 @@ export default function AiVideoCoach() {
                   <span className="text-gray-500">▼</span>
                 </button>
                 <div id="choreoDropdown" className="hidden absolute z-50 w-full mt-2 bg-[#18181B] border border-gray-700 rounded-xl shadow-2xl overflow-hidden">
-                  {choreographies.map(ch => (
+                  {Array.isArray(choreographies) && choreographies.map(ch => (
                     <div 
                       key={ch.id} 
                       className={`p-4 cursor-pointer hover:bg-gray-800 transition-colors border-b border-gray-800/50 last:border-0 ${selectedChoreoId === ch.id ? 'bg-primary/10 text-primary' : 'text-gray-300'}`}
@@ -485,7 +502,7 @@ export default function AiVideoCoach() {
                   value={selectedChoreoId}
                   onChange={(e) => setSelectedChoreoId(e.target.value)}
                 >
-                  {choreographies.map(ch => (
+                  {Array.isArray(choreographies) && choreographies.map(ch => (
                     <option key={ch.id} value={ch.id}>{ch.title} ({ch.instructor})</option>
                   ))}
                 </select>
@@ -509,7 +526,7 @@ export default function AiVideoCoach() {
                 >
                   <option value="" disabled>-- Wybierz grupę lub ucznia --</option>
                   <optgroup label="Grupy Zorganizowane">
-                    {groups.map(g => (
+                    {Array.isArray(groups) && groups.map(g => (
                       <option key={g.id} value={g.name}>Cała Grupa: {g.name}</option>
                     ))}
                   </optgroup>
