@@ -115,7 +115,7 @@ export default function ThreeDViewer({
           if ((child as THREE.Bone).isBone) {
             const bone = child as THREE.Bone;
             bonesMap.set(bone.name, bone);
-            if (bone.name === 'mixamorigHips') {
+            if (bone.name === 'mixamorig:Hips') {
               hipsBone = bone;
             }
           }
@@ -191,16 +191,16 @@ export default function ThreeDViewer({
         
         switch (cameraMode) {
           case 'front':
-            camera.position.set(hipsWorldPos.x, hipsWorldPos.y + 0.3, hipsWorldPos.z + 1.8);
+            camera.position.set(hipsWorldPos.x, hipsWorldPos.y + 0.2, hipsWorldPos.z + 2.8);
             break;
           case 'back':
-            camera.position.set(hipsWorldPos.x, hipsWorldPos.y + 0.3, hipsWorldPos.z - 1.8);
+            camera.position.set(hipsWorldPos.x, hipsWorldPos.y + 0.2, hipsWorldPos.z - 2.8);
             break;
           case 'profile':
-            camera.position.set(hipsWorldPos.x + 1.8, hipsWorldPos.y + 0.3, hipsWorldPos.z);
+            camera.position.set(hipsWorldPos.x + 2.6, hipsWorldPos.y + 0.2, hipsWorldPos.z);
             break;
           case 'feet':
-            camera.position.set(hipsWorldPos.x, hipsWorldPos.y - 0.4, hipsWorldPos.z + 1.3);
+            camera.position.set(hipsWorldPos.x, hipsWorldPos.y - 0.2, hipsWorldPos.z + 2.0);
             targetLookAt.y -= 0.6; // look down at feet
             break;
         }
