@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
   },
   doneToggleText: {
     color: '#10b981',
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: 'bold',
     fontFamily: 'sans-serif'
   },
@@ -331,14 +331,14 @@ const styles = StyleSheet.create({
     gap: 8
   },
   emptyText: {
-    color: '#71717a',
+    color: '#e4e4e7',
     textAlign: 'center',
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: 'sans-serif',
     paddingHorizontal: 16
   },
   list: {
-    maxHeight: 140,
+    maxHeight: 155,
     marginBottom: 12
   },
   listContainer: {
@@ -348,21 +348,21 @@ const styles = StyleSheet.create({
   taskCard: {
     backgroundColor: '#0B0B0C',
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#3f3f46',
     borderRadius: 12,
     padding: 12,
-    width: 185,
+    width: 195,
     justifyContent: 'space-between'
   },
   taskCardSelected: {
     borderColor: '#f472b6',
     shadowColor: '#f472b6',
-    shadowOpacity: 0.1,
-    shadowRadius: 5
+    shadowOpacity: 0.25,
+    shadowRadius: 6
   },
   taskCardCompleted: {
     borderColor: '#10b981',
-    opacity: 0.8
+    opacity: 0.95
   },
   cardHeader: {
     flexDirection: 'row',
@@ -372,40 +372,40 @@ const styles = StyleSheet.create({
   },
   completedTag: {
     color: '#10b981',
-    fontSize: 8,
+    fontSize: 11,
     fontWeight: 'bold',
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: 4
   },
   targetBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: 4,
-    maxWidth: 100
+    maxWidth: 110
   },
   badgeAll: {
-    backgroundColor: 'rgba(168, 85, 247, 0.15)'
+    backgroundColor: 'rgba(168, 85, 247, 0.25)'
   },
   badgeGroup: {
-    backgroundColor: 'rgba(6, 182, 212, 0.15)'
+    backgroundColor: 'rgba(6, 182, 212, 0.25)'
   },
   badgeStudent: {
-    backgroundColor: 'rgba(244, 114, 182, 0.15)'
+    backgroundColor: 'rgba(244, 114, 182, 0.25)'
   },
   targetBadgeText: {
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: 'bold',
     fontFamily: 'sans-serif'
   },
   cardTitle: {
     color: '#ffffff',
     fontWeight: 'bold',
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: 'sans-serif',
     marginBottom: 6
   },
@@ -413,19 +413,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 2
+    marginTop: 3
   },
   cardInfoText: {
-    color: '#a1a1aa',
-    fontSize: 10,
+    color: '#e4e4e7',
+    fontSize: 12,
+    fontWeight: '500',
     fontFamily: 'sans-serif'
   },
   allDoneBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    borderColor: 'rgba(16, 185, 129, 0.2)',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderColor: 'rgba(16, 185, 129, 0.3)',
     borderWidth: 1,
     borderRadius: 12,
     padding: 14,
@@ -433,7 +434,7 @@ const styles = StyleSheet.create({
   },
   allDoneText: {
     color: '#10b981',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: 'bold',
     fontFamily: 'sans-serif',
     flex: 1
@@ -442,12 +443,12 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 12,
     borderTopWidth: 1,
-    borderTopColor: '#27272A',
+    borderTopColor: '#3f3f46',
     paddingTop: 12
   },
   doneSectionTitle: {
-    color: '#a1a1aa',
-    fontSize: 11,
+    color: '#e4e4e7',
+    fontSize: 13,
     fontWeight: 'bold',
     fontFamily: 'sans-serif',
     marginBottom: 8
@@ -456,7 +457,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0B0B0C',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#27272A',
+    borderColor: '#3f3f46',
     padding: 16
   },
   detailsHeader: {
@@ -467,28 +468,29 @@ const styles = StyleSheet.create({
   detailsTitle: {
     color: '#ffffff',
     fontWeight: 'bold',
-    fontSize: 15,
+    fontSize: 16,
     fontFamily: 'sans-serif',
     flex: 1
   },
   detailsMeta: {
-    color: '#71717a',
-    fontSize: 11,
+    color: '#d4d4d8',
+    fontSize: 13,
+    fontWeight: '500',
     fontFamily: 'sans-serif',
     marginTop: 4,
     marginBottom: 8
   },
   videoLink: {
     marginVertical: 8,
-    backgroundColor: 'rgba(244, 114, 182, 0.1)',
+    backgroundColor: 'rgba(244, 114, 182, 0.2)',
     alignSelf: 'flex-start',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 6
   },
   videoLinkText: {
     color: '#f472b6',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: 'bold',
     fontFamily: 'sans-serif'
   },
@@ -496,7 +498,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
     borderRadius: 8,
     padding: 12,
     marginTop: 8
@@ -504,7 +506,7 @@ const styles = StyleSheet.create({
   completedText: {
     color: '#10b981',
     fontWeight: 'bold',
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: 'sans-serif'
   },
   submitBtn: {
@@ -514,21 +516,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     borderRadius: 8,
-    paddingVertical: 12,
+    paddingVertical: 14,
     marginTop: 8,
     shadowColor: '#f472b6',
-    shadowOpacity: 0.15,
-    shadowRadius: 5
+    shadowOpacity: 0.25,
+    shadowRadius: 6
   },
   submitBtnText: {
     color: '#ffffff',
     fontWeight: 'bold',
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: 'sans-serif'
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20
@@ -536,11 +538,11 @@ const styles = StyleSheet.create({
   modalContent: {
     backgroundColor: '#18181B',
     borderWidth: 1,
-    borderColor: '#3f3f46',
+    borderColor: '#52525b',
     borderRadius: 16,
-    padding: 20,
+    padding: 22,
     width: '100%',
-    maxWidth: 420,
+    maxWidth: 440,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.5,
@@ -550,11 +552,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8
+    marginBottom: 10
   },
   modalTitle: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     fontFamily: 'sans-serif'
   },
@@ -563,29 +565,31 @@ const styles = StyleSheet.create({
   },
   modalSubTitle: {
     color: '#f472b6',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
     fontFamily: 'sans-serif',
-    marginBottom: 6
+    marginBottom: 8
   },
   modalDesc: {
-    color: '#a1a1aa',
-    fontSize: 12,
+    color: '#e4e4e7',
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 20,
     fontFamily: 'sans-serif',
-    marginBottom: 12
+    marginBottom: 14
   },
   modalInput: {
     backgroundColor: '#0B0B0C',
     borderWidth: 1,
-    borderColor: '#27272A',
-    borderRadius: 8,
-    padding: 10,
+    borderColor: '#3f3f46',
+    borderRadius: 10,
+    padding: 12,
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: 14,
     fontFamily: 'sans-serif',
     textAlignVertical: 'top',
-    height: 70,
-    marginBottom: 16
+    height: 80,
+    marginBottom: 18
   },
   modalActions: {
     flexDirection: 'row',
@@ -598,13 +602,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     backgroundColor: '#27272A',
-    borderRadius: 8,
-    paddingVertical: 12
+    borderColor: '#ef4444',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 14
   },
   rejectBtnText: {
     color: '#ef4444',
     fontWeight: 'bold',
-    fontSize: 12,
+    fontSize: 14,
     fontFamily: 'sans-serif'
   },
   confirmBtn: {
@@ -614,13 +620,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     backgroundColor: '#10b981',
-    borderRadius: 8,
-    paddingVertical: 12
+    borderRadius: 10,
+    paddingVertical: 14
   },
   confirmBtnText: {
     color: '#ffffff',
     fontWeight: 'bold',
-    fontSize: 12,
+    fontSize: 14,
     fontFamily: 'sans-serif'
   }
 });

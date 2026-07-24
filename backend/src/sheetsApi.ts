@@ -1535,28 +1535,47 @@ export const getHomeworkTasks = async (childName?: string, groupId?: string) => 
       return tasks;
     }
 
-    let effectiveGroupId = cleanGroupId;
-    if (!effectiveGroupId && cleanChildName) {
+    let matchedChildNames: string[] = cleanChildName ? [cleanChildName.toLowerCase()] : [];
+    let matchedGroupIds: string[] = cleanGroupId ? [cleanGroupId.toLowerCase()] : [];
+
+    // Rozszerzenie danych dla opiekunów: znalezienie dzieci i grup przypisanych do opiekuna
+    if (cleanChildName) {
       try {
-        const parents = await getUsersAndParents();
-        for (const p of parents) {
-          if (p.children) {
-            const found = p.children.find((c: any) => {
-              const fullName = `${c.firstName} ${c.lastName}`.trim().toLowerCase();
-              return fullName === cleanChildName.toLowerCase() || c.firstName.toLowerCase() === cleanChildName.toLowerCase();
-            });
-            if (found && (found.groupName || found.groupId)) {
-              effectiveGroupId = found.groupName || found.groupId;
-              break;
-            }
+        const studentRes = await api.spreadsheets.values.get({
+          spreadsheetId: USERS_SPREADSHEET_ID,
+          range: 'Baza_Uczniow!A2:K',
+        });
+        const studentRows = studentRes.data.values || [];
+
+        studentRows.forEach((row: any[]) => {
+          const childFullName = `${row[1] || ''} ${row[2] || ''}`.trim();
+          const childGroup = row[3] || row[4] || ''; // Grupa w Baza_Uczniow
+          const op1Name = (row[6] || '').toLowerCase();
+          const op1Email = (row[7] || '').toLowerCase();
+          const op2Name = (row[9] || '').toLowerCase();
+          const op2Email = (row[10] || '').toLowerCase();
+          const inputName = cleanChildName.toLowerCase();
+
+          const isMatch = (inputName && (
+            inputName === childFullName.toLowerCase() ||
+            childFullName.toLowerCase().includes(inputName) ||
+            inputName.includes(childFullName.toLowerCase()) ||
+            inputName === op1Name || op1Name.includes(inputName) ||
+            inputName === op2Name || op2Name.includes(inputName) ||
+            inputName === op1Email || inputName === op2Email
+          ));
+
+          if (isMatch) {
+            if (childFullName) matchedChildNames.push(childFullName.toLowerCase());
+            if (childGroup) matchedGroupIds.push(childGroup.toLowerCase());
           }
-        }
-      } catch (err) {
-        console.error('Error resolving student group fallback:', err);
+        });
+      } catch (e) {
+        console.warn('Błąd rozszerzania danych ucznia/opiekuna w getHomeworkTasks:', e);
       }
     }
 
-    // Filter tasks intended for this group or this student individually
+    // Filter tasks intended for this group, student, or guardian's children
     return tasks.filter((t: any) => {
       const typeLower = String(t.targetType || '').toLowerCase().trim();
       
@@ -1565,22 +1584,20 @@ export const getHomeworkTasks = async (childName?: string, groupId?: string) => 
       }
       
       const normSheetTarget = String(t.targetValue).toLowerCase().replace(/\s+/g, ' ').trim();
-      const normQueryGroup = String(effectiveGroupId).toLowerCase().replace(/\s+/g, ' ').trim();
-      const normQueryName = String(cleanChildName).toLowerCase().replace(/\s+/g, ' ').trim();
 
       if (typeLower === 'group' || typeLower === 'grupa') {
-        if (!normQueryGroup) return false;
-        return normSheetTarget === normQueryGroup || normSheetTarget.includes(normQueryGroup) || normQueryGroup.includes(normSheetTarget);
+        if (matchedGroupIds.length === 0) return false;
+        return matchedGroupIds.some(g => g && (normSheetTarget === g || normSheetTarget.includes(g) || g.includes(normSheetTarget)));
       }
       
       if (typeLower === 'student' || typeLower === 'uczen' || typeLower === 'uczeń' || typeLower === 'individual') {
-        if (!normQueryName) return false;
-        return normSheetTarget === normQueryName || normSheetTarget.includes(normQueryName) || normQueryName.includes(normSheetTarget);
+        if (matchedChildNames.length === 0) return false;
+        return matchedChildNames.some(c => c && (normSheetTarget === c || normSheetTarget.includes(c) || c.includes(normSheetTarget)));
       }
 
       // Fallback matching
-      if (normSheetTarget && normQueryGroup && (normSheetTarget === normQueryGroup || normSheetTarget.includes(normQueryGroup))) return true;
-      if (normSheetTarget && normQueryName && (normSheetTarget === normQueryName || normSheetTarget.includes(normQueryName))) return true;
+      if (normSheetTarget && matchedGroupIds.some(g => g && (normSheetTarget === g || normSheetTarget.includes(g)))) return true;
+      if (normSheetTarget && matchedChildNames.some(c => c && (normSheetTarget === c || normSheetTarget.includes(c)))) return true;
 
       return false;
     });
