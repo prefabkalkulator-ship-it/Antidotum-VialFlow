@@ -1531,9 +1531,11 @@ export const getHomeworkTasks = async (childName: string, groupId: string) => {
     // Filter tasks intended for this group or this student individually
     return tasks.filter((t: any) => {
       if (t.targetType === 'group') {
-        return String(t.targetValue).toLowerCase() === String(groupId).toLowerCase();
+        const normSheetGroup = String(t.targetValue).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+        const normQueryGroup = String(groupId).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+        return normSheetGroup === normQueryGroup;
       } else if (t.targetType === 'student') {
-        return String(t.targetValue).toLowerCase() === String(childName).toLowerCase();
+        return String(t.targetValue).toLowerCase().trim() === String(childName).toLowerCase().trim();
       }
       return false;
     });

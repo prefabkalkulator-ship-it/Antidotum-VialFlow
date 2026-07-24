@@ -179,6 +179,7 @@ export default function ThreeDViewer({
 
       // 3. Camera presets relative to Hips tracking
       if (yBotModel) {
+        yBotModel.updateMatrixWorld(true);
         const hipsWorldPos = new THREE.Vector3();
         if (hipsBone) {
           hipsBone.getWorldPosition(hipsWorldPos);
