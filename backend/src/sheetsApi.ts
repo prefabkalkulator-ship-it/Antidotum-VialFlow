@@ -1405,6 +1405,8 @@ export const saveEventToList = async (event: { id: string, type: string, title: 
   }
 };
 
+const HOMEWORK_SPREADSHEET_ID = '1_gaXdC-Ymsil6WmrSQ-oinXA6foKn_WYEuREx-LsOjw';
+
 export const createHomeworkTask = async (task: {
   title: string,
   choreoId: string,
@@ -1419,7 +1421,7 @@ export const createHomeworkTask = async (task: {
     if (!api) throw new Error("Brak autoryzacji");
 
     const spreadSheetInfo = await api.spreadsheets.get({
-      spreadsheetId: USERS_SPREADSHEET_ID
+      spreadsheetId: HOMEWORK_SPREADSHEET_ID
     });
     
     let sheet = spreadSheetInfo.data.sheets?.find((s: any) => s.properties?.title === 'Zadania_Domowe');
@@ -1427,7 +1429,7 @@ export const createHomeworkTask = async (task: {
     
     if (!sheet) {
       const addRes = await api.spreadsheets.batchUpdate({
-        spreadsheetId: USERS_SPREADSHEET_ID,
+        spreadsheetId: HOMEWORK_SPREADSHEET_ID,
         requestBody: {
           requests: [
             {
@@ -1440,7 +1442,7 @@ export const createHomeworkTask = async (task: {
       });
       sheetId = addRes.data.replies?.[0]?.addSheet?.properties?.sheetId || 0;
       await api.spreadsheets.values.update({
-        spreadsheetId: USERS_SPREADSHEET_ID,
+        spreadsheetId: HOMEWORK_SPREADSHEET_ID,
         range: 'Zadania_Domowe!A1:H1',
         valueInputOption: 'USER_ENTERED',
         requestBody: {
@@ -1463,7 +1465,7 @@ export const createHomeworkTask = async (task: {
 
     // Insert row between 1 and 2
     await api.spreadsheets.batchUpdate({
-      spreadsheetId: USERS_SPREADSHEET_ID,
+      spreadsheetId: HOMEWORK_SPREADSHEET_ID,
       requestBody: {
         requests: [
           {
@@ -1481,7 +1483,7 @@ export const createHomeworkTask = async (task: {
     });
 
     await api.spreadsheets.values.update({
-      spreadsheetId: USERS_SPREADSHEET_ID,
+      spreadsheetId: HOMEWORK_SPREADSHEET_ID,
       range: 'Zadania_Domowe!A2:H2',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
@@ -1502,14 +1504,14 @@ export const getHomeworkTasks = async (childName: string, groupId: string) => {
     if (!api) return [];
 
     const spreadSheetInfo = await api.spreadsheets.get({
-      spreadsheetId: USERS_SPREADSHEET_ID
+      spreadsheetId: HOMEWORK_SPREADSHEET_ID
     });
     
     let sheet = spreadSheetInfo.data.sheets?.find((s: any) => s.properties?.title === 'Zadania_Domowe');
     if (!sheet) return [];
 
     const response = await api.spreadsheets.values.get({
-      spreadsheetId: USERS_SPREADSHEET_ID,
+      spreadsheetId: HOMEWORK_SPREADSHEET_ID,
       range: 'Zadania_Domowe!A2:H',
     });
 
@@ -1552,7 +1554,7 @@ export const submitHomeworkResult = async (result: {
     if (!api) throw new Error("Brak autoryzacji");
 
     const spreadSheetInfo = await api.spreadsheets.get({
-      spreadsheetId: USERS_SPREADSHEET_ID
+      spreadsheetId: HOMEWORK_SPREADSHEET_ID
     });
     
     let sheet = spreadSheetInfo.data.sheets?.find((s: any) => s.properties?.title === 'Wyniki_Zadan_Domowych');
@@ -1560,7 +1562,7 @@ export const submitHomeworkResult = async (result: {
     
     if (!sheet) {
       const addRes = await api.spreadsheets.batchUpdate({
-        spreadsheetId: USERS_SPREADSHEET_ID,
+        spreadsheetId: HOMEWORK_SPREADSHEET_ID,
         requestBody: {
           requests: [
             {
@@ -1573,7 +1575,7 @@ export const submitHomeworkResult = async (result: {
       });
       sheetId = addRes.data.replies?.[0]?.addSheet?.properties?.sheetId || 0;
       await api.spreadsheets.values.update({
-        spreadsheetId: USERS_SPREADSHEET_ID,
+        spreadsheetId: HOMEWORK_SPREADSHEET_ID,
         range: 'Wyniki_Zadan_Domowych!A1:G1',
         valueInputOption: 'USER_ENTERED',
         requestBody: {
@@ -1596,7 +1598,7 @@ export const submitHomeworkResult = async (result: {
 
     // Insert row between 1 and 2
     await api.spreadsheets.batchUpdate({
-      spreadsheetId: USERS_SPREADSHEET_ID,
+      spreadsheetId: HOMEWORK_SPREADSHEET_ID,
       requestBody: {
         requests: [
           {
@@ -1614,7 +1616,7 @@ export const submitHomeworkResult = async (result: {
     });
 
     await api.spreadsheets.values.update({
-      spreadsheetId: USERS_SPREADSHEET_ID,
+      spreadsheetId: HOMEWORK_SPREADSHEET_ID,
       range: 'Wyniki_Zadan_Domowych!A2:G2',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
@@ -1635,14 +1637,14 @@ export const getAllHomeworkResults = async () => {
     if (!api) return [];
 
     const spreadSheetInfo = await api.spreadsheets.get({
-      spreadsheetId: USERS_SPREADSHEET_ID
+      spreadsheetId: HOMEWORK_SPREADSHEET_ID
     });
     
     let sheet = spreadSheetInfo.data.sheets?.find((s: any) => s.properties?.title === 'Wyniki_Zadan_Domowych');
     if (!sheet) return [];
 
     const response = await api.spreadsheets.values.get({
-      spreadsheetId: USERS_SPREADSHEET_ID,
+      spreadsheetId: HOMEWORK_SPREADSHEET_ID,
       range: 'Wyniki_Zadan_Domowych!A2:G',
     });
 

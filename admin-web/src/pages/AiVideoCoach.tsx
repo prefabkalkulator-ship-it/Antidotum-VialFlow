@@ -16,6 +16,12 @@ interface AnalysisReport {
   feedback: string[];
 }
 
+interface Student {
+  id: string;
+  name: string;
+  groupName: string;
+}
+
 export default function AiVideoCoach() {
   const [viewMode, setViewMode] = useState<'homework' | 'manual'>('homework');
   
@@ -38,7 +44,39 @@ export default function AiVideoCoach() {
   const [tableSearchQuery, setTableSearchQuery] = useState('');
   
   const [groups, setGroups] = useState<any[]>([]);
-  const [students, setStudents] = useState<string[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+
+  // Nowe stany dynamicznych zadań i wyników
+  const [activeTasks, setActiveTasks] = useState<any[]>([]);
+  const [selectedActiveTaskId, setSelectedActiveTaskId] = useState<string>('');
+  const [homeworkResults, setHomeworkResults] = useState<any[]>([]);
+  const [refLink, setRefLink] = useState('');
+  const [deadlineDate, setDeadlineDate] = useState('');
+  const [isLoadingHomework, setIsLoadingHomework] = useState(false);
+
+  const fetchTasksAndResults = async () => {
+    setIsLoadingHomework(true);
+    try {
+      const tasksRes = await fetch('http://localhost:3000/api/coach/tasks');
+      const tasksData = await tasksRes.json();
+      if (Array.isArray(tasksData)) {
+        setActiveTasks(tasksData);
+        if (tasksData.length > 0 && !selectedActiveTaskId) {
+          setSelectedActiveTaskId(tasksData[0].id);
+        }
+      }
+
+      const resultsRes = await fetch('http://localhost:3000/api/coach/homework/results');
+      const resultsData = await resultsRes.json();
+      if (Array.isArray(resultsData)) {
+        setHomeworkResults(resultsData);
+      }
+    } catch (err) {
+      console.error('Błąd pobierania zadań i wyników:', err);
+    } finally {
+      setIsLoadingHomework(false);
+    }
+  };
 
   useEffect(() => {
     fetch('http://localhost:3000/api/coach/choreographies')
@@ -57,17 +95,23 @@ export default function AiVideoCoach() {
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) {
-          const allKids: string[] = [];
+          const allKids: Student[] = [];
           data.forEach(p => {
             if (p.children && Array.isArray(p.children)) {
-              p.children.forEach((c: any) => allKids.push(`${c.firstName} ${c.lastName}`));
+              p.children.forEach((c: any) => allKids.push({
+                id: c.id,
+                name: `${c.firstName} ${c.lastName}`,
+                groupName: c.groupName || c.group || ''
+              }));
             }
           });
           setStudents(allKids);
         }
       })
       .catch(e => console.error(e));
-  }, []);
+
+    fetchTasksAndResults();
+  }, [selectedActiveTaskId]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -137,7 +181,12 @@ export default function AiVideoCoach() {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
             <h2 className="text-2xl font-bold text-white font-heading">Aktywne Zadania Domowe</h2>
             <button 
-              onClick={() => setShowHomeworkModal(true)}
+              onClick={() => {
+                setShowHomeworkModal(true);
+                if (choreographies.length > 0 && !selectedChoreoId) {
+                  setSelectedChoreoId(choreographies[0].id);
+                }
+              }}
               className="w-full md:w-auto bg-primary hover:bg-primary-dark text-white font-bold py-3 px-6 rounded-xl transition-all shadow-[0_0_15px_rgba(244,114,182,0.3)] flex justify-center items-center gap-2"
             >
               <Send size={18} /> Zleć nowe zadanie
@@ -145,110 +194,152 @@ export default function AiVideoCoach() {
           </div>
 
           <div className="bg-surface border border-gray-800 rounded-2xl p-6 shadow-xl mb-8 w-full min-w-0 overflow-hidden">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-gray-800 pb-4">
-              <div>
-                <h3 className="text-xl font-bold text-white mb-1">Kroki Modern Jazz - Część 1</h3>
-                <p className="text-gray-400 text-sm">Grupa: Balet (Początkujący) • Termin: 12 Lipca 2026</p>
+            {isLoadingHomework && activeTasks.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                <Loader2 size={32} className="animate-spin mx-auto mb-3 text-primary" />
+                Ładowanie zadań domowych...
               </div>
-              <button className="text-primary hover:text-white text-sm font-bold flex items-center gap-2">
-                <Play size={16} /> Zobacz wideo referencyjne
-              </button>
-            </div>
-
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-4">
-              <h4 className="text-sm text-gray-500 uppercase tracking-widest font-bold">Wyniki Weryfikacji AI</h4>
-              <div className="relative w-full sm:w-64">
-                <select 
-                  className="w-full bg-[#18181B] text-white p-2 pr-8 rounded-lg font-sans text-sm focus:outline-none focus:border-primary border border-gray-800 appearance-none cursor-pointer"
-                  value={tableFilter}
-                  onChange={(e) => {
-                    if (e.target.value === 'individual') {
-                      setShowTableSearchModal(true);
-                    } else {
-                      setTableFilter(e.target.value);
-                    }
-                  }}
-                >
-                  <option value="all">Wszyscy uczniowie</option>
-                  <optgroup label="Grupy Zorganizowane">
-                    {groups.map(g => (
-                      <option key={g.id} value={g.name}>{g.name}</option>
-                    ))}
-                    <option value="individual">Zleć Indywidualnie (Wybierz Ucznia)</option>
-                  </optgroup>
-                  {tableFilter !== 'all' && tableFilter !== 'individual' && !groups.some(g => g.name === tableFilter) && (
-                    <option value={tableFilter} className="hidden">{tableFilter}</option>
+            ) : activeTasks.length === 0 ? (
+              <div className="text-center py-12 text-gray-500 font-sans">
+                <AlertTriangle size={32} className="mx-auto mb-3 text-gray-600" />
+                Brak aktywnych zadań domowych. Kliknij "Zleć nowe zadanie" powyżej, aby dodać pierwsze ćwiczenie.
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-gray-800 pb-6">
+                  <div className="flex-1 w-full">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Wybierz Zadanie Domowe do podglądu</label>
+                    <div className="relative max-w-md">
+                      <select 
+                        className="w-full bg-[#18181B] text-white p-3 pr-10 rounded-lg font-sans text-sm focus:outline-none focus:border-primary border border-gray-800 appearance-none cursor-pointer"
+                        value={selectedActiveTaskId}
+                        onChange={(e) => setSelectedActiveTaskId(e.target.value)}
+                      >
+                        {activeTasks.map(t => (
+                          <option key={t.id} value={t.id}>{t.title} ({t.targetType === 'group' ? `Grupa: ${t.targetValue}` : `Uczeń: ${t.targetValue}`})</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={18} />
+                    </div>
+                  </div>
+                  
+                  {activeTasks.find(t => t.id === selectedActiveTaskId)?.videoUrl && (
+                    <a 
+                      href={activeTasks.find(t => t.id === selectedActiveTaskId)?.videoUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="text-primary hover:text-white text-sm font-bold flex items-center gap-2 mt-4 md:mt-0"
+                    >
+                      <Play size={16} /> Zobacz wideo referencyjne
+                    </a>
                   )}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={14} />
-              </div>
-            </div>
-            <div className="overflow-x-auto w-full">
-              <table className="w-full text-left whitespace-nowrap">
-                <thead>
-                  <tr className="text-gray-500 text-sm border-b border-gray-800">
-                    <th className="pb-3 font-medium">Uczeń</th>
-                    <th className="pb-3 font-medium">Status</th>
-                    <th className="pb-3 font-medium">Ocena AI</th>
-                    <th className="pb-3 font-medium">Wymaga uwagi trenera?</th>
-                    <th className="pb-3 font-medium text-right">Akcja</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dummyHomeworkResults
-                    .filter(student => {
-                      if (tableFilter === 'all') return true;
-                      if (tableFilter === 'Balet' || tableFilter === 'Modern Jazz') return student.group === tableFilter;
-                      return student.name === tableFilter;
-                    })
-                    .map(student => (
-                    <tr key={student.id} className="border-b border-gray-800/50 hover:bg-[#18181B] transition-colors">
-                      <td className="py-4 text-white font-bold">{student.name}</td>
-                      <td className="py-4">
-                        {student.status === 'pending' ? (
-                          <span className="text-gray-500 flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Oczekuje</span>
-                        ) : (
-                          <span className="text-green-500 flex items-center gap-2"><CheckSquare size={14} /> Przesłano</span>
-                        )}
-                      </td>
-                      <td className="py-4">
-                        {student.score ? (
-                          <span className={`font-bold ${student.status === 'red' ? 'text-red-500' : student.status === 'yellow' ? 'text-yellow-500' : 'text-green-500'}`}>
-                            {student.score}%
-                          </span>
-                        ) : '-'}
-                      </td>
-                      <td className="py-4">
-                        {student.status === 'red' ? (
-                          <span className="bg-red-500/20 text-red-500 px-3 py-1 rounded-full text-xs font-bold border border-red-500/30 flex inline-center gap-1 w-max">
-                            <AlertTriangle size={12} /> Tak, sprawdź
-                          </span>
-                        ) : student.status === 'pending' ? (
-                          '-'
-                        ) : (
-                          <span className="text-green-500 text-sm flex items-center gap-1"><CheckCircle2 size={14} /> Opanowane</span>
-                        )}
-                      </td>
-                      <td className="py-4 text-right">
-                        <button disabled={student.status === 'pending'} className="text-primary hover:text-white text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed">
-                          Zobacz Raport
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            
-            <div className="mt-6 bg-[#0B0B0C] p-4 rounded-xl border border-gray-800 text-sm text-gray-400 flex items-start gap-3">
-              <FlaskConical className="text-primary shrink-0" size={18} />
-              <p>Oszczędzasz czas! AI wykryło, że tylko 1 na 4 uczniów ma problemy z choreografią. Skup się wyłącznie na nagraniach oznaczonych czerwoną flagą.</p>
-            </div>
+                </div>
+
+                {(() => {
+                  const currentTask = activeTasks.find(t => t.id === selectedActiveTaskId);
+                  if (!currentTask) return null;
+
+                  let targetStudents: Student[] = [];
+                  if (currentTask.targetType === 'group') {
+                    targetStudents = students.filter(s => String(s.groupName).toLowerCase() === String(currentTask.targetValue).toLowerCase());
+                  } else {
+                    targetStudents = students.filter(s => String(s.name).toLowerCase() === String(currentTask.targetValue).toLowerCase());
+                  }
+
+                  return (
+                    <>
+                      <div className="mb-4">
+                        <p className="text-gray-400 text-sm">
+                          <strong>Grupa/Uczeń docelowy:</strong> {currentTask.targetValue} • 
+                          <strong> Termin:</strong> {currentTask.deadline || 'Brak'} • 
+                          <strong> Zlecił:</strong> {currentTask.instructor}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-4 mt-6">
+                        <h4 className="text-sm text-gray-500 uppercase tracking-widest font-bold">Statusy oddania zadań (RODO-compliant self-practice)</h4>
+                        <div className="relative w-full sm:w-64">
+                          <select 
+                            className="w-full bg-[#18181B] text-white p-2 pr-8 rounded-lg font-sans text-sm focus:outline-none focus:border-primary border border-gray-800 appearance-none cursor-pointer"
+                            value={tableFilter}
+                            onChange={(e) => {
+                              if (e.target.value === 'individual') {
+                                setShowTableSearchModal(true);
+                              } else {
+                                setTableFilter(e.target.value);
+                              }
+                            }}
+                          >
+                            <option value="all">Wszyscy z przypisanych</option>
+                            {currentTask.targetType === 'group' && (
+                              <option value={currentTask.targetValue}>Tylko grupa: {currentTask.targetValue}</option>
+                            )}
+                            <option value="individual">Szukaj ucznia...</option>
+                          </select>
+                          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={14} />
+                        </div>
+                      </div>
+
+                      <div className="overflow-x-auto w-full">
+                        <table className="w-full text-left whitespace-nowrap">
+                          <thead>
+                            <tr className="text-gray-500 text-sm border-b border-gray-800">
+                              <th className="pb-3 font-medium">Uczeń</th>
+                              <th className="pb-3 font-medium">Grupa</th>
+                              <th className="pb-3 font-medium">Status Zaliczenia</th>
+                              <th className="pb-3 font-medium">Data Zaliczenia</th>
+                              <th className="pb-3 font-medium">Notatka Zwrotna Ucznia</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {targetStudents
+                              .filter(student => {
+                                if (tableFilter === 'all') return true;
+                                if (tableFilter === 'individual') return true;
+                                if (tableFilter === currentTask.targetValue) return true;
+                                return student.name.toLowerCase().includes(tableFilter.toLowerCase());
+                              })
+                              .map(student => {
+                                const result = homeworkResults.find(r => r.taskId === currentTask.id && String(r.studentName).toLowerCase() === String(student.name).toLowerCase());
+                                return (
+                                  <tr key={student.id} className="border-b border-gray-800/50 hover:bg-[#18181B] transition-colors">
+                                    <td className="py-4 text-white font-bold">{student.name}</td>
+                                    <td className="py-4 text-gray-400">{student.groupName || 'Brak'}</td>
+                                    <td className="py-4">
+                                      {result ? (
+                                        <span className="text-green-500 flex items-center gap-2"><CheckSquare size={14} /> Odrobione</span>
+                                      ) : (
+                                        <span className="text-gray-500 flex items-center gap-2"><Loader2 size={14} className="animate-spin" style={{ animationDuration: '3s' }} /> W trakcie</span>
+                                      )}
+                                    </td>
+                                    <td className="py-4 text-gray-400">
+                                      {result ? new Date(result.submissionDate).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
+                                    </td>
+                                    <td className="py-4 text-gray-300 max-w-xs truncate" title={result?.notes || ''}>
+                                      {result?.notes || '-'}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            {targetStudents.length === 0 && (
+                              <tr>
+                                <td colSpan={5} className="py-8 text-center text-gray-500 font-sans">
+                                  Brak uczniów przypisanych do tego kryterium.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  );
+                })()}
+              </>
+            )}
           </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 min-w-0 animate-fade-in">
-          {/* Lewa kolumna: Konfiguracja */}
           <div className="lg:col-span-2 flex flex-col gap-8 min-w-0">
             <div className="bg-surface border border-gray-800 rounded-2xl p-6 shadow-xl">
               <h3 className="text-white font-bold mb-4 font-sans flex items-center gap-2">
@@ -319,7 +410,6 @@ export default function AiVideoCoach() {
             </button>
           </div>
 
-          {/* Prawa kolumna: Wyniki AI */}
           <div className="lg:col-span-3">
             {isProcessing && !report && (
               <div className="h-full min-h-[400px] border border-gray-800 bg-[#0B0B0C] rounded-2xl flex flex-col items-center justify-center p-10">
@@ -388,6 +478,22 @@ export default function AiVideoCoach() {
             <h2 className="text-2xl font-bold font-heading text-white mb-6">Nowe Zadanie Domowe</h2>
             
             <div className="mb-4">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Wybierz Choreografię 3D</label>
+              <div className="relative">
+                <select 
+                  className="w-full bg-[#27272A] text-white p-3 pr-12 rounded-lg font-sans text-sm focus:outline-none focus:border-primary border border-transparent appearance-none cursor-pointer"
+                  value={selectedChoreoId}
+                  onChange={(e) => setSelectedChoreoId(e.target.value)}
+                >
+                  {choreographies.map(ch => (
+                    <option key={ch.id} value={ch.id}>{ch.title} ({ch.instructor})</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
+              </div>
+            </div>
+
+            <div className="mb-4">
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Adresat Zadania (Grupa lub Uczeń)</label>
               <div className="relative">
                 <select 
@@ -408,7 +514,7 @@ export default function AiVideoCoach() {
                     ))}
                   </optgroup>
                   <optgroup label="Indywidualnie">
-                    <option value="individual">Wyszukaj ucznia z bazy (Modal)...</option>
+                    <option value="individual">Wyszukaj ucznia z bazy...</option>
                   </optgroup>
                 </select>
                 <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
@@ -417,21 +523,41 @@ export default function AiVideoCoach() {
 
             <div className="mb-4">
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Link do referencji (YouTube/Drive)</label>
-              <input type="text" className="w-full bg-[#27272A] text-white p-3 rounded-lg focus:outline-none focus:border-primary border border-transparent" placeholder="https://..." />
+              <input 
+                type="text" 
+                className="w-full bg-[#27272A] text-white p-3 rounded-lg focus:outline-none focus:border-primary border border-transparent" 
+                placeholder="https://..." 
+                value={refLink}
+                onChange={(e) => setRefLink(e.target.value)}
+              />
             </div>
 
             <div className="mb-6">
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Termin wykonania</label>
-              <input type="date" style={{ colorScheme: 'dark' }} className="w-full bg-[#27272A] text-white p-3 rounded-lg focus:outline-none focus:border-primary border border-transparent" />
+              <input 
+                type="date" 
+                style={{ colorScheme: 'dark' }} 
+                className="w-full bg-[#27272A] text-white p-3 rounded-lg focus:outline-none focus:border-primary border border-transparent" 
+                value={deadlineDate}
+                onChange={(e) => setDeadlineDate(e.target.value)}
+              />
             </div>
 
             <div className="flex gap-4">
-              <button onClick={() => setShowHomeworkModal(false)} className="flex-1 py-3 rounded-xl font-bold text-white bg-gray-800 hover:bg-gray-700 transition-colors">
+              <button 
+                onClick={() => {
+                  setShowHomeworkModal(false);
+                  setRefLink('');
+                  setDeadlineDate('');
+                  setTargetGroup('');
+                }} 
+                className="flex-1 py-3 rounded-xl font-bold text-white bg-gray-800 hover:bg-gray-700 transition-colors"
+              >
                 Anuluj
               </button>
               <button 
-                onClick={() => setShowHomeworkModal(false)} 
-                disabled={!targetGroup || targetGroup === 'individual'}
+                onClick={handleCreateTask} 
+                disabled={!targetGroup || targetGroup === 'individual' || !selectedChoreoId}
                 className="flex-1 py-3 rounded-xl font-bold text-white bg-primary hover:bg-primary-dark transition-colors disabled:opacity-50"
               >
                 Zleć Zadanie
@@ -459,20 +585,20 @@ export default function AiVideoCoach() {
             
             <div className="max-h-60 overflow-y-auto mb-4 bg-[#0B0B0C] border border-gray-800 rounded-lg p-2">
               {students
-                .filter(name => name.toLowerCase().includes(searchQuery.toLowerCase()))
-                .map(name => (
+                .filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                .map(s => (
                   <button 
-                    key={name}
+                    key={s.id}
                     onClick={() => {
-                      setTargetGroup(name);
+                      setTargetGroup(s.name);
                       setShowStudentSearchModal(false);
                     }}
                     className="w-full text-left p-3 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
                   >
-                    {name}
+                    {s.name} ({s.groupName || 'Brak grupy'})
                   </button>
               ))}
-              {searchQuery && !students.some(n => n.toLowerCase().includes(searchQuery.toLowerCase())) && (
+              {searchQuery && !students.some(s => s.name.toLowerCase().includes(searchQuery.toLowerCase())) && (
                 <div className="p-3 text-gray-500 text-sm text-center">Brak wyników</div>
               )}
             </div>
@@ -508,20 +634,20 @@ export default function AiVideoCoach() {
             
             <div className="max-h-60 overflow-y-auto mb-4 bg-[#0B0B0C] border border-gray-800 rounded-lg p-2">
               {students
-                .filter(name => name.toLowerCase().includes(tableSearchQuery.toLowerCase()))
-                .map(name => (
+                .filter(s => s.name.toLowerCase().includes(tableSearchQuery.toLowerCase()))
+                .map(s => (
                   <button 
-                    key={name}
+                    key={s.id}
                     onClick={() => {
-                      setTableFilter(name);
+                      setTableFilter(s.name);
                       setShowTableSearchModal(false);
                     }}
                     className="w-full text-left p-3 rounded-lg text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
                   >
-                    {name}
+                    {s.name} ({s.groupName || 'Brak grupy'})
                   </button>
               ))}
-              {tableSearchQuery && !students.some(n => n.toLowerCase().includes(tableSearchQuery.toLowerCase())) && (
+              {tableSearchQuery && !students.some(s => s.name.toLowerCase().includes(tableSearchQuery.toLowerCase())) && (
                 <div className="p-3 text-gray-500 text-sm text-center">Brak wyników</div>
               )}
             </div>
