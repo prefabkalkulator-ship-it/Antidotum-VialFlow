@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { View, StyleSheet, Dimensions, Platform } from 'react-native';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { SMPL_JOINT_MAP } from './aiTrainerService';
 
 interface ThreeDViewerProps {
@@ -38,7 +39,7 @@ export default function ThreeDViewer({
 
     // Camera
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.set(0, 1.4, 3);
+    camera.position.set(0, 1.2, 2.8);
 
     // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -50,6 +51,14 @@ export default function ThreeDViewer({
     // Clear previous canvas if any
     mountRef.current.innerHTML = '';
     mountRef.current.appendChild(renderer.domElement);
+
+    // Interactive OrbitControls (allows user to rotate, zoom, pan)
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 0.5;
+    controls.maxDistance = 15;
+    controls.target.set(0, 1.0, 0);
 
     // Grid Floor & Reflective Mirror Floor styling
     const gridHelper = new THREE.GridHelper(20, 20, '#f472b6', '#27272a');
@@ -121,14 +130,46 @@ export default function ThreeDViewer({
           }
         });
         
-        // Scale and position model appropriately (Xbot.glb is in meters, so 1.0 is correct)
-        yBotModel.scale.set(1, 1, 1);
+        // Scale model down to 0.01 to convert Mixamo centimeters to meters (height 1.8m)
+        yBotModel.scale.set(0.01, 0.01, 0.01);
         yBotModel.position.set(0, 0, 0);
         scene.add(yBotModel);
+
+        // Position camera to initial preset
+        applyCameraPreset(paramsRef.current.cameraMode);
       },
       undefined,
       (err) => console.error('Error loading Y-Bot.glb:', err)
     );
+
+    // Function to apply camera mode presets relative to hips
+    const applyCameraPreset = (mode: string) => {
+      const hipsWorldPos = new THREE.Vector3();
+      if (hipsBone) {
+        hipsBone.getWorldPosition(hipsWorldPos);
+      } else {
+        hipsWorldPos.set(0, 1.04, 0);
+      }
+
+      controls.target.copy(hipsWorldPos);
+      
+      switch (mode) {
+        case 'front':
+          camera.position.set(hipsWorldPos.x, hipsWorldPos.y + 0.1, hipsWorldPos.z + 2.8);
+          break;
+        case 'back':
+          camera.position.set(hipsWorldPos.x, hipsWorldPos.y + 0.1, hipsWorldPos.z - 2.8);
+          break;
+        case 'profile':
+          camera.position.set(hipsWorldPos.x + 2.6, hipsWorldPos.y + 0.1, hipsWorldPos.z);
+          break;
+        case 'feet':
+          camera.position.set(hipsWorldPos.x, hipsWorldPos.y - 0.3, hipsWorldPos.z + 2.0);
+          controls.target.y = Math.max(0.2, hipsWorldPos.y - 0.6); // look down at feet
+          break;
+      }
+      controls.update();
+    };
 
     // ResizeObserver handles mounting and layout changes robustly
     const resizeObserver = new ResizeObserver((entries) => {
@@ -144,18 +185,19 @@ export default function ThreeDViewer({
 
     // Main animation loop
     let requestID: number;
+    let lastCameraMode = cameraMode;
     
     const animate = () => {
       requestID = requestAnimationFrame(animate);
 
       const { currentFrame, animationFrames, isMirrorMode, cameraMode } = paramsRef.current;
 
-      // 1. Mirror Mode
+      // 1. Mirror Mode & Correct Human Scale (0.01)
       if (yBotModel) {
         if (isMirrorMode) {
-          yBotModel.scale.set(-1, 1, 1); // Mirror on X axis
+          yBotModel.scale.set(-0.01, 0.01, 0.01);
         } else {
-          yBotModel.scale.set(1, 1, 1);
+          yBotModel.scale.set(0.01, 0.01, 0.01);
         }
       }
 
@@ -177,37 +219,14 @@ export default function ThreeDViewer({
         }
       }
 
-      // 3. Camera presets relative to Hips tracking
-      if (yBotModel) {
-        yBotModel.updateMatrixWorld(true);
-        const hipsWorldPos = new THREE.Vector3();
-        if (hipsBone) {
-          hipsBone.getWorldPosition(hipsWorldPos);
-        } else {
-          yBotModel.getWorldPosition(hipsWorldPos);
-        }
-
-        // Apply camera presets based on current mode
-        const targetLookAt = hipsWorldPos.clone();
-        
-        switch (cameraMode) {
-          case 'front':
-            camera.position.set(hipsWorldPos.x, hipsWorldPos.y + 0.2, hipsWorldPos.z + 2.8);
-            break;
-          case 'back':
-            camera.position.set(hipsWorldPos.x, hipsWorldPos.y + 0.2, hipsWorldPos.z - 2.8);
-            break;
-          case 'profile':
-            camera.position.set(hipsWorldPos.x + 2.6, hipsWorldPos.y + 0.2, hipsWorldPos.z);
-            break;
-          case 'feet':
-            camera.position.set(hipsWorldPos.x, hipsWorldPos.y - 0.2, hipsWorldPos.z + 2.0);
-            targetLookAt.y -= 0.6; // look down at feet
-            break;
-        }
-        
-        camera.lookAt(targetLookAt);
+      // 3. Check for cameraMode preset switches
+      if (lastCameraMode !== cameraMode) {
+        lastCameraMode = cameraMode;
+        applyCameraPreset(cameraMode);
       }
+
+      // 4. Update OrbitControls for interactive drag/zoom/pan
+      controls.update();
 
       renderer.render(scene, camera);
     };
@@ -221,6 +240,7 @@ export default function ThreeDViewer({
       }
       resizeObserver.disconnect();
       cancelAnimationFrame(requestID);
+      controls.dispose();
       renderer.dispose();
       
       // Traverse and dispose materials and geometries
@@ -241,7 +261,7 @@ export default function ThreeDViewer({
   return (
     <View style={styles.container}>
       {Platform.OS === 'web' ? (
-        <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
+        <div ref={mountRef} style={{ width: '100%', height: '100%', cursor: 'grab' }} />
       ) : (
         <View style={styles.fallback} />
       )}
