@@ -1407,18 +1407,13 @@ export const saveEventToList = async (event: { id: string, type: string, title: 
 
 const HOMEWORK_SPREADSHEET_ID = '1_gaXdC-Ymsil6WmrSQ-oinXA6foKn_WYEuREx-LsOjw';
 
-export const createHomeworkTask = async (task: {
-  title: string,
-  choreoId: string,
-  targetType: string,
-  targetValue: string,
-  videoUrl: string,
-  deadline: string,
-  instructor: string
-}) => {
+export const createHomeworkTask = async (taskInput: any) => {
   try {
     const api = await initAuth();
     if (!api) throw new Error("Brak autoryzacji");
+
+    const tasksList = Array.isArray(taskInput) ? taskInput : (taskInput.tasks ? taskInput.tasks : [taskInput]);
+    if (tasksList.length === 0) return { success: true, count: 0 };
 
     const spreadSheetInfo = await api.spreadsheets.get({
       spreadsheetId: HOMEWORK_SPREADSHEET_ID
@@ -1451,19 +1446,23 @@ export const createHomeworkTask = async (task: {
       });
     }
 
-    const taskId = 'HWT-' + Date.now();
-    const rowData = [
-      taskId,
-      task.title,
-      task.choreoId,
-      task.targetType,
-      task.targetValue,
-      task.videoUrl,
-      task.deadline,
-      task.instructor
-    ];
+    const rowsData = tasksList.map((t: any, index: number) => {
+      const taskId = 'HWT-' + (Date.now() + index);
+      return [
+        taskId,
+        t.title || '',
+        t.choreoId || '',
+        t.targetType || 'group',
+        t.targetValue || '',
+        t.videoUrl || '',
+        t.deadline || '',
+        t.instructor || ''
+      ];
+    });
 
-    // Insert row between 1 and 2
+    const count = rowsData.length;
+
+    // Insert N rows between 1 and 1 + count atomically
     await api.spreadsheets.batchUpdate({
       spreadsheetId: HOMEWORK_SPREADSHEET_ID,
       requestBody: {
@@ -1474,7 +1473,7 @@ export const createHomeworkTask = async (task: {
                 sheetId: sheetId,
                 dimension: "ROWS",
                 startIndex: 1,
-                endIndex: 2
+                endIndex: 1 + count
               }
             }
           }
@@ -1484,14 +1483,14 @@ export const createHomeworkTask = async (task: {
 
     await api.spreadsheets.values.update({
       spreadsheetId: HOMEWORK_SPREADSHEET_ID,
-      range: 'Zadania_Domowe!A2:H2',
+      range: `Zadania_Domowe!A2:H${1 + count}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: [rowData]
+        values: rowsData
       }
     });
 
-    return { success: true, taskId };
+    return { success: true, count, taskId: rowsData[0][0] };
   } catch (err) {
     console.error('Błąd zapisu zadania domowego:', err);
     return { success: false, error: String(err) };

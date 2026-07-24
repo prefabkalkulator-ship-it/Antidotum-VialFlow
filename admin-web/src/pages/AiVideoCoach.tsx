@@ -179,11 +179,11 @@ export default function AiVideoCoach() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const requests = targetsToUse.map(tgt => {
+      const tasksPayload = targetsToUse.map(tgt => {
         const isAll = tgt === 'all' || tgt === 'Wszystkie Grupy';
         const isGrp = isAll ? false : Array.isArray(groups) && groups.some(g => g.name === tgt);
         
-        const taskPayload = {
+        return {
           title: choreo.title,
           choreoId: selectedChoreoId,
           targetType: isAll ? 'all' : (isGrp ? 'group' : 'student'),
@@ -192,18 +192,16 @@ export default function AiVideoCoach() {
           deadline: deadlineDate,
           instructor: choreo.instructor || 'Instruktor'
         };
-
-        return fetch('http://localhost:3000/api/coach/tasks', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(taskPayload)
-        }).then(r => r.json());
       });
 
-      const results = await Promise.all(requests);
-      const allSuccess = results.every(d => d.success || d.id);
+      const res = await fetch('http://localhost:3000/api/coach/tasks', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ tasks: tasksPayload })
+      });
+      const data = await res.json();
 
-      if (allSuccess) {
+      if (data.success) {
         alert(`Zadanie domowe zostało pomyślnie zlecone dla (${targetsToUse.length}) adresatów!`);
         setShowHomeworkModal(false);
         setRefLink('');
@@ -212,7 +210,7 @@ export default function AiVideoCoach() {
         setSelectedTargets([]);
         fetchTasksAndResults();
       } else {
-        alert('Część zadań została wysłana z błędami.');
+        alert('Błąd zlecania zadania: ' + (data.error || 'nieznany błąd'));
         fetchTasksAndResults();
       }
     } catch (err: any) {
