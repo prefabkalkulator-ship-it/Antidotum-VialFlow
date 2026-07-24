@@ -43,6 +43,7 @@ const possiblePublicDirs = [
 const PUBLIC_DIR = possiblePublicDirs.find(d => fs.existsSync(d)) || path.resolve(process.cwd(), 'public');
 
 app.use(express.static(PUBLIC_DIR, {
+  index: false,
   dotfiles: 'allow',
   setHeaders: (res, filePath) => {
     if (filePath.endsWith('.html') || filePath.endsWith('manifest.json') || filePath.endsWith('sw.js')) {
