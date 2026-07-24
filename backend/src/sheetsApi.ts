@@ -1497,31 +1497,10 @@ export const createHomeworkTask = async (taskInput: any) => {
   }
 };
 
-export const getHomeworkTasks = async (childName: string, groupId: string) => {
+export const getHomeworkTasks = async (childName?: string, groupId?: string) => {
   try {
     const api = await initAuth();
     if (!api) return [];
-
-    let effectiveGroupId = groupId;
-    if (!effectiveGroupId && childName) {
-      try {
-        const users = await getUsersAndParents();
-        for (const parent of users) {
-          if (Array.isArray(parent.children)) {
-            const foundChild = parent.children.find((c: any) => {
-              const fullName = `${c.firstName} ${c.lastName}`.trim().toLowerCase();
-              return fullName === childName.trim().toLowerCase() || c.firstName.trim().toLowerCase() === childName.trim().toLowerCase();
-            });
-            if (foundChild && (foundChild.groupName || foundChild.groupId)) {
-              effectiveGroupId = foundChild.groupName || foundChild.groupId;
-              break;
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Error resolving student group fallback:', err);
-      }
-    }
 
     const spreadSheetInfo = await api.spreadsheets.get({
       spreadsheetId: HOMEWORK_SPREADSHEET_ID
