@@ -1015,8 +1015,12 @@ app.post('/api/coach/transition', (req, res) => {
   res.send(buffer);
 });
 
-// Zamiast res.sendFile na kad nieznan ciek (Faza 2, do obsugi PWA), serwujemy index.html
+// Obsługa PWA fallback oraz wykluczenie błędnych ścieżek zasobów
 app.use((req, res) => {
+  if (req.path.startsWith('/_expo/') || req.path.startsWith('/assets/')) {
+    return res.status(404).send('Asset not found');
+  }
+
   if (!req.path.startsWith('/api/')) {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');

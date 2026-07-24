@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vialflow-assets-v2';
+const CACHE_NAME = 'vialflow-assets-v3';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',

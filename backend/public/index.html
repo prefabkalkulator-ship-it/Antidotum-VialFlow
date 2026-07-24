@@ -43,16 +43,33 @@
     <!-- The root element for your Expo app. -->
     <div id="root"></div>
     <script>
+      // Auto self-healing for PWA stale cache script errors
+      window.addEventListener('error', function(e) {
+        if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
+          console.warn('Stale asset load failed, purging ServiceWorker caches...', e);
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(regs) {
+              for (var r of regs) r.unregister();
+              caches.keys().then(function(names) {
+                for (var name of names) caches.delete(name);
+                window.location.reload(true);
+              });
+            });
+          }
+        }
+      }, true);
+
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', function() {
           navigator.serviceWorker.register('/sw.js').then(function(registration) {
             console.log('ServiceWorker registration successful with scope: ', registration.scope);
+            registration.update();
           }, function(err) {
             console.log('ServiceWorker registration failed: ', err);
           });
         });
       }
     </script>
-  <script src="/_expo/static/js/web/index-b080c30628108e3121c87ccbafb876de.js" defer></script>
+  <script src="/_expo/static/js/web/index-f1683c2bd74ed0f82e2feb5e5d602546.js" defer></script>
 </body>
 </html>
