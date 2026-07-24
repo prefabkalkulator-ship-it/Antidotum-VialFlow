@@ -224,6 +224,16 @@ export default function AiTrainer3DContainer({
     }
   };
 
+  const activeTask = tasks.find(t => t.id === selectedTaskId);
+  let activeSequence = DEFAULT_CHOREOGRAPHY_SEQUENCE;
+  if (activeTask?.sequenceJson) {
+    try {
+      activeSequence = typeof activeTask.sequenceJson === 'string' ? JSON.parse(activeTask.sequenceJson) : activeTask.sequenceJson;
+    } catch (e) {
+      console.warn('Failed to parse task sequenceJson:', e);
+    }
+  }
+
   return (
     <View style={styles.container}>
       {/* 3D Screen Frame */}
@@ -239,7 +249,7 @@ export default function AiTrainer3DContainer({
             animationFrames={animationFrames}
             isMirrorMode={isMirrorMode}
             cameraMode={cameraMode}
-            sequence={DEFAULT_CHOREOGRAPHY_SEQUENCE}
+            sequence={activeSequence}
             audioTimeSeconds={(currentFrame * 0.0333) * playbackSpeed}
           />
         )}

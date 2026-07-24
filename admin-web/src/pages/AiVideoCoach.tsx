@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { FlaskConical, Activity, Loader2, UploadCloud, CheckCircle2, AlertTriangle, Medal, Play, Send, CheckSquare, XCircle, ChevronDown, Search } from 'lucide-react';
+import { FlaskConical, Activity, Loader2, UploadCloud, CheckCircle2, AlertTriangle, Medal, Play, Send, CheckSquare, XCircle, ChevronDown, Search, Plus, Trash2, Music, Sparkles } from 'lucide-react';
+import AdminChoreoPreview from '../components/AdminChoreoPreview';
+import { DANCE_MOVE_LIBRARY, DEFAULT_CHOREOGRAPHY_SEQUENCE } from '../utils/DanceMoveLibrary';
+import type { ChoreographySequence } from '../utils/DanceMoveLibrary';
 
 interface Choreography {
   id: string;
@@ -31,6 +34,10 @@ export default function AiVideoCoach() {
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [report, setReport] = useState<AnalysisReport | null>(null);
+
+  // Sequencer 3D stany dla trenera
+  const [customSequence, setCustomSequence] = useState<ChoreographySequence>(DEFAULT_CHOREOGRAPHY_SEQUENCE);
+  const [audioUrl, setAudioUrl] = useState('https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=hip-hop-beat-112702.mp3');
 
   // Zadania Domowe (nowe stany)
   const [showHomeworkModal, setShowHomeworkModal] = useState(false);
@@ -198,7 +205,10 @@ export default function AiVideoCoach() {
           targetValue: isAll ? 'Wszystkie Grupy' : tgt,
           videoUrl: refLink,
           deadline: deadlineDate,
-          instructor: choreo.instructor || 'Instruktor'
+          instructor: choreo.instructor || 'Instruktor',
+          audioUrl: audioUrl,
+          sequenceJson: JSON.stringify(customSequence),
+          targetBPM: customSequence.targetBPM
         };
       });
 
@@ -558,6 +568,95 @@ export default function AiVideoCoach() {
             <div className="bg-[#18181B] border border-gray-700 rounded-2xl p-6 md:p-8 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto">
               <h2 className="text-2xl font-bold font-heading text-white mb-6">Nowe Zadanie Domowe</h2>
               
+              {/* Interaktywny Sekwencer 3D & Podgląd Awatara */}
+              <AdminChoreoPreview sequence={customSequence} audioUrl={audioUrl} />
+
+              <div className="mb-4 bg-[#0B0B0C] border border-gray-800 p-4 rounded-xl">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <Sparkles size={14} className="text-primary" /> Sekwencer 8-Liczeń (Klocki Ruchowe)
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400 font-mono">BPM:</span>
+                    <input
+                      type="number"
+                      min={70}
+                      max={160}
+                      value={customSequence.targetBPM}
+                      onChange={(e) => setCustomSequence({ ...customSequence, targetBPM: Number(e.target.value) || 100 })}
+                      className="w-16 bg-[#27272A] text-white text-xs font-bold p-1 rounded text-center border border-gray-700 focus:outline-none focus:border-primary"
+                    />
+                  </div>
+                </div>
+
+                {/* Lista ułożonych bloków w choreografii */}
+                <div className="space-y-2 mb-3">
+                  {customSequence.blocks.map((block, bIdx) => (
+                    <div key={bIdx} className="bg-[#18181B] border border-gray-800 p-2.5 rounded-lg flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center">
+                          {bIdx + 1}
+                        </span>
+                        <div>
+                          <p className="text-xs font-bold text-white leading-tight">{block.name}</p>
+                          <p className="text-[10px] text-gray-400">{block.style} • {block.durationBeats} liczeń</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newBlocks = customSequence.blocks.filter((_, idx) => idx !== bIdx);
+                          setCustomSequence({ ...customSequence, blocks: newBlocks });
+                        }}
+                        className="text-gray-500 hover:text-red-400 p-1"
+                        title="Usuń blok"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  {customSequence.blocks.length === 0 && (
+                    <p className="text-xs text-gray-500 italic text-center py-2">Brak dodanych bloków 8-liczeń.</p>
+                  )}
+                </div>
+
+                {/* Dodawanie nowego bloku z biblioteki */}
+                <div className="flex gap-2">
+                  <select
+                    className="flex-1 bg-[#27272A] text-white p-2 rounded-lg text-xs border border-gray-700 focus:outline-none focus:border-primary"
+                    defaultValue=""
+                    onChange={(e) => {
+                      const found = DANCE_MOVE_LIBRARY.find(m => m.id === e.target.value);
+                      if (found) {
+                        setCustomSequence({ ...customSequence, blocks: [...customSequence.blocks, found] });
+                        e.target.value = '';
+                      }
+                    }}
+                  >
+                    <option value="" disabled>+ Dodaj blok 8-liczeń z biblioteki...</option>
+                    {DANCE_MOVE_LIBRARY.map(move => (
+                      <option key={move.id} value={move.id}>[{move.style}] {move.name} (8-count)</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Wybór utworu muzycznego */}
+              <div className="mb-4">
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <Music size={14} className="text-primary" /> Podkład Muzyczny MP3
+                </label>
+                <select
+                  className="w-full bg-[#27272A] text-white p-3 rounded-lg font-sans text-sm border border-transparent focus:outline-none focus:border-primary mb-2 cursor-pointer"
+                  value={audioUrl}
+                  onChange={(e) => setAudioUrl(e.target.value)}
+                >
+                  <option value="https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=hip-hop-beat-112702.mp3">★ Hip-Hop Urban Beat (104 BPM)</option>
+                  <option value="https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8723b7b.mp3?filename=funky-groove-110034.mp3">★ Commercial Funk Groove (108 BPM)</option>
+                  <option value="https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=breakdance-street-beat-14324.mp3">★ B-Boy Street Beat (112 BPM)</option>
+                </select>
+              </div>
+
               <div className="mb-4">
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Wybierz Choreografię 3D</label>
                 <div className="relative">

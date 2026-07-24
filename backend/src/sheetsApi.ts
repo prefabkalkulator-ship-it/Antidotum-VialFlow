@@ -1456,7 +1456,10 @@ export const createHomeworkTask = async (taskInput: any) => {
         t.targetValue || '',
         t.videoUrl || '',
         t.deadline || '',
-        t.instructor || ''
+        t.instructor || '',
+        t.audioUrl || '',
+        t.sequenceJson || '',
+        t.targetBPM || 104
       ];
     });
 
@@ -1483,7 +1486,7 @@ export const createHomeworkTask = async (taskInput: any) => {
 
     await api.spreadsheets.values.update({
       spreadsheetId: HOMEWORK_SPREADSHEET_ID,
-      range: `Zadania_Domowe!A2:H${1 + count}`,
+      range: `Zadania_Domowe!A2:K${1 + count}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: rowsData
@@ -1511,7 +1514,7 @@ export const getHomeworkTasks = async (childName?: string, groupId?: string) => 
 
     const response = await api.spreadsheets.values.get({
       spreadsheetId: HOMEWORK_SPREADSHEET_ID,
-      range: 'Zadania_Domowe!A2:H',
+      range: 'Zadania_Domowe!A2:K',
     });
 
     const rows = response.data.values || [];
@@ -1524,7 +1527,10 @@ export const getHomeworkTasks = async (childName?: string, groupId?: string) => 
       targetValue: row[4],
       videoUrl: row[5],
       deadline: row[6],
-      instructor: row[7]
+      instructor: row[7],
+      audioUrl: row[8] || '',
+      sequenceJson: row[9] || '',
+      targetBPM: row[10] ? Number(row[10]) : 104
     }));
 
     const cleanChildName = String(childName || '').trim();
