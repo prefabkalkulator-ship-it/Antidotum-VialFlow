@@ -1020,7 +1020,7 @@ app.post('/api/coach/transition', (req, res) => {
   res.send(buffer);
 });
 
-// Obsługa PWA fallback oraz wykluczenie błędnych ścieżek zasobów
+// Obsługa PWA fallback z gwarancją wstrzyknięcia aktualnej paczki JS
 app.use((req, res) => {
   if (req.path.startsWith('/_expo/') || req.path.startsWith('/assets/')) {
     return res.status(404).send('Asset not found');
@@ -1030,7 +1030,23 @@ app.use((req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.sendFile(require('path').join(__dirname, '../public/index.html'));
+    
+    try {
+      let html = require('fs').readFileSync(require('path').join(__dirname, '../public/index.html'), 'utf8');
+      if (!html.includes('/_expo/static/js/web/')) {
+        const jsDir = require('path').join(__dirname, '../public/_expo/static/js/web');
+        if (require('fs').existsSync(jsDir)) {
+          const files = require('fs').readdirSync(jsDir);
+          const mainJs = files.find((f: string) => f.startsWith('index-') && f.endsWith('.js'));
+          if (mainJs) {
+            html = html.replace('</body>', `<script src="/_expo/static/js/web/${mainJs}" defer></script></body>`);
+          }
+        }
+      }
+      res.type('html').send(html);
+    } catch (e) {
+      res.sendFile(require('path').join(__dirname, '../public/index.html'));
+    }
   } else {
     res.status(404).json({ error: 'Not found' });
   }
