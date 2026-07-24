@@ -1631,13 +1631,48 @@ export const submitHomeworkResult = async (result: {
       });
     }
 
+    let realStudentId = result.studentId || '';
+    let realStudentName = result.studentName || '';
+
+    // Weryfikacja czy zgłaszający jest opiekunem zamiast uczniem
+    try {
+      const studentRes = await api.spreadsheets.values.get({
+        spreadsheetId: USERS_SPREADSHEET_ID,
+        range: 'Baza_Uczniow!A2:K',
+      });
+      const studentRows = studentRes.data.values || [];
+      const match = studentRows.find((row: any[]) => {
+        const childId = row[0] || '';
+        const childFullName = `${row[1] || ''} ${row[2] || ''}`.trim().toLowerCase();
+        const op1Email = (row[7] || '').toLowerCase();
+        const op2Email = (row[10] || '').toLowerCase();
+        const op1Name = (row[6] || '').toLowerCase();
+        const op2Name = (row[9] || '').toLowerCase();
+        const inputId = realStudentId.toLowerCase();
+        const inputName = realStudentName.toLowerCase();
+
+        if (inputName && inputName === childFullName) return true;
+
+        return (inputId && (inputId === op1Email || inputId === op2Email)) ||
+               (inputName && (inputName === op1Name || inputName === op2Name));
+      });
+
+      if (match) {
+        realStudentId = match[0] || realStudentId;
+        realStudentName = `${match[1] || ''} ${match[2] || ''}`.trim() || realStudentName;
+      }
+    } catch (e) {
+      console.warn('Nie udało się zweryfikować ucznia w Baza_Uczniow:', e);
+    }
+
     const submissionId = 'SUB-' + Date.now();
-    const submissionDate = new Date().toISOString();
+    const now = new Date();
+    const submissionDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     const rowData = [
       submissionId,
       result.taskId,
-      result.studentId,
-      result.studentName,
+      realStudentId,
+      realStudentName,
       submissionDate,
       'Oddane',
       result.notes || ''
@@ -1696,15 +1731,20 @@ export const getAllHomeworkResults = async () => {
     });
 
     const rows = response.data.values || [];
-    return rows.map((row: any[]) => ({
-      submissionId: row[0],
-      taskId: row[1],
-      studentId: row[2],
-      studentName: row[3],
-      submissionDate: row[4],
-      status: row[5],
-      notes: row[6] || ''
-    }));
+    return rows.map((row: any[]) => {
+      const dateVal = row[4] || '';
+      return {
+        submissionId: row[0],
+        taskId: row[1],
+        studentId: row[2],
+        studentName: row[3],
+        submissionDate: dateVal,
+        timestamp: dateVal,
+        date: dateVal,
+        status: row[5],
+        notes: row[6] || ''
+      };
+    });
   } catch (err) {
     console.error('Błąd pobierania wszystkich wyników zadań:', err);
     return [];

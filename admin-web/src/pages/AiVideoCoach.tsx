@@ -401,8 +401,8 @@ export default function AiVideoCoach() {
                                           <span className="text-gray-500 flex items-center gap-2"><Loader2 size={14} className="animate-spin" style={{ animationDuration: '3s' }} /> W trakcie</span>
                                         )}
                                       </td>
-                                      <td className="py-4 text-gray-400 text-sm">{result ? result.timestamp : '-'}</td>
-                                      <td className="py-4 text-gray-300 italic max-w-xs overflow-hidden text-ellipsis whitespace-nowrap">{result ? result.notes : '-'}</td>
+                                      <td className="py-4 text-gray-400 text-sm">{result ? (result.submissionDate || result.timestamp || result.date || '-') : '-'}</td>
+                                      <td className="py-4 text-gray-300 italic max-w-xs overflow-hidden text-ellipsis whitespace-nowrap">{result ? (result.notes || 'Brak notatki') : '-'}</td>
                                     </tr>
                                   );
                                 })}
