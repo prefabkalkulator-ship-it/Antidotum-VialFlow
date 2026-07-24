@@ -74,7 +74,8 @@ app.use((req, res, next) => {
     '/api/coach/choreographies',
     '/api/coach/transition',
     '/api/coach/homework/results',
-    '/api/coach/submit'
+    '/api/coach/submit',
+    '/api/coach/generate-choreo'
   ];
   
   if (!req.path.startsWith('/api/') || publicRoutes.includes(req.path) || req.path.startsWith('/api/events') || req.path.startsWith('/api/coach') || req.path.startsWith('/api/drive/webhook') || req.path.startsWith('/api/debug/cron')) {
