@@ -1004,6 +1004,9 @@ app.post('/api/coach/submit', async (req, res) => {
   } catch (err) {
     console.error('Błąd POST /api/coach/submit:', err);
     res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
 app.get('/api/coach/homework/results', async (req, res) => {
   try {
     const results = await getHomeworkResults();
