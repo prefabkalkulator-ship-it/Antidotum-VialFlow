@@ -40,6 +40,7 @@ export default function AiTrainer3DContainer({
   const [isLoadingTasks, setIsLoadingTasks] = useState(false);
 
   const playbackTimer = useRef<any>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const totalFrames = animationFrames ? animationFrames.length : 120; // fallback default frames
 
   // 1. Fetch student homework list
@@ -79,14 +80,12 @@ export default function AiTrainer3DContainer({
   // 2. Fetch animation buffer when task or choreo ID changes
   const fetchAnimationData = async () => {
     const activeTask = tasks.find(t => t.id === selectedTaskId);
-    const choreoIdToUse = activeTask?.choreoId || '1';
 
     setIsLoadingAnimation(true);
     setIsPlaying(false);
     setCurrentFrame(0);
 
     try {
-      // In-betweening simulation or raw float arraybuffer
       const res = await fetch(`${backendUrl}/api/coach/transition`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -98,12 +97,10 @@ export default function AiTrainer3DContainer({
       if (!res.ok) throw new Error('Network response not ok');
       const buffer = await res.arrayBuffer();
       
-      // Parse float32 data into Quaternions
       const quaternions = parse6DofBuffer(buffer, 24);
       setAnimationFrames(quaternions);
     } catch (err) {
       console.error('Error fetching animation buffer:', err);
-      // Generate simple fallback animation (e.g. idle float) so viewer is always active
       const dummyFrames: THREE.Quaternion[][] = [];
       for (let f = 0; f < 120; f++) {
         const dummyQuats: THREE.Quaternion[] = [];
@@ -126,16 +123,55 @@ export default function AiTrainer3DContainer({
     fetchAnimationData();
   }, [selectedTaskId]);
 
-  // 3. Playback clock driver (based on speed multiplier)
+  // Initialize Audio backing track for dance practice
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const activeTask = tasks.find(t => t.id === selectedTaskId);
+      const audioUrlToUse = activeTask?.audioUrl || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=hip-hop-beat-112702.mp3';
+      
+      const audio = new Audio(audioUrlToUse);
+      audio.loop = isLooping;
+      audio.playbackRate = playbackSpeed;
+      audioRef.current = audio;
+
+      audio.onended = () => {
+        if (!isLooping) {
+          setIsPlaying(false);
+        }
+      };
+
+      return () => {
+        audio.pause();
+        audioRef.current = null;
+      };
+    }
+  }, [selectedTaskId]);
+
+  // Sync audio playbackRate & looping with UI state
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = playbackSpeed;
+      audioRef.current.loop = isLooping;
+    }
+  }, [playbackSpeed, isLooping]);
+
+  // Play/Pause Audio & Frame Driver
   useEffect(() => {
     if (isPlaying) {
+      if (audioRef.current) {
+        audioRef.current.play().catch(e => console.warn('Audio auto-play blocked by browser:', e));
+      }
+
       const intervalMs = Math.round(33.33 / playbackSpeed); // ~30 fps base time
       
       playbackTimer.current = setInterval(() => {
         setCurrentFrame((prev) => {
           const next = prev + 1;
           if (next >= totalFrames) {
-            if (isLooping) return 0;
+            if (isLooping) {
+              if (audioRef.current) audioRef.current.currentTime = 0;
+              return 0;
+            }
             setIsPlaying(false);
             return totalFrames - 1;
           }
@@ -143,6 +179,9 @@ export default function AiTrainer3DContainer({
         });
       }, intervalMs);
     } else {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
       if (playbackTimer.current) {
         clearInterval(playbackTimer.current);
       }

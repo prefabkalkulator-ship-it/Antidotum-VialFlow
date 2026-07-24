@@ -73,12 +73,7 @@ export class MotionEngine {
     interpolatedRotations.forEach((rot, boneName) => {
       let bone = this.skeletonBones.get(boneName) || this.skeletonBones.get(`mixamorig${boneName}`);
       if (bone) {
-        const euler = new THREE.Euler(
-          rot[0],
-          mirrorMode ? -rot[1] : rot[1],
-          mirrorMode ? -rot[2] : rot[2],
-          'XYZ'
-        );
+        const euler = new THREE.Euler(rot[0], rot[1], rot[2], 'XYZ');
         bone.quaternion.setFromEuler(euler);
       }
     });
