@@ -25,6 +25,21 @@ interface Student {
   groupName: string;
 }
 
+const PROD_BACKEND_URL = 'https://vialflow-backend-392406857647.europe-central2.run.app';
+
+const fetchWithFallback = async (endpoint: string, options?: RequestInit) => {
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  if (isLocal) {
+    try {
+      const res = await fetch(`http://localhost:3000${endpoint}`, options);
+      if (res.ok) return res;
+    } catch {
+      // Local backend unavailable, fallback to Cloud Run
+    }
+  }
+  return fetch(`${PROD_BACKEND_URL}${endpoint}`, options);
+};
+
 export default function AiVideoCoach() {
   const [viewMode, setViewMode] = useState<'homework' | 'manual'>('homework');
   
@@ -42,22 +57,36 @@ export default function AiVideoCoach() {
   // AI Choreography Generator stany
   const [aiPrompt, setAiPrompt] = useState('');
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+  const [aiSuccessMsg, setAiSuccessMsg] = useState('');
+  const [aiErrorMsg, setAiErrorMsg] = useState('');
 
   const handleGenerateAiChoreo = async (promptToUse?: string) => {
+    const textPrompt = promptToUse || aiPrompt;
+    if (!textPrompt || !textPrompt.trim()) {
+      setAiErrorMsg('Wpisz opis choreografii lub kliknij jeden z szybkich stylów.');
+      return;
+    }
+
     setIsGeneratingAi(true);
+    setAiSuccessMsg('');
+    setAiErrorMsg('');
+
     try {
-      const backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://vialflow-backend-392406857647.europe-central2.run.app';
-      const res = await fetch(`${backendUrl}/api/coach/generate-choreo`, {
+      const res = await fetchWithFallback('/api/coach/generate-choreo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: promptToUse || aiPrompt })
+        body: JSON.stringify({ prompt: textPrompt })
       });
       const data = await res.json();
       if (data.success && data.sequence) {
         setCustomSequence(data.sequence);
+        setAiSuccessMsg(`✨ Wygenerowano nowy układ 3D: "${data.sequence.title}"!`);
+      } else {
+        setAiErrorMsg(data.error || 'Nie udało się wygenerować choreografii.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Błąd generowania choreografii przez AI:', err);
+      setAiErrorMsg('Błąd połączenia z serwerem generowania AI.');
     } finally {
       setIsGeneratingAi(false);
     }
@@ -90,7 +119,7 @@ export default function AiVideoCoach() {
   const fetchTasksAndResults = async () => {
     setIsLoadingHomework(true);
     try {
-      const tasksRes = await fetch('http://localhost:3000/api/coach/tasks');
+      const tasksRes = await fetchWithFallback('/api/coach/tasks');
       const tasksData = await tasksRes.json();
       if (Array.isArray(tasksData)) {
         setActiveTasks(tasksData);
@@ -99,7 +128,7 @@ export default function AiVideoCoach() {
         }
       }
 
-      const resultsRes = await fetch('http://localhost:3000/api/coach/homework/results');
+      const resultsRes = await fetchWithFallback('/api/coach/homework/results');
       const resultsData = await resultsRes.json();
       if (Array.isArray(resultsData)) {
         setHomeworkResults(resultsData);
@@ -112,7 +141,7 @@ export default function AiVideoCoach() {
   };
 
   useEffect(() => {
-    fetch('http://localhost:3000/api/coach/choreographies')
+    fetchWithFallback('/api/coach/choreographies')
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -128,7 +157,7 @@ export default function AiVideoCoach() {
         setChoreographies([]);
       });
 
-    fetch('http://localhost:3000/api/groups')
+    fetchWithFallback('/api/groups')
       .then(r => r.json())
       .then(data => setGroups(Array.isArray(data) ? data : []))
       .catch(e => {
@@ -136,7 +165,7 @@ export default function AiVideoCoach() {
         setGroups([]);
       });
 
-    fetch('http://localhost:3000/api/users')
+    fetchWithFallback('/api/users')
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -191,7 +220,7 @@ export default function AiVideoCoach() {
     formData.append('video', file);
     formData.append('choreoId', selectedChoreoId);
     try {
-      const res = await fetch('http://localhost:3000/api/coach/analyze', { method: 'POST', body: formData });
+      const res = await fetchWithFallback('/api/coach/analyze', { method: 'POST', body: formData });
       const data = await res.json();
       setReport(data);
     } catch (err) {
@@ -236,7 +265,7 @@ export default function AiVideoCoach() {
         };
       });
 
-      const res = await fetch('http://localhost:3000/api/coach/tasks', {
+      const res = await fetchWithFallback('/api/coach/tasks', {
         method: 'POST',
         headers,
         body: JSON.stringify({ tasks: tasksPayload })
@@ -601,24 +630,47 @@ export default function AiVideoCoach() {
                   <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded-full font-mono">Gemini AI</span>
                 </div>
                 
-                <div className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    placeholder="np. Układ K-Pop z ostrym bitem i blokadami..."
+                <div className="flex flex-col md:flex-row gap-2 mb-2">
+                  <textarea
+                    rows={3}
+                    placeholder="Wpisz szczegółowy opis układu (np. Ostry układ K-Pop z blokadami rąk, płynnym wave'em i akcentami na 4 i 8)..."
                     value={aiPrompt}
-                    onChange={(e) => setAiPrompt(e.target.value)}
-                    className="flex-1 bg-[#27272A] text-white p-2.5 rounded-lg text-xs border border-gray-700 focus:outline-none focus:border-primary"
+                    onChange={(e) => {
+                      setAiPrompt(e.target.value);
+                      if (aiErrorMsg) setAiErrorMsg('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleGenerateAiChoreo();
+                      }
+                    }}
+                    className="flex-1 bg-[#27272A] text-white p-3 rounded-lg text-xs border border-gray-700 focus:outline-none focus:border-primary resize-y min-h-[72px] max-h-[140px] leading-relaxed"
                   />
                   <button
                     type="button"
                     onClick={() => handleGenerateAiChoreo()}
                     disabled={isGeneratingAi}
-                    className="bg-primary hover:bg-primary-dark text-white px-3 py-2.5 rounded-lg font-bold text-xs flex items-center gap-1.5 shrink-0 transition-colors disabled:opacity-50"
+                    className="bg-primary hover:bg-primary-dark text-white px-4 py-3 rounded-lg font-bold text-xs flex items-center justify-center gap-2 shrink-0 transition-all disabled:opacity-50 self-stretch md:self-auto"
                   >
-                    {isGeneratingAi ? <Loader2 className="animate-spin" size={14} /> : <Sparkles size={14} />}
-                    <span>Generuj 3D</span>
+                    {isGeneratingAi ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
+                    <span>{isGeneratingAi ? 'Generowanie...' : 'Generuj 3D'}</span>
                   </button>
                 </div>
+
+                {/* Powiadomienia statusu AI */}
+                {aiSuccessMsg && (
+                  <div className="mb-2 p-2.5 rounded-lg bg-green-500/10 border border-green-500/30 text-green-400 text-xs flex items-center gap-2">
+                    <CheckCircle2 size={16} className="shrink-0 text-green-400" />
+                    <span>{aiSuccessMsg}</span>
+                  </div>
+                )}
+                {aiErrorMsg && (
+                  <div className="mb-2 p-2.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
+                    <AlertTriangle size={16} className="shrink-0 text-red-400" />
+                    <span>{aiErrorMsg}</span>
+                  </div>
+                )}
 
                 {/* Szybkie opcje styli */}
                 <div className="flex flex-wrap gap-1.5">
