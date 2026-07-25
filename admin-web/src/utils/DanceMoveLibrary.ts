@@ -37,62 +37,86 @@ export const DANCE_MOVE_LIBRARY: DanceMoveBlock[] = [
     difficulty: 'Początkujący',
     nativeBPM: 100,
     durationBeats: 8,
-    description: 'Dynamiczny krok otwarcia z krzyżowaniem nóg i praca ramion w rytmie bounce.',
+    description: 'Dynamiczny krok otwarcia z krzyżowaniem nóg i pracą ramion w rytmie bounce.',
     tags: ['toprock', 'bounce', 'footwork'],
     keyframes: [
       {
         beatOffset: 0,
         rotations: [
-          { boneName: 'mixamorigHips', rotation: [0, 0, 0] },
+          { boneName: 'mixamorigHips', rotation: [0.1, 0, 0] },
           { boneName: 'mixamorigSpine', rotation: [0.1, 0, 0] },
-          { boneName: 'mixamorigSpine1', rotation: [0.15, 0, 0] },
+          { boneName: 'mixamorigSpine2', rotation: [0.15, 0, 0] },
           { boneName: 'mixamorigNeck', rotation: [0, 0, 0] },
           { boneName: 'mixamorigLeftArm', rotation: [0.4, 0.5, 0.6] },
-          { boneName: 'mixamorigRightArm', rotation: [0.4, -0.5, -0.6] }
+          { boneName: 'mixamorigRightArm', rotation: [0.4, -0.5, -0.6] },
+          { boneName: 'mixamorigLeftUpLeg', rotation: [-0.2, 0.3, -0.2] },
+          { boneName: 'mixamorigLeftLeg', rotation: [-0.4, 0, 0] },
+          { boneName: 'mixamorigRightUpLeg', rotation: [-0.2, -0.3, 0.2] },
+          { boneName: 'mixamorigRightLeg', rotation: [-0.4, 0, 0] }
         ]
       },
       {
         beatOffset: 2,
         rotations: [
-          { boneName: 'mixamorigHips', rotation: [0.2, 0.5, -0.2] },
+          { boneName: 'mixamorigHips', rotation: [0.25, 0.5, -0.2] },
           { boneName: 'mixamorigSpine', rotation: [0.2, 0.3, 0] },
-          { boneName: 'mixamorigSpine1', rotation: [0.25, 0.4, 0.1] },
+          { boneName: 'mixamorigSpine2', rotation: [0.3, 0.4, 0.1] },
           { boneName: 'mixamorigNeck', rotation: [-0.1, -0.2, 0] },
           { boneName: 'mixamorigLeftArm', rotation: [1.2, 0.8, -0.4] },
-          { boneName: 'mixamorigRightArm', rotation: [-0.5, -0.8, -0.5] }
+          { boneName: 'mixamorigLeftForeArm', rotation: [0.8, 0, 0] },
+          { boneName: 'mixamorigRightArm', rotation: [-0.5, -0.8, -0.5] },
+          { boneName: 'mixamorigRightForeArm', rotation: [0.4, 0, 0] },
+          { boneName: 'mixamorigLeftUpLeg', rotation: [0.4, 0.6, -0.1] },
+          { boneName: 'mixamorigLeftLeg', rotation: [-0.8, 0, 0] },
+          { boneName: 'mixamorigRightUpLeg', rotation: [-0.4, -0.2, 0.3] },
+          { boneName: 'mixamorigRightLeg', rotation: [-0.2, 0, 0] }
         ]
       },
       {
         beatOffset: 4,
         rotations: [
-          { boneName: 'mixamorigHips', rotation: [0, 0, 0] },
+          { boneName: 'mixamorigHips', rotation: [0.1, 0, 0] },
           { boneName: 'mixamorigSpine', rotation: [0.1, 0, 0] },
-          { boneName: 'mixamorigSpine1', rotation: [0.15, 0, 0] },
+          { boneName: 'mixamorigSpine2', rotation: [0.15, 0, 0] },
           { boneName: 'mixamorigNeck', rotation: [0, 0, 0] },
           { boneName: 'mixamorigLeftArm', rotation: [0.4, 0.5, 0.6] },
-          { boneName: 'mixamorigRightArm', rotation: [0.4, -0.5, -0.6] }
+          { boneName: 'mixamorigRightArm', rotation: [0.4, -0.5, -0.6] },
+          { boneName: 'mixamorigLeftUpLeg', rotation: [-0.2, 0.3, -0.2] },
+          { boneName: 'mixamorigLeftLeg', rotation: [-0.4, 0, 0] },
+          { boneName: 'mixamorigRightUpLeg', rotation: [-0.2, -0.3, 0.2] },
+          { boneName: 'mixamorigRightLeg', rotation: [-0.4, 0, 0] }
         ]
       },
       {
         beatOffset: 6,
         rotations: [
-          { boneName: 'mixamorigHips', rotation: [0.2, -0.5, 0.2] },
+          { boneName: 'mixamorigHips', rotation: [0.25, -0.5, 0.2] },
           { boneName: 'mixamorigSpine', rotation: [0.2, -0.3, 0] },
-          { boneName: 'mixamorigSpine1', rotation: [0.25, -0.4, -0.1] },
+          { boneName: 'mixamorigSpine2', rotation: [0.3, -0.4, -0.1] },
           { boneName: 'mixamorigNeck', rotation: [-0.1, 0.2, 0] },
           { boneName: 'mixamorigLeftArm', rotation: [-0.5, 0.8, 0.5] },
-          { boneName: 'mixamorigRightArm', rotation: [1.2, -0.8, 0.4] }
+          { boneName: 'mixamorigLeftForeArm', rotation: [0.4, 0, 0] },
+          { boneName: 'mixamorigRightArm', rotation: [1.2, -0.8, 0.4] },
+          { boneName: 'mixamorigRightForeArm', rotation: [0.8, 0, 0] },
+          { boneName: 'mixamorigLeftUpLeg', rotation: [-0.4, 0.2, -0.3] },
+          { boneName: 'mixamorigLeftLeg', rotation: [-0.2, 0, 0] },
+          { boneName: 'mixamorigRightUpLeg', rotation: [0.4, -0.6, 0.1] },
+          { boneName: 'mixamorigRightLeg', rotation: [-0.8, 0, 0] }
         ]
       },
       {
         beatOffset: 8,
         rotations: [
-          { boneName: 'mixamorigHips', rotation: [0, 0, 0] },
+          { boneName: 'mixamorigHips', rotation: [0.1, 0, 0] },
           { boneName: 'mixamorigSpine', rotation: [0.1, 0, 0] },
-          { boneName: 'mixamorigSpine1', rotation: [0.15, 0, 0] },
+          { boneName: 'mixamorigSpine2', rotation: [0.15, 0, 0] },
           { boneName: 'mixamorigNeck', rotation: [0, 0, 0] },
           { boneName: 'mixamorigLeftArm', rotation: [0.4, 0.5, 0.6] },
-          { boneName: 'mixamorigRightArm', rotation: [0.4, -0.5, -0.6] }
+          { boneName: 'mixamorigRightArm', rotation: [0.4, -0.5, -0.6] },
+          { boneName: 'mixamorigLeftUpLeg', rotation: [-0.2, 0.3, -0.2] },
+          { boneName: 'mixamorigLeftLeg', rotation: [-0.4, 0, 0] },
+          { boneName: 'mixamorigRightUpLeg', rotation: [-0.2, -0.3, 0.2] },
+          { boneName: 'mixamorigRightLeg', rotation: [-0.4, 0, 0] }
         ]
       }
     ]
@@ -104,59 +128,83 @@ export const DANCE_MOVE_LIBRARY: DanceMoveBlock[] = [
     difficulty: 'Początkujący',
     nativeBPM: 96,
     durationBeats: 8,
-    description: 'Głęboki groove z opadaniem klatki piersiowej i bitem uderzeń w kolanach.',
-    tags: ['groove', 'bounce', 'body'],
+    description: 'Głęboki groove z opadaniem klatki piersiowej i ugięciem kolan.',
+    tags: ['groove', 'bounce'],
     keyframes: [
       {
         beatOffset: 0,
         rotations: [
-          { boneName: 'mixamorigHips', rotation: [0, 0, 0] },
+          { boneName: 'mixamorigHips', rotation: [0.05, 0, 0] },
           { boneName: 'mixamorigSpine', rotation: [0.05, 0, 0] },
-          { boneName: 'mixamorigSpine2', rotation: [0.05, 0, 0] },
+          { boneName: 'mixamorigSpine2', rotation: [0.1, 0, 0] },
           { boneName: 'mixamorigLeftArm', rotation: [0.5, 0.2, 0.3] },
-          { boneName: 'mixamorigRightArm', rotation: [0.5, -0.2, -0.3] }
+          { boneName: 'mixamorigRightArm', rotation: [0.5, -0.2, -0.3] },
+          { boneName: 'mixamorigLeftUpLeg', rotation: [-0.1, 0, -0.1] },
+          { boneName: 'mixamorigLeftLeg', rotation: [-0.2, 0, 0] },
+          { boneName: 'mixamorigRightUpLeg', rotation: [-0.1, 0, 0.1] },
+          { boneName: 'mixamorigRightLeg', rotation: [-0.2, 0, 0] }
         ]
       },
       {
         beatOffset: 2,
         rotations: [
-          { boneName: 'mixamorigHips', rotation: [0.35, 0, 0] },
+          { boneName: 'mixamorigHips', rotation: [0.4, 0, 0] },
           { boneName: 'mixamorigSpine', rotation: [0.4, 0, 0] },
-          { boneName: 'mixamorigSpine2', rotation: [0.35, 0, 0] },
-          { boneName: 'mixamorigNeck', rotation: [0.3, 0, 0] },
+          { boneName: 'mixamorigSpine2', rotation: [0.5, 0, 0] },
+          { boneName: 'mixamorigNeck', rotation: [-0.2, 0, 0] },
           { boneName: 'mixamorigLeftArm', rotation: [1.1, 0.4, 0.8] },
-          { boneName: 'mixamorigRightArm', rotation: [1.1, -0.4, -0.8] }
+          { boneName: 'mixamorigLeftForeArm', rotation: [1.0, 0, 0] },
+          { boneName: 'mixamorigRightArm', rotation: [1.1, -0.4, -0.8] },
+          { boneName: 'mixamorigRightForeArm', rotation: [1.0, 0, 0] },
+          { boneName: 'mixamorigLeftUpLeg', rotation: [-0.4, 0.1, -0.15] },
+          { boneName: 'mixamorigLeftLeg', rotation: [-0.75, 0, 0] },
+          { boneName: 'mixamorigRightUpLeg', rotation: [-0.4, -0.1, 0.15] },
+          { boneName: 'mixamorigRightLeg', rotation: [-0.75, 0, 0] }
         ]
       },
       {
         beatOffset: 4,
         rotations: [
-          { boneName: 'mixamorigHips', rotation: [0, 0, 0] },
+          { boneName: 'mixamorigHips', rotation: [0.05, 0, 0] },
           { boneName: 'mixamorigSpine', rotation: [0.05, 0, 0] },
-          { boneName: 'mixamorigSpine2', rotation: [0.05, 0, 0] },
+          { boneName: 'mixamorigSpine2', rotation: [0.1, 0, 0] },
           { boneName: 'mixamorigLeftArm', rotation: [0.5, 0.2, 0.3] },
-          { boneName: 'mixamorigRightArm', rotation: [0.5, -0.2, -0.3] }
+          { boneName: 'mixamorigRightArm', rotation: [0.5, -0.2, -0.3] },
+          { boneName: 'mixamorigLeftUpLeg', rotation: [-0.1, 0, -0.1] },
+          { boneName: 'mixamorigLeftLeg', rotation: [-0.2, 0, 0] },
+          { boneName: 'mixamorigRightUpLeg', rotation: [-0.1, 0, 0.1] },
+          { boneName: 'mixamorigRightLeg', rotation: [-0.2, 0, 0] }
         ]
       },
       {
         beatOffset: 6,
         rotations: [
-          { boneName: 'mixamorigHips', rotation: [0.35, 0, 0] },
+          { boneName: 'mixamorigHips', rotation: [0.4, 0, 0] },
           { boneName: 'mixamorigSpine', rotation: [0.4, 0, 0] },
-          { boneName: 'mixamorigSpine2', rotation: [0.35, 0, 0] },
-          { boneName: 'mixamorigNeck', rotation: [0.3, 0, 0] },
+          { boneName: 'mixamorigSpine2', rotation: [0.5, 0, 0] },
+          { boneName: 'mixamorigNeck', rotation: [-0.2, 0, 0] },
           { boneName: 'mixamorigLeftArm', rotation: [1.1, 0.4, 0.8] },
-          { boneName: 'mixamorigRightArm', rotation: [1.1, -0.4, -0.8] }
+          { boneName: 'mixamorigLeftForeArm', rotation: [1.0, 0, 0] },
+          { boneName: 'mixamorigRightArm', rotation: [1.1, -0.4, -0.8] },
+          { boneName: 'mixamorigRightForeArm', rotation: [1.0, 0, 0] },
+          { boneName: 'mixamorigLeftUpLeg', rotation: [-0.4, 0.1, -0.15] },
+          { boneName: 'mixamorigLeftLeg', rotation: [-0.75, 0, 0] },
+          { boneName: 'mixamorigRightUpLeg', rotation: [-0.4, -0.1, 0.15] },
+          { boneName: 'mixamorigRightLeg', rotation: [-0.75, 0, 0] }
         ]
       },
       {
         beatOffset: 8,
         rotations: [
-          { boneName: 'mixamorigHips', rotation: [0, 0, 0] },
+          { boneName: 'mixamorigHips', rotation: [0.05, 0, 0] },
           { boneName: 'mixamorigSpine', rotation: [0.05, 0, 0] },
-          { boneName: 'mixamorigSpine2', rotation: [0.05, 0, 0] },
+          { boneName: 'mixamorigSpine2', rotation: [0.1, 0, 0] },
           { boneName: 'mixamorigLeftArm', rotation: [0.5, 0.2, 0.3] },
-          { boneName: 'mixamorigRightArm', rotation: [0.5, -0.2, -0.3] }
+          { boneName: 'mixamorigRightArm', rotation: [0.5, -0.2, -0.3] },
+          { boneName: 'mixamorigLeftUpLeg', rotation: [-0.1, 0, -0.1] },
+          { boneName: 'mixamorigLeftLeg', rotation: [-0.2, 0, 0] },
+          { boneName: 'mixamorigRightUpLeg', rotation: [-0.1, 0, 0.1] },
+          { boneName: 'mixamorigRightLeg', rotation: [-0.2, 0, 0] }
         ]
       }
     ]
