@@ -19,6 +19,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioTime, setAudioTime] = useState(0);
 
+  const currentTimeRef = useRef(0);
   const paramsRef = useRef({ sequence, isPlaying, audioTime });
   paramsRef.current = { sequence, isPlaying, audioTime };
 
@@ -35,21 +36,38 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
     };
   }, [audioUrl]);
 
+  // Automatyczne odtwarzanie animacji 3D przy wygenerowaniu nowej sekwencji przez AI
+  useEffect(() => {
+    if (sequence && sequence.id) {
+      currentTimeRef.current = 0;
+      setAudioTime(0);
+      setIsPlaying(true);
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play().catch(err => console.warn('Audio autoplay blocked by browser policy:', err));
+      }
+    }
+  }, [sequence.id]);
+
   const togglePlay = () => {
-    if (!audioRef.current) return;
     if (isPlaying) {
-      audioRef.current.pause();
+      if (audioRef.current) audioRef.current.pause();
       setIsPlaying(false);
     } else {
-      audioRef.current.play().catch(err => console.warn('Audio autoplay blocked:', err));
+      currentTimeRef.current = 0;
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play().catch(err => console.warn('Audio play blocked:', err));
+      }
       setIsPlaying(true);
     }
   };
 
   const resetPlay = () => {
+    currentTimeRef.current = 0;
+    setAudioTime(0);
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
-      setAudioTime(0);
     }
   };
 
@@ -115,13 +133,19 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
       animId = requestAnimationFrame(animate);
       
       const delta = clock.getDelta();
-      if (paramsRef.current.isPlaying && audioRef.current) {
-        setAudioTime(audioRef.current.currentTime);
+
+      if (paramsRef.current.isPlaying) {
+        if (audioRef.current && !audioRef.current.paused) {
+          currentTimeRef.current = audioRef.current.currentTime;
+        } else {
+          currentTimeRef.current += delta;
+        }
+        setAudioTime(currentTimeRef.current);
       }
 
       motionEngineRef.current.updatePose(
         paramsRef.current.sequence,
-        audioRef.current ? audioRef.current.currentTime : 0,
+        currentTimeRef.current,
         true // Mirror view for instructor
       );
 
