@@ -125,7 +125,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
             child.receiveShadow = true;
           }
         });
-        motionEngineRef.current.bindSkeleton(gltf.scene);
+        motionEngineRef.current.bindSkeleton(gltf.scene, gltf.animations);
         yBotModel.position.set(0, 0, 0);
         scene.add(yBotModel);
       },

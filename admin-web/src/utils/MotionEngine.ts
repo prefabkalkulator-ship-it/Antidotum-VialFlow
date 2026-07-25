@@ -3,12 +3,17 @@ import type { ChoreographySequence, DanceMoveBlock, PoseKeyframe } from './Dance
 
 export class MotionEngine {
   private skeletonBones: Map<string, THREE.Bone> = new Map();
+  private mixer: THREE.AnimationMixer | null = null;
+  private animActions: Map<string, THREE.AnimationAction> = new Map();
+  private currentActionName: string | null = null;
 
   /**
-   * Rejestruje węzły szkieletu awatara 3D z pliku GLTF
+   * Rejestruje węzły szkieletu awatara 3D oraz inicjalizuje THREE.AnimationMixer z danymi MoCap
    */
-  public bindSkeleton(scene: THREE.Object3D): void {
+  public bindSkeleton(scene: THREE.Object3D, animations: THREE.AnimationClip[] = []): void {
     this.skeletonBones.clear();
+    this.animActions.clear();
+
     scene.traverse((object) => {
       if ((object as THREE.Bone).isBone) {
         const bone = object as THREE.Bone;
@@ -19,10 +24,20 @@ export class MotionEngine {
         }
       }
     });
+
+    if (animations && animations.length > 0) {
+      this.mixer = new THREE.AnimationMixer(scene);
+      animations.forEach((clip) => {
+        if (this.mixer) {
+          const action = this.mixer.clipAction(clip);
+          this.animActions.set(clip.name.toLowerCase(), action);
+        }
+      });
+    }
   }
 
   /**
-   * Oblicza i aplikuje obroty kości dla zadanej sekwencji choreograficznej
+   * Aktualizuje pozycje i obroty kości 3D za pomocą natywnego THREE.AnimationMixer z płynnym przenikaniem (cross-fade)
    */
   public updatePose(
     sequence: ChoreographySequence,
@@ -58,8 +73,51 @@ export class MotionEngine {
     }
 
     const activeBlock = sequence.blocks[activeBlockIndex];
-    if (!activeBlock || !activeBlock.keyframes || activeBlock.keyframes.length === 0) return;
+    if (!activeBlock) return;
 
+    // Jeżeli posiadamy załadowane animacje MoCap w AnimationMixer
+    if (this.mixer && this.animActions.size > 0) {
+      // Dopasowujemy nazwę animacji MoCap do stylu/klocka
+      let targetAnimName = 'walk';
+      const blockId = (activeBlock.id || '').toLowerCase();
+      const style = (activeBlock.style || '').toLowerCase();
+
+      if (blockId.includes('break') || style.includes('break')) {
+        targetAnimName = this.animActions.has('run') ? 'run' : 'walk';
+      } else if (blockId.includes('kpop') || style.includes('kpop')) {
+        targetAnimName = this.animActions.has('agree') ? 'agree' : 'walk';
+      } else if (blockId.includes('heels') || style.includes('heels')) {
+        targetAnimName = this.animActions.has('sneak_pose') ? 'sneak_pose' : 'walk';
+      } else if (blockId.includes('comm') || style.includes('commercial')) {
+        targetAnimName = this.animActions.has('sad_pose') ? 'sad_pose' : 'walk';
+      } else if (blockId.includes('hiphop') || style.includes('hip-hop')) {
+        targetAnimName = this.animActions.has('headshake') ? 'headshake' : 'walk';
+      }
+
+      if (this.currentActionName !== targetAnimName) {
+        const nextAction = this.animActions.get(targetAnimName);
+        const prevAction = this.currentActionName ? this.animActions.get(this.currentActionName) : null;
+
+        if (nextAction) {
+          nextAction.reset();
+          nextAction.enabled = true;
+          nextAction.setEffectiveTimeScale(bpm / (activeBlock.nativeBPM || 100));
+          nextAction.play();
+
+          if (prevAction) {
+            prevAction.crossFadeTo(nextAction, 0.4, true);
+          }
+          this.currentActionName = targetAnimName;
+        }
+      }
+
+      // Aktualizujemy czas w AnimationMixer
+      this.mixer.setTime(currentTimeSeconds);
+      return;
+    }
+
+    // Fallback: procedury matematyczne
+    if (!activeBlock.keyframes || activeBlock.keyframes.length === 0) return;
     const interpolatedRotations = this.evaluateBlockRotations(activeBlock, blockBeatOffset);
 
     interpolatedRotations.forEach((rot, boneName) => {
