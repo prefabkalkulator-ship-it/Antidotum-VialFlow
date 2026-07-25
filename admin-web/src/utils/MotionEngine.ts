@@ -87,7 +87,10 @@ export class MotionEngine {
     }
 
     const duration = nextKf.beatOffset - prevKf.beatOffset;
-    const factor = duration > 0 ? (beatOffset - prevKf.beatOffset) / duration : 0;
+    const rawFactor = duration > 0 ? (beatOffset - prevKf.beatOffset) / duration : 0;
+    
+    // Gładkie wygładzanie tempa ruchu (Smoothstep / Cosine Easing)
+    const factor = 0.5 - 0.5 * Math.cos(Math.max(0, Math.min(1, rawFactor)) * Math.PI);
 
     const prevBones = new Map(prevKf.rotations.map(r => [r.boneName, r.rotation]));
     const nextBones = new Map(nextKf.rotations.map(r => [r.boneName, r.rotation]));
@@ -106,6 +109,36 @@ export class MotionEngine {
       const euler = new THREE.Euler().setFromQuaternion(qA, 'XYZ');
       result.set(boneName, [euler.x, euler.y, euler.z]);
     });
+
+    // Automatyczna kompensacja nacisku nóg, ugięcia kolan i kotwiczenia stóp na podłożu (Foot Grounding / Leg IK Fallback)
+    const hipsRot = result.get('mixamorigHips') || result.get('Hips') || [0, 0, 0];
+    const [hipPitch, hipYaw, hipRoll] = hipsRot;
+
+    // Jeżeli stawy nóg nie były zdefiniowane w klatce kluczowej, wyliczamy je fizycznie z przechyłu hips
+    if (!result.has('mixamorigLeftUpLeg') && !result.has('LeftUpLeg')) {
+      result.set('mixamorigLeftUpLeg', [-0.35 * hipPitch + 0.1, -0.4 * hipYaw, -0.6 * hipRoll - 0.12]);
+    }
+    if (!result.has('mixamorigRightUpLeg') && !result.has('RightUpLeg')) {
+      result.set('mixamorigRightUpLeg', [-0.35 * hipPitch + 0.1, -0.4 * hipYaw, -0.6 * hipRoll + 0.12]);
+    }
+
+    if (!result.has('mixamorigLeftLeg') && !result.has('LeftLeg')) {
+      // Naturalne ugięcie kolana przy opadaniu bioder (bounce)
+      const kneeFlex = -0.4 * Math.max(0, hipPitch) - 0.25;
+      result.set('mixamorigLeftLeg', [kneeFlex, 0, 0]);
+    }
+    if (!result.has('mixamorigRightLeg') && !result.has('RightLeg')) {
+      const kneeFlex = -0.4 * Math.max(0, hipPitch) - 0.25;
+      result.set('mixamorigRightLeg', [kneeFlex, 0, 0]);
+    }
+
+    if (!result.has('mixamorigLeftFoot') && !result.has('LeftFoot')) {
+      // Stabilizacja płaskiej stopy na podłożu
+      result.set('mixamorigLeftFoot', [0.25 * hipPitch + 0.1, 0, 0]);
+    }
+    if (!result.has('mixamorigRightFoot') && !result.has('RightFoot')) {
+      result.set('mixamorigRightFoot', [0.25 * hipPitch + 0.1, 0, 0]);
+    }
 
     return result;
   }

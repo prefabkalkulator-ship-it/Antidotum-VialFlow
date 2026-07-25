@@ -104,7 +104,8 @@ export class MotionEngine {
     }
 
     const duration = nextKf.beatOffset - prevKf.beatOffset;
-    const factor = duration > 0 ? Math.min(1, Math.max(0, (beatOffset - prevKf.beatOffset) / duration)) : 0;
+    const rawFactor = duration > 0 ? Math.min(1, Math.max(0, (beatOffset - prevKf.beatOffset) / duration)) : 0;
+    const factor = 0.5 - 0.5 * Math.cos(rawFactor * Math.PI);
 
     // Zbieranie wszystkich unikalnych nazw kości z obu klatek
     const boneNames = new Set<string>();
@@ -121,9 +122,36 @@ export class MotionEngine {
 
       qA.slerp(qB, factor);
 
-      const interpolatedEuler = new THREE.Euler().setFromQuaternion(qA, 'XYZ');
-      result.set(boneName, [interpolatedEuler.x, interpolatedEuler.y, interpolatedEuler.z]);
+      const euler = new THREE.Euler().setFromQuaternion(qA, 'XYZ');
+      result.set(boneName, [euler.x, euler.y, euler.z]);
     });
+
+    // Automatyczna kompensacja nacisku nóg, ugięcia kolan i kotwiczenia stóp na podłożu (Foot Grounding / Leg IK Fallback)
+    const hipsRot = result.get('mixamorigHips') || result.get('Hips') || [0, 0, 0];
+    const [hipPitch, hipYaw, hipRoll] = hipsRot;
+
+    if (!result.has('mixamorigLeftUpLeg') && !result.has('LeftUpLeg')) {
+      result.set('mixamorigLeftUpLeg', [-0.35 * hipPitch + 0.1, -0.4 * hipYaw, -0.6 * hipRoll - 0.12]);
+    }
+    if (!result.has('mixamorigRightUpLeg') && !result.has('RightUpLeg')) {
+      result.set('mixamorigRightUpLeg', [-0.35 * hipPitch + 0.1, -0.4 * hipYaw, -0.6 * hipRoll + 0.12]);
+    }
+
+    if (!result.has('mixamorigLeftLeg') && !result.has('LeftLeg')) {
+      const kneeFlex = -0.4 * Math.max(0, hipPitch) - 0.25;
+      result.set('mixamorigLeftLeg', [kneeFlex, 0, 0]);
+    }
+    if (!result.has('mixamorigRightLeg') && !result.has('RightLeg')) {
+      const kneeFlex = -0.4 * Math.max(0, hipPitch) - 0.25;
+      result.set('mixamorigRightLeg', [kneeFlex, 0, 0]);
+    }
+
+    if (!result.has('mixamorigLeftFoot') && !result.has('LeftFoot')) {
+      result.set('mixamorigLeftFoot', [0.25 * hipPitch + 0.1, 0, 0]);
+    }
+    if (!result.has('mixamorigRightFoot') && !result.has('RightFoot')) {
+      result.set('mixamorigRightFoot', [0.25 * hipPitch + 0.1, 0, 0]);
+    }
 
     return result;
   }

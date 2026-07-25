@@ -36,9 +36,16 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
     };
   }, [audioUrl]);
 
-  // Automatyczne odtwarzanie animacji 3D przy wygenerowaniu nowej sekwencji przez AI
+  const initialSeqIdRef = useRef(sequence.id);
+
+  // Automatyczne odtwarzanie animacji 3D tylko przy wygenerowaniu NOWEJ sekwencji (nie przy otwarciu modala)
   useEffect(() => {
     if (sequence && sequence.id) {
+      if (sequence.id === initialSeqIdRef.current) {
+        // Zachowaj pauzę przy otwarciu modala
+        setIsPlaying(false);
+        return;
+      }
       currentTimeRef.current = 0;
       setAudioTime(0);
       setIsPlaying(true);
