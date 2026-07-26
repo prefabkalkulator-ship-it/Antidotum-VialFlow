@@ -622,311 +622,337 @@ export default function AiVideoCoach() {
 
         {showHomeworkModal && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-            <div className="bg-[#18181B] border border-gray-700 rounded-2xl p-6 md:p-8 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto">
-              <h2 className="text-2xl font-bold font-heading text-white mb-6">Nowe Zadanie Domowe</h2>
-              
-              {/* Sekcja Generatora AI dla Choreografa */}
-              <div className="mb-4 bg-gradient-to-r from-primary/10 to-purple-500/10 border border-primary/30 p-4 rounded-xl">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-1.5">
-                    <Sparkles size={16} /> Asystent AI Choreografa
-                  </span>
-                  <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded-full font-mono">Gemini AI</span>
-                </div>
-                
-                <div className="flex flex-col md:flex-row gap-2 mb-2">
-                  <textarea
-                    rows={3}
-                    placeholder="Wpisz szczegółowy opis układu (np. Ostry układ K-Pop z blokadami rąk, płynnym wave'em i akcentami na 4 i 8)..."
-                    value={aiPrompt}
-                    onChange={(e) => {
-                      setAiPrompt(e.target.value);
-                      if (aiErrorMsg) setAiErrorMsg('');
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleGenerateAiChoreo();
-                      }
-                    }}
-                    className="flex-1 bg-[#27272A] text-white p-3 rounded-lg text-xs border border-gray-700 focus:outline-none focus:border-primary resize-y min-h-[72px] max-h-[140px] leading-relaxed"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleGenerateAiChoreo()}
-                    disabled={isGeneratingAi}
-                    className="bg-primary hover:bg-primary-dark text-white px-4 py-3 rounded-lg font-bold text-xs flex items-center justify-center gap-2 shrink-0 transition-all disabled:opacity-50 self-stretch md:self-auto"
-                  >
-                    {isGeneratingAi ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
-                    <span>{isGeneratingAi ? 'Generowanie...' : 'Generuj 3D'}</span>
-                  </button>
-                </div>
-
-                {/* Powiadomienia statusu AI */}
-                {aiSuccessMsg && (
-                  <div className="mb-2 p-2.5 rounded-lg bg-green-500/10 border border-green-500/30 text-green-400 text-xs flex items-center gap-2">
-                    <CheckCircle2 size={16} className="shrink-0 text-green-400" />
-                    <span>{aiSuccessMsg}</span>
-                  </div>
-                )}
-                {aiErrorMsg && (
-                  <div className="mb-2 p-2.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
-                    <AlertTriangle size={16} className="shrink-0 text-red-400" />
-                    <span>{aiErrorMsg}</span>
-                  </div>
-                )}
-
-                {/* Szybkie opcje styli */}
-                <div className="flex flex-wrap gap-1.5">
-                  <span className="text-[10px] text-gray-500 self-center">Szybki styl:</span>
-                  {[
-                    { label: '★ Hip-Hop Groove', prompt: 'Hip-Hop z bouncem i toprockiem' },
-                    { label: '★ K-Pop Sharp', prompt: 'K-Pop ostry z blokadami rąk' },
-                    { label: '★ High Heels Sassy', prompt: 'High Heels zmysłowy z obcasami' },
-                    { label: '★ B-Boy Street', prompt: 'Breakdance z Indian Stepem' }
-                  ].map((chip, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => {
-                        setAiPrompt(chip.prompt);
-                        handleGenerateAiChoreo(chip.prompt);
-                      }}
-                      className="bg-[#27272A] hover:bg-primary/20 text-gray-300 hover:text-primary text-[10px] px-2 py-0.5 rounded border border-gray-700 hover:border-primary/40 transition-colors"
-                    >
-                      {chip.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Interaktywny Sekwencer 3D & Podgląd Awatara */}
-              <AdminChoreoPreview sequence={customSequence} audioUrl={audioUrl} />
-
-              <div className="mb-4 bg-[#0B0B0C] border border-gray-800 p-4 rounded-xl">
-                <div className="flex justify-between items-center mb-3">
-                  <span className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-                    <Sparkles size={14} className="text-primary" /> Sekwencer 8-Liczeń (Klocki Ruchowe)
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400 font-mono">BPM:</span>
-                    <input
-                      type="number"
-                      min={70}
-                      max={160}
-                      value={customSequence.targetBPM}
-                      onChange={(e) => setCustomSequence({ ...customSequence, targetBPM: Number(e.target.value) || 100 })}
-                      className="w-16 bg-[#27272A] text-white text-xs font-bold p-1 rounded text-center border border-gray-700 focus:outline-none focus:border-primary"
-                    />
-                  </div>
-                </div>
-
-                {/* Lista ułożonych bloków w choreografii */}
-                <div className="space-y-2 mb-3">
-                  {customSequence.blocks.map((block, bIdx) => (
-                    <div key={bIdx} className="bg-[#18181B] border border-gray-800 p-2.5 rounded-lg flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="w-5 h-5 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center">
-                          {bIdx + 1}
-                        </span>
-                        <div>
-                          <p className="text-xs font-bold text-white leading-tight">{block.name}</p>
-                          <p className="text-[10px] text-gray-400">{block.style} • {block.durationBeats} liczeń</p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newBlocks = customSequence.blocks.filter((_, idx) => idx !== bIdx);
-                          setCustomSequence({ ...customSequence, blocks: newBlocks });
-                        }}
-                        className="text-gray-500 hover:text-red-400 p-1"
-                        title="Usuń blok"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))}
-                  {customSequence.blocks.length === 0 && (
-                    <p className="text-xs text-gray-500 italic text-center py-2">Brak dodanych bloków 8-liczeń.</p>
-                  )}
-                </div>
-
-                {/* Dodawanie nowego bloku z biblioteki */}
-                <div className="flex gap-2">
-                  <select
-                    className="flex-1 bg-[#27272A] text-white p-2 rounded-lg text-xs border border-gray-700 focus:outline-none focus:border-primary"
-                    defaultValue=""
-                    onChange={(e) => {
-                      const found = DANCE_MOVE_LIBRARY.find(m => m.id === e.target.value);
-                      if (found) {
-                        setCustomSequence({ ...customSequence, blocks: [...customSequence.blocks, found] });
-                        e.target.value = '';
-                      }
-                    }}
-                  >
-                    <option value="" disabled>+ Dodaj blok 8-liczeń z biblioteki...</option>
-                    {DANCE_MOVE_LIBRARY.map(move => (
-                      <option key={move.id} value={move.id}>[{move.style}] {move.name} (8-count)</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Wybór utworu muzycznego / Wgranie własnego pliku audio */}
-              <div className="mb-4">
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5"><Music size={14} className="text-primary" /> Podkład Muzyczny MP3</span>
-                  <label htmlFor="customAudioUpload" className="text-primary hover:underline cursor-pointer flex items-center gap-1 text-[11px] font-semibold lowercase">
-                    <UploadCloud size={12} /> + wgraj własny MP3
-                  </label>
-                </label>
-                <input 
-                  id="customAudioUpload"
-                  type="file" 
-                  accept="audio/*" 
-                  className="hidden" 
-                  onChange={(e) => {
-                    const uploadedFile = e.target.files?.[0];
-                    if (uploadedFile) {
-                      const customObjectUrl = URL.createObjectURL(uploadedFile);
-                      setAudioUrl(customObjectUrl);
-                      setAiSuccessMsg(`🎵 Wgrano własny plik audio: "${uploadedFile.name}"`);
-                    }
-                  }}
-                />
-                <select
-                  className="w-full bg-[#27272A] text-white p-3 rounded-lg font-sans text-sm border border-transparent focus:outline-none focus:border-primary cursor-pointer"
-                  value={audioUrl}
-                  onChange={(e) => setAudioUrl(e.target.value)}
-                >
-                  <option value="https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=hip-hop-beat-112702.mp3">★ Hip-Hop Urban Beat (104 BPM)</option>
-                  <option value="https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8723b7b.mp3?filename=funky-groove-110034.mp3">★ Commercial Funk Groove (108 BPM)</option>
-                  <option value="https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=breakdance-street-beat-14324.mp3">★ B-Boy Street Beat (112 BPM)</option>
-                  {audioUrl && !audioUrl.startsWith('https://cdn.pixabay.com') && (
-                    <option value={audioUrl}>🎵 Wgrany Utwór Własny (Moja Muzyka)</option>
-                  )}
-                </select>
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Wybierz Choreografię 3D</label>
-                <div className="relative">
-                  <select 
-                    className="w-full bg-[#27272A] text-white p-3 pr-12 rounded-lg font-sans text-sm focus:outline-none focus:border-primary border border-transparent appearance-none cursor-pointer"
-                    value={selectedChoreoId}
-                    onChange={(e) => setSelectedChoreoId(e.target.value)}
-                  >
-                    {Array.isArray(choreographies) && choreographies.map(ch => (
-                      <option key={ch.id} value={ch.id}>{ch.title} ({ch.instructor})</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
-                </div>
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Adresaci Zadania (Możesz wybrać kilka grup lub uczniów)</label>
-                <div className="relative mb-2">
-                  <select 
-                    className="w-full bg-[#27272A] text-white p-3 pr-12 rounded-lg font-sans text-sm focus:outline-none focus:border-primary border border-transparent appearance-none cursor-pointer"
-                    value=""
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === 'individual') {
-                        setShowStudentSearchModal(true);
-                      } else if (val && !selectedTargets.includes(val)) {
-                        setSelectedTargets([...selectedTargets, val]);
-                      }
-                    }}
-                  >
-                    <option value="" disabled>-- Dodaj grupę lub ucznia --</option>
-                    <option value="Wszystkie Grupy">★ Wszystkie Grupy (Cała Szkoła)</option>
-                    <optgroup label="Grupy Zorganizowane">
-                      {Array.isArray(groups) && groups.map(g => (
-                        <option key={g.id} value={g.name}>Cała Grupa: {g.name}</option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Indywidualnie">
-                      <option value="individual">Wyszukaj ucznia z bazy...</option>
-                    </optgroup>
-                  </select>
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
-                </div>
-
-                {/* Tag badges of selected targets */}
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {selectedTargets.map((tgt, idx) => (
-                    <span 
-                      key={idx} 
-                      className="inline-flex items-center gap-1 bg-primary/20 text-primary border border-primary/40 text-xs font-bold px-2.5 py-1 rounded-md"
-                    >
-                      {tgt}
-                      <button 
-                        type="button" 
-                        onClick={() => setSelectedTargets(selectedTargets.filter(t => t !== tgt))}
-                        className="hover:text-white ml-1 font-extrabold"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                  {selectedTargets.length === 0 && (
-                    <span className="text-xs text-gray-500 italic">Nie wybrano jeszcze żadnego adresata.</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Link do referencji (YouTube/Drive)</label>
-                <input 
-                  type="text" 
-                  className="w-full bg-[#27272A] text-white p-3 rounded-lg focus:outline-none focus:border-primary border border-transparent" 
-                  placeholder="https://..." 
-                  value={refLink}
-                  onChange={(e) => setRefLink(e.target.value)}
-                />
-              </div>
-
-              <div className="mb-6">
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Termin wykonania</label>
-                <input 
-                  type="date" 
-                  style={{ colorScheme: 'dark' }} 
-                  className="w-full bg-[#27272A] text-white p-3 rounded-lg focus:outline-none focus:border-primary border border-transparent" 
-                  value={deadlineDate}
-                  onChange={(e) => setDeadlineDate(e.target.value)}
-                />
-              </div>
-
-              <div className="flex gap-4">
-                <button 
+            <div className="bg-[#18181B] border border-gray-700 rounded-2xl p-6 md:p-8 max-w-4xl w-full shadow-2xl max-h-[90vh] overflow-y-auto relative">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-800">
+                <h2 className="text-2xl font-bold font-heading text-white">Nowe Zadanie Domowe</h2>
+                <button
+                  type="button"
                   onClick={() => {
                     setShowHomeworkModal(false);
                     setRefLink('');
                     setDeadlineDate('');
                     setTargetGroup('');
                     setSelectedTargets([]);
-                  }} 
-                  disabled={isSubmittingTask}
-                  className="flex-1 py-3 rounded-xl font-bold text-white bg-gray-800 hover:bg-gray-700 transition-colors disabled:opacity-50"
+                  }}
+                  className="text-gray-400 hover:text-white p-2 rounded-lg transition-colors bg-gray-800/50 hover:bg-gray-800"
                 >
-                  Anuluj
+                  <X size={20} />
                 </button>
-                <button 
-                  onClick={handleCreateTask} 
-                  disabled={selectedTargets.length === 0 || !selectedChoreoId || isSubmittingTask}
-                  className="flex-1 py-3 rounded-xl font-bold text-white bg-primary hover:bg-primary-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {isSubmittingTask ? (
-                    <>
-                      <Loader2 className="animate-spin" size={18} />
-                      <span>Zlecanie...</span>
-                    </>
-                  ) : (
-                    <span>Zleć Zadanie ({selectedTargets.length})</span>
-                  )}
-                </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Lewa kolumna: Generator AI & Podgląd Awatara 3D */}
+                <div className="space-y-4">
+                  {/* Sekcja Generatora AI dla Choreografa */}
+                  <div className="bg-gradient-to-r from-primary/10 to-purple-500/10 border border-primary/30 p-4 rounded-xl">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-1.5">
+                        <Sparkles size={16} /> Asystent AI Choreografa
+                      </span>
+                      <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded-full font-mono">Gemini AI</span>
+                    </div>
+                    
+                    <div className="flex flex-col gap-2 mb-2">
+                      <textarea
+                        rows={2}
+                        placeholder="Wpisz szczegółowy opis układu (np. Ostry układ K-Pop z blokadami rąk)..."
+                        value={aiPrompt}
+                        onChange={(e) => {
+                          setAiPrompt(e.target.value);
+                          if (aiErrorMsg) setAiErrorMsg('');
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleGenerateAiChoreo();
+                          }
+                        }}
+                        className="w-full bg-[#27272A] text-white p-3 rounded-lg text-xs border border-gray-700 focus:outline-none focus:border-primary resize-y min-h-[64px] max-h-[120px] leading-relaxed"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleGenerateAiChoreo()}
+                        disabled={isGeneratingAi}
+                        className="bg-primary hover:bg-primary-dark text-white px-4 py-2.5 rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50 w-full"
+                      >
+                        {isGeneratingAi ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
+                        <span>{isGeneratingAi ? 'Generowanie...' : 'Generuj 3D'}</span>
+                      </button>
+                    </div>
+
+                    {/* Powiadomienia statusu AI */}
+                    {aiSuccessMsg && (
+                      <div className="mb-2 p-2 rounded-lg bg-green-500/10 border border-green-500/30 text-green-400 text-xs flex items-center gap-2">
+                        <CheckCircle2 size={14} className="shrink-0 text-green-400" />
+                        <span>{aiSuccessMsg}</span>
+                      </div>
+                    )}
+                    {aiErrorMsg && (
+                      <div className="mb-2 p-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
+                        <AlertTriangle size={14} className="shrink-0 text-red-400" />
+                        <span>{aiErrorMsg}</span>
+                      </div>
+                    )}
+
+                    {/* Szybkie opcje styli */}
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="text-[10px] text-gray-500 self-center">Szybki styl:</span>
+                      {[
+                        { label: '★ Hip-Hop Groove', prompt: 'Hip-Hop z bouncem i toprockiem' },
+                        { label: '★ K-Pop Sharp', prompt: 'K-Pop ostry z blokadami rąk' },
+                        { label: '★ High Heels Sassy', prompt: 'High Heels zmysłowy z obcasami' },
+                        { label: '★ B-Boy Street', prompt: 'Breakdance z Indian Stepem' }
+                      ].map((chip, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setAiPrompt(chip.prompt);
+                            handleGenerateAiChoreo(chip.prompt);
+                          }}
+                          className="bg-[#27272A] hover:bg-primary/20 text-gray-300 hover:text-primary text-[10px] px-2 py-0.5 rounded border border-gray-700 hover:border-primary/40 transition-colors"
+                        >
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Interaktywny Sekwencer 3D & Podgląd Awatara */}
+                  <AdminChoreoPreview sequence={customSequence} audioUrl={audioUrl} />
+
+                  <div className="bg-[#0B0B0C] border border-gray-800 p-4 rounded-xl">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <Sparkles size={14} className="text-primary" /> Sekwencer 8-Liczeń
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400 font-mono">BPM:</span>
+                        <input
+                          type="number"
+                          min={70}
+                          max={160}
+                          value={customSequence.targetBPM}
+                          onChange={(e) => setCustomSequence({ ...customSequence, targetBPM: Number(e.target.value) || 100 })}
+                          className="w-16 bg-[#27272A] text-white text-xs font-bold p-1 rounded text-center border border-gray-700 focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Lista ułożonych bloków */}
+                    <div className="space-y-2 mb-3 max-h-36 overflow-y-auto">
+                      {customSequence.blocks.map((block, bIdx) => (
+                        <div key={bIdx} className="bg-[#18181B] border border-gray-800 p-2 rounded-lg flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center shrink-0">
+                              {bIdx + 1}
+                            </span>
+                            <div>
+                              <p className="text-xs font-bold text-white leading-tight">{block.name}</p>
+                              <p className="text-[10px] text-gray-400">{block.style} • {block.durationBeats} liczeń</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newBlocks = customSequence.blocks.filter((_, idx) => idx !== bIdx);
+                              setCustomSequence({ ...customSequence, blocks: newBlocks });
+                            }}
+                            className="text-gray-500 hover:text-red-400 p-1"
+                            title="Usuń blok"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                      {customSequence.blocks.length === 0 && (
+                        <p className="text-xs text-gray-500 italic text-center py-2">Brak dodanych bloków 8-liczeń.</p>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <select
+                        className="flex-1 bg-[#27272A] text-white p-2 rounded-lg text-xs border border-gray-700 focus:outline-none focus:border-primary"
+                        defaultValue=""
+                        onChange={(e) => {
+                          const found = DANCE_MOVE_LIBRARY.find(m => m.id === e.target.value);
+                          if (found) {
+                            setCustomSequence({ ...customSequence, blocks: [...customSequence.blocks, found] });
+                            e.target.value = '';
+                          }
+                        }}
+                      >
+                        <option value="" disabled>+ Dodaj blok z biblioteki...</option>
+                        {DANCE_MOVE_LIBRARY.map(move => (
+                          <option key={move.id} value={move.id}>[{move.style}] {move.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Prawa kolumna: Formularz Zlecenia Zadania Domowego */}
+                <div className="space-y-4 flex flex-col justify-between">
+                  <div>
+                    {/* Wybór utworu muzycznego */}
+                    <div className="mb-4">
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 flex items-center justify-between">
+                        <span className="flex items-center gap-1.5"><Music size={14} className="text-primary" /> Podkład Muzyczny MP3</span>
+                        <label htmlFor="customAudioUpload" className="text-primary hover:underline cursor-pointer flex items-center gap-1 text-[11px] font-semibold lowercase">
+                          <UploadCloud size={12} /> + wgraj własny MP3
+                        </label>
+                      </label>
+                      <input 
+                        id="customAudioUpload"
+                        type="file" 
+                        accept="audio/*" 
+                        className="hidden" 
+                        onChange={(e) => {
+                          const uploadedFile = e.target.files?.[0];
+                          if (uploadedFile) {
+                            const customObjectUrl = URL.createObjectURL(uploadedFile);
+                            setAudioUrl(customObjectUrl);
+                            setAiSuccessMsg(`🎵 Wgrano plik audio: "${uploadedFile.name}"`);
+                          }
+                        }}
+                      />
+                      <select
+                        className="w-full bg-[#27272A] text-white p-3 rounded-lg font-sans text-sm border border-transparent focus:outline-none focus:border-primary cursor-pointer"
+                        value={audioUrl}
+                        onChange={(e) => setAudioUrl(e.target.value)}
+                      >
+                        <option value="https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=hip-hop-beat-112702.mp3">★ Hip-Hop Urban Beat (104 BPM)</option>
+                        <option value="https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8723b7b.mp3?filename=funky-groove-110034.mp3">★ Commercial Funk Groove (108 BPM)</option>
+                        <option value="https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=breakdance-street-beat-14324.mp3">★ B-Boy Street Beat (112 BPM)</option>
+                        {audioUrl && !audioUrl.startsWith('https://cdn.pixabay.com') && (
+                          <option value={audioUrl}>🎵 Wgrany Utwór Własny (Moja Muzyka)</option>
+                        )}
+                      </select>
+                    </div>
+
+                    <div className="mb-4">
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Wybierz Choreografię 3D</label>
+                      <div className="relative">
+                        <select 
+                          className="w-full bg-[#27272A] text-white p-3 pr-12 rounded-lg font-sans text-sm focus:outline-none focus:border-primary border border-transparent appearance-none cursor-pointer"
+                          value={selectedChoreoId}
+                          onChange={(e) => setSelectedChoreoId(e.target.value)}
+                        >
+                          {Array.isArray(choreographies) && choreographies.map(ch => (
+                            <option key={ch.id} value={ch.id}>{ch.title} ({ch.instructor})</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
+                      </div>
+                    </div>
+
+                    <div className="mb-4">
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Adresaci Zadania Domowego</label>
+                      <div className="relative mb-2">
+                        <select 
+                          className="w-full bg-[#27272A] text-white p-3 pr-12 rounded-lg font-sans text-sm focus:outline-none focus:border-primary border border-transparent appearance-none cursor-pointer"
+                          value=""
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'individual') {
+                              setShowStudentSearchModal(true);
+                            } else if (val && !selectedTargets.includes(val)) {
+                              setSelectedTargets([...selectedTargets, val]);
+                            }
+                          }}
+                        >
+                          <option value="" disabled>-- Dodaj grupę lub ucznia --</option>
+                          <option value="Wszystkie Grupy">★ Wszystkie Grupy (Cała Szkoła)</option>
+                          <optgroup label="Grupy Zorganizowane">
+                            {Array.isArray(groups) && groups.map(g => (
+                              <option key={g.id} value={g.name}>Cała Grupa: {g.name}</option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="Indywidualnie">
+                            <option value="individual">Wyszukaj ucznia z bazy...</option>
+                          </optgroup>
+                        </select>
+                        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
+                      </div>
+
+                      {/* Tag badges */}
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {selectedTargets.map((tgt, idx) => (
+                          <span 
+                            key={idx} 
+                            className="inline-flex items-center gap-1 bg-primary/20 text-primary border border-primary/40 text-xs font-bold px-2.5 py-1 rounded-md"
+                          >
+                            {tgt}
+                            <button 
+                              type="button" 
+                              onClick={() => setSelectedTargets(selectedTargets.filter(t => t !== tgt))}
+                              className="hover:text-white ml-1 font-extrabold"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                        {selectedTargets.length === 0 && (
+                          <span className="text-xs text-gray-500 italic">Nie wybrano jeszcze żadnego adresata.</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mb-4">
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Link do referencji (YouTube/Drive)</label>
+                      <input 
+                        type="text" 
+                        className="w-full bg-[#27272A] text-white p-3 rounded-lg focus:outline-none focus:border-primary border border-transparent text-sm" 
+                        placeholder="https://..." 
+                        value={refLink}
+                        onChange={(e) => setRefLink(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="mb-6">
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Termin wykonania</label>
+                      <input 
+                        type="date" 
+                        style={{ colorScheme: 'dark' }} 
+                        className="w-full bg-[#27272A] text-white p-3 rounded-lg focus:outline-none focus:border-primary border border-transparent text-sm" 
+                        value={deadlineDate}
+                        onChange={(e) => setDeadlineDate(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 pt-4 border-t border-gray-800">
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setShowHomeworkModal(false);
+                        setRefLink('');
+                        setDeadlineDate('');
+                        setTargetGroup('');
+                        setSelectedTargets([]);
+                      }} 
+                      disabled={isSubmittingTask}
+                      className="flex-1 py-3 rounded-xl font-bold text-white bg-gray-800 hover:bg-gray-700 transition-colors disabled:opacity-50"
+                    >
+                      Anuluj
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={handleCreateTask} 
+                      disabled={selectedTargets.length === 0 || !selectedChoreoId || isSubmittingTask}
+                      className="flex-1 py-3 rounded-xl font-bold text-white bg-primary hover:bg-primary-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {isSubmittingTask ? (
+                        <>
+                          <Loader2 className="animate-spin" size={18} />
+                          <span>Zlecanie...</span>
+                        </>
+                      ) : (
+                        <span>Zleć Zadanie ({selectedTargets.length})</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -994,7 +1020,7 @@ export default function AiVideoCoach() {
                   placeholder="Imię lub nazwisko..." 
                   className="w-full bg-[#27272A] text-white p-3 pl-10 rounded-lg focus:outline-none focus:border-primary border border-transparent"
                   value={tableSearchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => setTableSearchQuery(e.target.value)}
                 />
               </div>
               

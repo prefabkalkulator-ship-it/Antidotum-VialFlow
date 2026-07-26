@@ -99,6 +99,8 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
+    controls.enableZoom = false; // Zapobiega przechwytywaniu kółka myszy w modalu
+    controls.enablePan = false;
     controls.target.set(0, 1.0, 0);
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
