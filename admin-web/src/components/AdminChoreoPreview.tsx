@@ -82,7 +82,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
   useEffect(() => {
     if (!mountRef.current) return;
 
-    const width = mountRef.current.clientWidth || 360;
+    const width = Math.max(300, mountRef.current.clientWidth || 360);
     const height = 260;
 
     const scene = new THREE.Scene();
@@ -134,12 +134,14 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
     );
 
     let animId: number;
-    let clock = new THREE.Clock();
+    let lastTime = performance.now();
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
       
-      const delta = clock.getDelta();
+      const now = performance.now();
+      const delta = Math.min(0.1, (now - lastTime) / 1000);
+      lastTime = now;
 
       if (paramsRef.current.isPlaying) {
         if (audioRef.current && !audioRef.current.paused) {
