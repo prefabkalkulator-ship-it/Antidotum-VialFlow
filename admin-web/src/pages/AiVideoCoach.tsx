@@ -40,6 +40,36 @@ const fetchWithFallback = async (endpoint: string, options?: RequestInit) => {
   return fetch(`${PROD_BACKEND_URL}${endpoint}`, options);
 };
 
+class SafeChoreoPreviewBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; errorMsg: string }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, errorMsg: '' };
+  }
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, errorMsg: error?.message || String(error) };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error('3D Preview Boundary caught error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="bg-[#0B0B0C] border border-red-800/50 rounded-xl p-4 mb-4 text-center text-gray-400 text-xs font-mono">
+          <p className="text-red-400 font-bold mb-1">⚠️ Wystąpił błąd podczas ładowania widżetu 3D</p>
+          <p className="text-[10px] text-gray-500">{this.state.errorMsg}</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function AiVideoCoach() {
   const [viewMode, setViewMode] = useState<'homework' | 'manual'>('homework');
   
@@ -732,7 +762,9 @@ export default function AiVideoCoach() {
 
                   {/* Interaktywny Sekwencer 3D & Podgląd Awatara */}
                   {show3dPreview && (
-                    <AdminChoreoPreview sequence={customSequence} audioUrl={audioUrl} />
+                    <SafeChoreoPreviewBoundary>
+                      <AdminChoreoPreview sequence={customSequence} audioUrl={audioUrl} />
+                    </SafeChoreoPreviewBoundary>
                   )}
 
                   <div className="bg-[#0B0B0C] border border-gray-800 p-4 rounded-xl">

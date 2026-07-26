@@ -52,13 +52,9 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
       console.info(`%c[3D PROBE] ${msg}`, 'color: #00ff00; font-weight: bold;');
     }
     (window as any).__3dProbeLogs = (window as any).__3dProbeLogs || [];
-    (window as any).__3dProbeLogs.push(formatted);
-    setProbeLogs((prev) => [...prev, formatted]);
-    setTimeout(() => {
-      if (probeBoxRef.current) {
-        probeBoxRef.current.scrollTop = probeBoxRef.current.scrollHeight;
-      }
-    }, 50);
+    (window as any).__3dProbeLogs.unshift(formatted);
+    // NAJNOWSZY WPIS ZAWSZE NA SAMEJ GÓRZE (NAJPIERW) - BEZ KONIECZNOŚCI SCROLLOWANIA
+    setProbeLogs((prev) => [formatted, ...prev]);
   };
 
   const currentTimeRef = useRef(0);
@@ -176,7 +172,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
           const loader = new GLTFLoader();
           loader.parse(
             buffer,
-            '/',
+            '',
             (gltf) => {
               logProbe('Parsowanie GLTF ukończone! Podpinanie do sceny...');
               if (!mountRef.current) return;
