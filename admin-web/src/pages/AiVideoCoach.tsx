@@ -769,19 +769,39 @@ export default function AiVideoCoach() {
                 </div>
               </div>
 
-              {/* Wybór utworu muzycznego */}
+              {/* Wybór utworu muzycznego / Wgranie własnego pliku audio */}
               <div className="mb-4">
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                  <Music size={14} className="text-primary" /> Podkład Muzyczny MP3
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5"><Music size={14} className="text-primary" /> Podkład Muzyczny MP3</span>
+                  <label htmlFor="customAudioUpload" className="text-primary hover:underline cursor-pointer flex items-center gap-1 text-[11px] font-semibold lowercase">
+                    <UploadCloud size={12} /> + wgraj własny MP3
+                  </label>
                 </label>
+                <input 
+                  id="customAudioUpload"
+                  type="file" 
+                  accept="audio/*" 
+                  className="hidden" 
+                  onChange={(e) => {
+                    const uploadedFile = e.target.files?.[0];
+                    if (uploadedFile) {
+                      const customObjectUrl = URL.createObjectURL(uploadedFile);
+                      setAudioUrl(customObjectUrl);
+                      setAiSuccessMsg(`🎵 Wgrano własny plik audio: "${uploadedFile.name}"`);
+                    }
+                  }}
+                />
                 <select
-                  className="w-full bg-[#27272A] text-white p-3 rounded-lg font-sans text-sm border border-transparent focus:outline-none focus:border-primary mb-2 cursor-pointer"
+                  className="w-full bg-[#27272A] text-white p-3 rounded-lg font-sans text-sm border border-transparent focus:outline-none focus:border-primary cursor-pointer"
                   value={audioUrl}
                   onChange={(e) => setAudioUrl(e.target.value)}
                 >
                   <option value="https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=hip-hop-beat-112702.mp3">★ Hip-Hop Urban Beat (104 BPM)</option>
                   <option value="https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8723b7b.mp3?filename=funky-groove-110034.mp3">★ Commercial Funk Groove (108 BPM)</option>
                   <option value="https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=breakdance-street-beat-14324.mp3">★ B-Boy Street Beat (112 BPM)</option>
+                  {audioUrl && !audioUrl.startsWith('https://cdn.pixabay.com') && (
+                    <option value={audioUrl}>🎵 Wgrany Utwór Własny (Moja Muzyka)</option>
+                  )}
                 </select>
               </div>
 

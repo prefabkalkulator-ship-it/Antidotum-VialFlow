@@ -75,9 +75,22 @@ export class MotionEngine {
     const activeBlock = sequence.blocks[activeBlockIndex];
     if (!activeBlock) return;
 
-    // Jeżeli posiadamy załadowane animacje MoCap w AnimationMixer
+    // Jeżeli dany blok posiada bogate klatki kluczowe dla tańca, priorytetyzujemy płynną rotację stawów 3D
+    if (activeBlock.keyframes && activeBlock.keyframes.length > 0) {
+      const interpolatedRotations = this.evaluateBlockRotations(activeBlock, blockBeatOffset);
+
+      interpolatedRotations.forEach((rot, boneName) => {
+        let bone = this.skeletonBones.get(boneName) || this.skeletonBones.get(`mixamorig${boneName}`);
+        if (bone) {
+          const euler = new THREE.Euler(rot[0], rot[1], rot[2], 'XYZ');
+          bone.quaternion.setFromEuler(euler);
+        }
+      });
+      return;
+    }
+
+    // Fallback: AnimationMixer z klipami MoCap GLB
     if (this.mixer && this.animActions.size > 0) {
-      // Dopasowujemy nazwę animacji MoCap do stylu/klocka
       let targetAnimName = 'walk';
       const blockId = (activeBlock.id || '').toLowerCase();
       const style = (activeBlock.style || '').toLowerCase();
@@ -111,22 +124,8 @@ export class MotionEngine {
         }
       }
 
-      // Aktualizujemy czas w AnimationMixer
       this.mixer.setTime(currentTimeSeconds);
-      return;
     }
-
-    // Fallback: procedury matematyczne
-    if (!activeBlock.keyframes || activeBlock.keyframes.length === 0) return;
-    const interpolatedRotations = this.evaluateBlockRotations(activeBlock, blockBeatOffset);
-
-    interpolatedRotations.forEach((rot, boneName) => {
-      let bone = this.skeletonBones.get(boneName) || this.skeletonBones.get(`mixamorig${boneName}`);
-      if (bone) {
-        const euler = new THREE.Euler(rot[0], rot[1], rot[2], 'XYZ');
-        bone.quaternion.setFromEuler(euler);
-      }
-    });
   }
 
   private evaluateBlockRotations(block: DanceMoveBlock, beatOffset: number): Map<string, [number, number, number]> {
