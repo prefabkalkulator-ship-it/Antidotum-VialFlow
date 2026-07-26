@@ -4,7 +4,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { ChoreographySequence } from '../utils/DanceMoveLibrary';
 import { MotionEngine } from '../utils/MotionEngine';
-import { Play, Pause, RotateCcw } from 'lucide-react';
+import { Play, Pause, RotateCcw, Loader2 } from 'lucide-react';
 
 interface AdminChoreoPreviewProps {
   sequence: ChoreographySequence;
@@ -17,6 +17,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoadingModel, setIsLoadingModel] = useState(true);
 
   const currentTimeRef = useRef(0);
   const paramsRef = useRef({ sequence, isPlaying });
@@ -132,9 +133,13 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
         }
         yBotModel.position.set(0, 0, 0);
         scene.add(yBotModel);
+        setIsLoadingModel(false);
       },
       undefined,
-      (err) => console.error('Error loading Y-Bot in admin preview:', err)
+      (err) => {
+        console.error('Error loading Y-Bot in admin preview:', err);
+        setIsLoadingModel(false);
+      }
     );
 
     let animId: number;
@@ -182,6 +187,13 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
 
   return (
     <div className="bg-[#0B0B0C] border border-gray-800 rounded-xl p-3 mb-4 overflow-hidden relative">
+      {isLoadingModel && (
+        <div className="absolute inset-0 bg-[#0B0B0C]/90 z-10 flex flex-col items-center justify-center gap-2 text-gray-400 text-xs font-mono">
+          <Loader2 size={24} className="animate-spin text-primary" />
+          <span>Ładowanie awatara 3D...</span>
+        </div>
+      )}
+
       <div className="flex justify-between items-center mb-2 px-1">
         <span className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
