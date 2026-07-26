@@ -5,6 +5,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { ChoreographySequence } from '../utils/DanceMoveLibrary';
 import { MotionEngine } from '../utils/MotionEngine';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { Play, Pause, RotateCcw, Loader2 } from 'lucide-react';
 
 interface AdminChoreoPreviewProps {
   sequence: ChoreographySequence;
