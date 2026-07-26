@@ -4,11 +4,36 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { ChoreographySequence } from '../utils/DanceMoveLibrary';
 import { MotionEngine } from '../utils/MotionEngine';
-import { Play, Pause, RotateCcw, Loader2 } from 'lucide-react';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 interface AdminChoreoPreviewProps {
   sequence: ChoreographySequence;
   audioUrl?: string;
+}
+
+let cachedGLTF: { scene: THREE.Object3D; animations: THREE.AnimationClip[] } | null = null;
+let gltfLoadingPromise: Promise<{ scene: THREE.Object3D; animations: THREE.AnimationClip[] }> | null = null;
+
+function loadGLTFOnce(): Promise<{ scene: THREE.Object3D; animations: THREE.AnimationClip[] }> {
+  if (cachedGLTF) return Promise.resolve(cachedGLTF);
+  if (gltfLoadingPromise) return gltfLoadingPromise;
+
+  gltfLoadingPromise = new Promise((resolve, reject) => {
+    const loader = new GLTFLoader();
+    loader.load(
+      '/Y-Bot.glb',
+      (gltf) => {
+        cachedGLTF = { scene: gltf.scene, animations: gltf.animations };
+        resolve(cachedGLTF);
+      },
+      undefined,
+      (err) => {
+        gltfLoadingPromise = null;
+        reject(err);
+      }
+    );
+  });
+  return gltfLoadingPromise;
 }
 
 export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPreviewProps) {
@@ -17,7 +42,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoadingModel, setIsLoadingModel] = useState(true);
+  const [isLoadingModel, setIsLoadingModel] = useState(!cachedGLTF);
 
   const currentTimeRef = useRef(0);
   const paramsRef = useRef({ sequence, isPlaying });
@@ -113,12 +138,12 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
     scene.add(grid);
 
     let yBotModel: THREE.Object3D | null = null;
-    const loader = new GLTFLoader();
 
-    loader.load(
-      '/Y-Bot.glb',
-      (gltf) => {
-        yBotModel = gltf.scene;
+    loadGLTFOnce()
+      .then((gltfData) => {
+        if (!mountRef.current) return;
+        const clonedScene = SkeletonUtils.clone(gltfData.scene) as THREE.Object3D;
+        yBotModel = clonedScene;
         yBotModel.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
             child.castShadow = true;
@@ -126,7 +151,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
           }
         });
         try {
-          motionEngineRef.current.bindSkeleton(gltf.scene, gltf.animations);
+          motionEngineRef.current.bindSkeleton(clonedScene, gltfData.animations);
           motionEngineRef.current.updatePose(paramsRef.current.sequence, 0, true);
         } catch (e) {
           console.warn('Error binding initial skeleton pose:', e);
@@ -134,13 +159,11 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
         yBotModel.position.set(0, 0, 0);
         scene.add(yBotModel);
         setIsLoadingModel(false);
-      },
-      undefined,
-      (err) => {
+      })
+      .catch((err) => {
         console.error('Error loading Y-Bot in admin preview:', err);
         setIsLoadingModel(false);
-      }
-    );
+      });
 
     let animId: number;
     let lastTime = performance.now();
