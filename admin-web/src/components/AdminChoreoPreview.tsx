@@ -1,10 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { ChoreographySequence } from '../utils/DanceMoveLibrary';
 import { MotionEngine } from '../utils/MotionEngine';
-import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Play, Pause, RotateCcw, Loader2 } from 'lucide-react';
 
 interface AdminChoreoPreviewProps {
@@ -118,6 +116,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
 
       const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
       camera.position.set(0, 1.2, 2.6);
+      camera.lookAt(0, 1.0, 0);
 
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setSize(width, height);
@@ -125,14 +124,8 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
 
       mountRef.current.appendChild(renderer.domElement);
 
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.enableZoom = false; // Zapobiega przechwytywaniu kółka myszy w modalu
-    controls.enablePan = false;
-    controls.target.set(0, 1.0, 0);
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
-    scene.add(ambientLight);
+      const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+      scene.add(ambientLight);
 
     const dirLight = new THREE.DirectionalLight(0xff44aa, 2.0);
     dirLight.position.set(2, 4, 3);
@@ -201,7 +194,6 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
         }
       }
 
-      controls.update();
       renderer.render(scene, camera);
     };
 
@@ -250,7 +242,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
         </span>
       </div>
 
-      <div ref={mountRef} className="w-full h-[260px] rounded-lg overflow-hidden relative cursor-grab active:cursor-grabbing" />
+      <div ref={mountRef} className="w-full h-[260px] rounded-lg overflow-hidden relative pointer-events-none" />
 
       <div className="flex items-center justify-between mt-3 bg-[#18181B] p-2 rounded-lg border border-gray-800">
         <button
