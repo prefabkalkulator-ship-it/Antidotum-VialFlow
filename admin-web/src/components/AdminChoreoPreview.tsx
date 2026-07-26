@@ -42,7 +42,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoadingModel, setIsLoadingModel] = useState(!cachedGLTF);
-  const [probeLogs, setProbeLogs] = useState<string[]>([]);
+  const probeBoxRef = useRef<HTMLDivElement>(null);
 
   const logProbe = (msg: string, isError: boolean = false) => {
     const formatted = `${new Date().toLocaleTimeString()} - ${msg}`;
@@ -53,7 +53,12 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
     }
     (window as any).__3dProbeLogs = (window as any).__3dProbeLogs || [];
     (window as any).__3dProbeLogs.push(formatted);
-    setProbeLogs((prev) => [...prev.slice(-8), formatted]);
+    setProbeLogs((prev) => [...prev, formatted]);
+    setTimeout(() => {
+      if (probeBoxRef.current) {
+        probeBoxRef.current.scrollTop = probeBoxRef.current.scrollHeight;
+      }
+    }, 50);
   };
 
   const currentTimeRef = useRef(0);
@@ -159,39 +164,47 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
       grid.position.y = 0;
       scene.add(grid);
 
-      logProbe('Rozpoczęcie pobierania pliku modelu /Y-Bot.glb (2.9 MB)...');
-      const loader = new GLTFLoader();
-      loader.load(
-        '/Y-Bot.glb',
-        (gltf) => {
-          logProbe('Pobrano /Y-Bot.glb! Tworzenie instancji siatki 3D...');
-          if (!mountRef.current) return;
-          const yBotModel = gltf.scene;
-          try {
-            motionEngineRef.current.bindSkeleton(gltf.scene, gltf.animations);
-            logProbe('Powiązano szkielet postaci w MotionEngine (24 kości)');
-            motionEngineRef.current.updatePose(paramsRef.current.sequence, 0, true);
-            logProbe('Ustawiono pozę początkową awatara');
-          } catch (e: any) {
-            logProbe(`⚠️ Ostrzeżenie przy wiązaniu kości: ${e?.message || e}`);
-          }
-          yBotModel.position.set(0, 0, 0);
-          scene.add(yBotModel);
+      logProbe('Rozpoczęcie natywnego pobierania fetch("/Y-Bot.glb")...');
+      fetch('/Y-Bot.glb')
+        .then((res) => {
+          logProbe(`Odpowiedź HTTP dla Y-Bot.glb: Status ${res.status} ${res.statusText}`);
+          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+          return res.arrayBuffer();
+        })
+        .then((buffer) => {
+          logProbe(`Pobrano bufor binarny: ${(buffer.byteLength / (1024 * 1024)).toFixed(2)} MB. Parsowanie GLTF...`);
+          const loader = new GLTFLoader();
+          loader.parse(
+            buffer,
+            '/',
+            (gltf) => {
+              logProbe('Parsowanie GLTF ukończone! Podpinanie do sceny...');
+              if (!mountRef.current) return;
+              const yBotModel = gltf.scene;
+              try {
+                motionEngineRef.current.bindSkeleton(gltf.scene, gltf.animations);
+                logProbe('Powiązano szkielet postaci w MotionEngine (24 kości)');
+                motionEngineRef.current.updatePose(paramsRef.current.sequence, 0, true);
+                logProbe('Ustawiono pozę początkową awatara');
+              } catch (e: any) {
+                logProbe(`⚠️ Ostrzeżenie przy wiązaniu kości: ${e?.message || e}`, true);
+              }
+              yBotModel.position.set(0, 0, 0);
+              scene.add(yBotModel);
+              setIsLoadingModel(false);
+              renderer.render(scene, camera);
+              logProbe('✅ Pierwsza klatka awatara zrenderowana pomyślnie!');
+            },
+            (parseErr: any) => {
+              logProbe(`❌ Błąd parsowania GLTF: ${parseErr?.message || parseErr}`, true);
+              setIsLoadingModel(false);
+            }
+          );
+        })
+        .catch((fetchErr: any) => {
+          logProbe(`❌ Błąd pobierania pliku /Y-Bot.glb: ${fetchErr?.message || fetchErr}`, true);
           setIsLoadingModel(false);
-          renderer.render(scene, camera);
-          logProbe('✅ Pierwsza klatka awatara zrenderowana pomyślnie!');
-        },
-        (progress) => {
-          if (progress.total > 0) {
-            const pct = Math.round((progress.loaded / progress.total) * 100);
-            if (pct % 25 === 0) logProbe(`Pobieranie Y-Bot.glb: ${pct}%`);
-          }
-        },
-        (err: any) => {
-          logProbe(`❌ Błąd pobierania /Y-Bot.glb: ${err?.message || err}`, true);
-          setIsLoadingModel(false);
-        }
-      );
+        });
     } catch (err: any) {
       logProbe(`❌ Krytyczny błąd WebGL: ${err?.message || err}`, true);
       setHasWebGLError(true);
@@ -263,7 +276,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
   return (
     <div className="bg-[#0B0B0C] border border-gray-800 rounded-xl p-3 mb-4 overflow-hidden relative">
       {/* Sonda Diagnostyczna NA SAMEJ GÓRZE KOMPONENTU */}
-      <div className="mb-3 p-2 bg-[#000000]/95 border border-green-500/40 rounded-lg text-[10px] font-mono text-green-400 max-h-36 overflow-y-auto z-20 relative">
+      <div ref={probeBoxRef} className="mb-3 p-2.5 bg-[#000000]/95 border border-green-500/40 rounded-lg text-[10px] font-mono text-green-400 max-h-40 overflow-y-auto z-20 relative shadow-lg">
         <div className="font-bold text-gray-300 mb-1 border-b border-gray-800 pb-1 flex justify-between items-center">
           <span className="flex items-center gap-1.5 text-green-400">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-ping"></span>
