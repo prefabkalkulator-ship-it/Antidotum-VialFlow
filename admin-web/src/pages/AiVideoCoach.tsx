@@ -53,6 +53,7 @@ export default function AiVideoCoach() {
   // Sequencer 3D stany dla trenera
   const [customSequence, setCustomSequence] = useState<ChoreographySequence>(DEFAULT_CHOREOGRAPHY_SEQUENCE);
   const [audioUrl, setAudioUrl] = useState('https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=hip-hop-beat-112702.mp3');
+  const [show3dPreview, setShow3dPreview] = useState(false);
 
   // AI Choreography Generator stany
   const [aiPrompt, setAiPrompt] = useState('');
@@ -80,6 +81,7 @@ export default function AiVideoCoach() {
       const data = await res.json();
       if (data.success && data.sequence) {
         setCustomSequence(data.sequence);
+        setShow3dPreview(true);
         setAiSuccessMsg(`✨ Wygenerowano nowy układ 3D: "${data.sequence.title}"!`);
       } else {
         setAiErrorMsg(data.error || 'Nie udało się wygenerować choreografii.');
@@ -718,8 +720,20 @@ export default function AiVideoCoach() {
                     </div>
                   </div>
 
+                  {/* Przycisk przełączania podglądu 3D */}
+                  <button
+                    type="button"
+                    onClick={() => setShow3dPreview(!show3dPreview)}
+                    className="w-full bg-[#0B0B0C] hover:bg-gray-800 border border-gray-800 text-gray-300 hover:text-white py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <Play size={14} className="text-primary" />
+                    <span>{show3dPreview ? 'Ukryj Podgląd 3D Awatara' : '🎭 Otwórz Podgląd 3D Awatara dla Trenera'}</span>
+                  </button>
+
                   {/* Interaktywny Sekwencer 3D & Podgląd Awatara */}
-                  <AdminChoreoPreview sequence={customSequence} audioUrl={audioUrl} />
+                  {show3dPreview && (
+                    <AdminChoreoPreview sequence={customSequence} audioUrl={audioUrl} />
+                  )}
 
                   <div className="bg-[#0B0B0C] border border-gray-800 p-4 rounded-xl">
                     <div className="flex justify-between items-center mb-3">

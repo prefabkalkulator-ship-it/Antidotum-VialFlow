@@ -102,24 +102,28 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
     }
   };
 
+  const [hasWebGLError, setHasWebGLError] = useState(false);
+
   // Three.js 3D Viewer Loop
   useEffect(() => {
     if (!mountRef.current) return;
 
-    const width = Math.max(300, mountRef.current.clientWidth || 360);
-    const height = 260;
+    let renderer: THREE.WebGLRenderer;
+    try {
+      const width = Math.max(300, mountRef.current.clientWidth || 360);
+      const height = 260;
 
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0b0b0c);
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0b0b0c);
 
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.set(0, 1.2, 2.6);
+      const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+      camera.position.set(0, 1.2, 2.6);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-    mountRef.current.appendChild(renderer.domElement);
+      mountRef.current.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -198,16 +202,30 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
       renderer.render(scene, camera);
     };
 
-    animate();
+    } catch (err) {
+      console.warn('WebGL Initialization error in AdminChoreoPreview:', err);
+      setHasWebGLError(true);
+      return;
+    }
 
     return () => {
       cancelAnimationFrame(animId);
-      renderer.dispose();
-      if (mountRef.current && renderer.domElement) {
-        mountRef.current.removeChild(renderer.domElement);
+      if (renderer) renderer.dispose();
+      if (mountRef.current && renderer?.domElement) {
+        try {
+          mountRef.current.removeChild(renderer.domElement);
+        } catch (e) {}
       }
     };
   }, []);
+
+  if (hasWebGLError) {
+    return (
+      <div className="bg-[#0B0B0C] border border-gray-800 rounded-xl p-4 mb-4 text-center text-gray-400 text-xs font-mono">
+        🎭 Podgląd 3D Awatara (Sekwencja: {sequence.blocks.length} bloków, {sequence.targetBPM} BPM)
+      </div>
+    );
+  }
 
   return (
     <div className="bg-[#0B0B0C] border border-gray-800 rounded-xl p-3 mb-4 overflow-hidden relative">
