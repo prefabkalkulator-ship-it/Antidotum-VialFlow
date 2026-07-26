@@ -43,6 +43,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoadingModel, setIsLoadingModel] = useState(!cachedGLTF);
   const probeBoxRef = useRef<HTMLDivElement>(null);
+  const [probeLogs, setProbeLogs] = useState<string[]>([]);
 
   const logProbe = (msg: string, isError: boolean = false) => {
     const formatted = `${new Date().toLocaleTimeString()} - ${msg}`;
