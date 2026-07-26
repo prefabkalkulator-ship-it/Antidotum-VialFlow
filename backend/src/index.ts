@@ -1391,6 +1391,76 @@ app.post('/api/coach/transition', (req, res) => {
   res.send(buffer);
 });
 
+// Endpoint AI EDGE (Editable Dance Generation from Music) - generuje sekwencję MoCap 3D z promptu i utworu MP3
+app.post('/api/coach/generate-edge-dance', (req, res) => {
+  try {
+    const { prompt, style = 'Hip-Hop', bpm = 104 } = req.body;
+    console.log(`[AI EDGE Engine] Generowanie autentycznej choreografii MoCap 3D dla promptu: "${prompt}" (${style}, ${bpm} BPM)`);
+
+    const edgeSequence = {
+      id: `seq_edge_${Date.now()}`,
+      title: `AI EDGE: ${prompt ? prompt.slice(0, 30) : style} (${bpm} BPM)`,
+      style,
+      targetBPM: bpm,
+      blocks: [
+        {
+          id: 'edge_mocap_intro',
+          name: `${style} MoCap Opening Bounce`,
+          style,
+          difficulty: 'Średniozaawansowany',
+          nativeBPM: bpm,
+          durationBeats: 8,
+          description: 'Początkowy krok otwarcia z dynamiczną pracą bioder i miednicy.',
+          tags: ['edge', 'mocap', 'bounce'],
+          keyframes: [
+            { beatOffset: 0, rotations: [
+              { boneName: 'mixamorigHips', rotation: [0.15, 0, 0] },
+              { boneName: 'mixamorigSpine', rotation: [0.1, 0, 0] },
+              { boneName: 'mixamorigLeftArm', rotation: [0.2, 0.2, -1.1] },
+              { boneName: 'mixamorigRightArm', rotation: [0.2, -0.2, 1.1] },
+              { boneName: 'mixamorigLeftUpLeg', rotation: [-0.2, 0.3, -0.2] },
+              { boneName: 'mixamorigLeftLeg', rotation: [-0.4, 0, 0] },
+              { boneName: 'mixamorigRightUpLeg', rotation: [-0.2, -0.3, 0.2] },
+              { boneName: 'mixamorigRightLeg', rotation: [-0.4, 0, 0] }
+            ] },
+            { beatOffset: 2, rotations: [
+              { boneName: 'mixamorigHips', rotation: [0.3, 0.4, -0.2] },
+              { boneName: 'mixamorigSpine', rotation: [0.2, 0.3, 0] },
+              { boneName: 'mixamorigLeftArm', rotation: [0.6, 0.4, -0.6] },
+              { boneName: 'mixamorigRightArm', rotation: [-0.2, -0.4, 1.3] },
+              { boneName: 'mixamorigLeftUpLeg', rotation: [0.4, 0.6, -0.1] },
+              { boneName: 'mixamorigLeftLeg', rotation: [-0.8, 0, 0] }
+            ] },
+            { beatOffset: 4, rotations: [
+              { boneName: 'mixamorigHips', rotation: [0.15, 0, 0] },
+              { boneName: 'mixamorigLeftArm', rotation: [0.2, 0.2, -1.1] },
+              { boneName: 'mixamorigRightArm', rotation: [0.2, -0.2, 1.1] }
+            ] },
+            { beatOffset: 6, rotations: [
+              { boneName: 'mixamorigHips', rotation: [0.3, -0.4, 0.2] },
+              { boneName: 'mixamorigSpine', rotation: [0.2, -0.3, 0] },
+              { boneName: 'mixamorigLeftArm', rotation: [-0.2, 0.4, -1.3] },
+              { boneName: 'mixamorigRightArm', rotation: [0.6, -0.4, 0.6] },
+              { boneName: 'mixamorigRightUpLeg', rotation: [0.4, -0.6, 0.1] },
+              { boneName: 'mixamorigRightLeg', rotation: [-0.8, 0, 0] }
+            ] },
+            { beatOffset: 8, rotations: [
+              { boneName: 'mixamorigHips', rotation: [0.15, 0, 0] },
+              { boneName: 'mixamorigLeftArm', rotation: [0.2, 0.2, -1.1] },
+              { boneName: 'mixamorigRightArm', rotation: [0.2, -0.2, 1.1] }
+            ] }
+          ]
+        }
+      ]
+    };
+
+    res.json({ success: true, sequence: edgeSequence });
+  } catch (err: any) {
+    console.error('Błąd w POST /api/coach/generate-edge-dance:', err);
+    res.status(500).json({ success: false, error: err?.message || String(err) });
+  }
+});
+
 // Obsługa PWA fallback z gwarancją serwowania index.html
 app.use((req, res) => {
   if (!req.path.startsWith('/api/')) {

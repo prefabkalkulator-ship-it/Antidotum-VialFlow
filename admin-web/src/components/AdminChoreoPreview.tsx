@@ -132,8 +132,8 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
       sceneRef.current = scene;
 
       const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-      camera.position.set(0, 1.1, 3.0); // Zoptymalizowany kąt kamery obejmujący całą sylwetkę awatara
-      camera.lookAt(0, 0.9, 0);
+      camera.position.set(0, 0.95, 3.2); // Odsunięta kamera wycentrowana na wysokości miednicy, ukazująca buty i stopy awatara
+      camera.lookAt(0, 0.75, 0);
       cameraRef.current = camera;
 
       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
@@ -147,7 +147,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.05;
-      controls.target.set(0, 0.9, 0);
+      controls.target.set(0, 0.75, 0);
       controls.maxPolarAngle = Math.PI / 2 + 0.1;
       controls.update();
       controlsRef.current = controls;
