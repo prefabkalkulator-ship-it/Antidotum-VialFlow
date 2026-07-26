@@ -1010,7 +1010,7 @@ app.post('/api/coach/submit', async (req, res) => {
 
 app.get('/api/coach/homework/results', async (req, res) => {
   try {
-    const results = await getHomeworkResults();
+    const results = await getAllHomeworkResults();
     res.json(results);
   } catch (err) {
     console.error('Błąd GET /api/coach/homework/results:', err);
@@ -1375,10 +1375,6 @@ app.post('/api/coach/generate-choreo', (req, res) => {
     console.error('Błąd POST /api/coach/generate-choreo:', err);
     res.status(500).json({ success: false, error: String(err) });
   }
-});
-
-app.get('/api/coach/homework/results', (req, res) => {
-  res.json([]);
 });
 
 app.post('/api/coach/transition', (req, res) => {
