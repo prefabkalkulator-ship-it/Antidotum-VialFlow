@@ -202,7 +202,7 @@ export default function AiVideoCoach() {
       });
 
     fetchTasksAndResults();
-  }, [selectedActiveTaskId]);
+  }, []);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {

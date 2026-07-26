@@ -147,7 +147,6 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
         } else {
           currentTimeRef.current += delta;
         }
-        setAudioTime(currentTimeRef.current);
       }
 
       motionEngineRef.current.updatePose(
