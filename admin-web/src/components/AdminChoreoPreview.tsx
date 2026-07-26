@@ -17,11 +17,10 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
-  const [audioTime, setAudioTime] = useState(0);
 
   const currentTimeRef = useRef(0);
-  const paramsRef = useRef({ sequence, isPlaying, audioTime });
-  paramsRef.current = { sequence, isPlaying, audioTime };
+  const paramsRef = useRef({ sequence, isPlaying });
+  paramsRef.current = { sequence, isPlaying };
 
   // Audio initialization
   useEffect(() => {
@@ -47,7 +46,6 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
         return;
       }
       currentTimeRef.current = 0;
-      setAudioTime(0);
       setIsPlaying(true);
       if (audioRef.current) {
         audioRef.current.currentTime = 0;
@@ -72,7 +70,6 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
 
   const resetPlay = () => {
     currentTimeRef.current = 0;
-    setAudioTime(0);
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
     }
@@ -127,8 +124,12 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
             child.receiveShadow = true;
           }
         });
-        motionEngineRef.current.bindSkeleton(gltf.scene, gltf.animations);
-        motionEngineRef.current.updatePose(paramsRef.current.sequence, 0, true);
+        try {
+          motionEngineRef.current.bindSkeleton(gltf.scene, gltf.animations);
+          motionEngineRef.current.updatePose(paramsRef.current.sequence, 0, true);
+        } catch (e) {
+          console.warn('Error binding initial skeleton pose:', e);
+        }
         yBotModel.position.set(0, 0, 0);
         scene.add(yBotModel);
       },
@@ -153,11 +154,15 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
           currentTimeRef.current += delta;
         }
 
-        motionEngineRef.current.updatePose(
-          paramsRef.current.sequence,
-          currentTimeRef.current,
-          true // Mirror view for instructor
-        );
+        try {
+          motionEngineRef.current.updatePose(
+            paramsRef.current.sequence,
+            currentTimeRef.current,
+            true // Mirror view for instructor
+          );
+        } catch (e) {
+          // Zapobiega zawieszaniu pętli renderującej przy błędach
+        }
       }
 
       controls.update();
