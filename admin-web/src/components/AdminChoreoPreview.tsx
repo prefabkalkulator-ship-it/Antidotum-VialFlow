@@ -123,17 +123,17 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
       camera.lookAt(0, 1.0, 0);
       cameraRef.current = camera;
 
-      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: 'low-power' });
       renderer.setSize(width, height);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setPixelRatio(1);
       rendererRef.current = renderer;
 
       mountRef.current.appendChild(renderer.domElement);
 
-      const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+      const ambientLight = new THREE.AmbientLight(0xffffff, 1.4);
       scene.add(ambientLight);
 
-      const dirLight = new THREE.DirectionalLight(0xff44aa, 2.0);
+      const dirLight = new THREE.DirectionalLight(0xff44aa, 1.8);
       dirLight.position.set(2, 4, 3);
       scene.add(dirLight);
 
@@ -147,12 +147,6 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
         (gltf) => {
           if (!mountRef.current) return;
           const yBotModel = gltf.scene;
-          yBotModel.traverse((child) => {
-            if ((child as THREE.Mesh).isMesh) {
-              child.castShadow = true;
-              child.receiveShadow = true;
-            }
-          });
           try {
             motionEngineRef.current.bindSkeleton(gltf.scene, gltf.animations);
             motionEngineRef.current.updatePose(paramsRef.current.sequence, 0, true);
