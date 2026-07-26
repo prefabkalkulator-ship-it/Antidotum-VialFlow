@@ -42,6 +42,12 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoadingModel, setIsLoadingModel] = useState(!cachedGLTF);
+  const [probeLogs, setProbeLogs] = useState<string[]>([]);
+
+  const logProbe = (msg: string) => {
+    console.log(`[3D Probe] ${msg}`);
+    setProbeLogs((prev) => [...prev.slice(-6), `${new Date().toLocaleTimeString()} - ${msg}`]);
+  };
 
   const currentTimeRef = useRef(0);
   const paramsRef = useRef({ sequence, isPlaying });
@@ -66,7 +72,6 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
   useEffect(() => {
     if (sequence && sequence.id) {
       if (sequence.id === initialSeqIdRef.current) {
-        // Zachowaj pauzę przy otwarciu modala
         setIsPlaying(false);
         return;
       }
@@ -83,6 +88,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
     if (isPlaying) {
       if (audioRef.current) audioRef.current.pause();
       setIsPlaying(false);
+      logProbe('Odtwarzanie wstrzymane (Pauza)');
     } else {
       currentTimeRef.current = 0;
       if (audioRef.current) {
@@ -90,6 +96,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
         audioRef.current.play().catch(err => console.warn('Audio play blocked:', err));
       }
       setIsPlaying(true);
+      logProbe('Odtwarzanie 3D uruchomione (Play)');
     }
   };
 
@@ -98,6 +105,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
     }
+    logProbe('Zresetowano czas odtwarzania do 0.0s');
   };
 
   const [hasWebGLError, setHasWebGLError] = useState(false);
@@ -111,6 +119,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
     if (!mountRef.current) return;
 
     try {
+      logProbe('Sonda gotowa, sprawdzanie obszaru montowania Canvas...');
       const width = Math.max(300, mountRef.current.clientWidth || 360);
       const height = 260;
 
@@ -123,12 +132,14 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
       camera.lookAt(0, 1.0, 0);
       cameraRef.current = camera;
 
+      logProbe('Tworzenie natywnego kontekstu THREE.WebGLRenderer...');
       const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: 'low-power' });
       renderer.setSize(width, height);
       renderer.setPixelRatio(1);
       rendererRef.current = renderer;
 
       mountRef.current.appendChild(renderer.domElement);
+      logProbe(`Płótno WebGL podpięte do DOM (${width}x${height}px)`);
 
       const ambientLight = new THREE.AmbientLight(0xffffff, 1.4);
       scene.add(ambientLight);
@@ -141,31 +152,41 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
       grid.position.y = 0;
       scene.add(grid);
 
+      logProbe('Rozpoczęcie pobierania pliku modelu /Y-Bot.glb (2.9 MB)...');
       const loader = new GLTFLoader();
       loader.load(
         '/Y-Bot.glb',
         (gltf) => {
+          logProbe('Pobrano /Y-Bot.glb! Tworzenie instancji siatki 3D...');
           if (!mountRef.current) return;
           const yBotModel = gltf.scene;
           try {
             motionEngineRef.current.bindSkeleton(gltf.scene, gltf.animations);
+            logProbe('Powiązano szkielet postaci w MotionEngine (24 kości)');
             motionEngineRef.current.updatePose(paramsRef.current.sequence, 0, true);
-          } catch (e) {
-            console.warn('Error binding initial skeleton pose:', e);
+            logProbe('Ustawiono pozę początkową awatara');
+          } catch (e: any) {
+            logProbe(`⚠️ Ostrzeżenie przy wiązaniu kości: ${e?.message || e}`);
           }
           yBotModel.position.set(0, 0, 0);
           scene.add(yBotModel);
           setIsLoadingModel(false);
           renderer.render(scene, camera);
+          logProbe('✅ Pierwsza klatka awatara zrenderowana pomyślnie!');
         },
-        undefined,
-        (err) => {
-          console.error('Error loading Y-Bot in admin preview:', err);
+        (progress) => {
+          if (progress.total > 0) {
+            const pct = Math.round((progress.loaded / progress.total) * 100);
+            if (pct % 25 === 0) logProbe(`Pobieranie Y-Bot.glb: ${pct}%`);
+          }
+        },
+        (err: any) => {
+          logProbe(`❌ Błąd pobierania /Y-Bot.glb: ${err?.message || err}`);
           setIsLoadingModel(false);
         }
       );
-    } catch (err) {
-      console.warn('WebGL Initialization error in AdminChoreoPreview:', err);
+    } catch (err: any) {
+      logProbe(`❌ Krytyczny błąd WebGL: ${err?.message || err}`);
       setHasWebGLError(true);
       return;
     }
@@ -269,6 +290,23 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
         >
           <RotateCcw size={14} />
         </button>
+      </div>
+
+      {/* Sonda Diagnostyczna na Żywo */}
+      <div className="mt-3 p-2.5 bg-[#000000]/90 border border-green-500/30 rounded-lg text-[10px] font-mono text-green-400 max-h-32 overflow-y-auto">
+        <div className="font-bold text-gray-300 mb-1 border-b border-gray-800 pb-1 flex justify-between items-center">
+          <span className="flex items-center gap-1 text-green-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping"></span>
+            SONDA DIAGNOSTYCZNA 3D
+          </span>
+          <span className="text-[9px] text-gray-500">Logi operacji</span>
+        </div>
+        {probeLogs.map((log, idx) => (
+          <div key={idx} className="leading-tight py-0.5 border-b border-gray-900/50 last:border-0">{log}</div>
+        ))}
+        {probeLogs.length === 0 && (
+          <div className="text-gray-600 italic">Oczekuję na montowanie elementu 3D...</div>
+        )}
       </div>
     </div>
   );
