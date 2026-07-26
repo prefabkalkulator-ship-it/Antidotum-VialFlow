@@ -131,15 +131,40 @@ export class MotionEngine {
     const nativeBPM = block.nativeBPM || 100;
     const durationSeconds = (block.durationBeats * 60) / nativeBPM;
 
-    // 1. Zbierz wszystkie unikalne kości występujące w CAŁYM bloku
     const allBoneNamesSet = new Set<string>();
     block.keyframes.forEach((kf) => {
       kf.rotations.forEach((r) => allBoneNamesSet.add(r.boneName));
     });
 
+    // Gwarancja uwzględnienia kluczowych kości kończyn (ramiona, łokcie, kolana)
+    const essentialBones = [
+      'mixamorigLeftArm', 'mixamorigRightArm',
+      'mixamorigLeftForeArm', 'mixamorigRightForeArm',
+      'mixamorigLeftUpLeg', 'mixamorigRightUpLeg',
+      'mixamorigLeftLeg', 'mixamorigRightLeg',
+      'mixamorigHips', 'mixamorigSpine', 'mixamorigSpine2', 'mixamorigNeck'
+    ];
+    essentialBones.forEach((b) => allBoneNamesSet.add(b));
+
     const times: number[] = [];
     const hipsPosValues: number[] = [];
     const boneTracksMap: Map<string, number[]> = new Map();
+
+    // Domyślna naturalna poza spoczynkowa (zamiast sztywnego T-Pose)
+    const defaultNaturalRotations: Record<string, [number, number, number]> = {
+      'mixamorigLeftArm': [0.2, 0.2, -1.2],
+      'mixamorigRightArm': [0.2, -0.2, 1.2],
+      'mixamorigLeftForeArm': [0.6, 0.2, 0.1],
+      'mixamorigRightForeArm': [0.6, -0.2, -0.1],
+      'mixamorigLeftUpLeg': [0.1, 0, 0],
+      'mixamorigRightUpLeg': [0.1, 0, 0],
+      'mixamorigLeftLeg': [0.2, 0, 0],
+      'mixamorigRightLeg': [0.2, 0, 0],
+      'mixamorigHips': [0, 0, 0],
+      'mixamorigSpine': [0.05, 0, 0],
+      'mixamorigSpine2': [0.05, 0, 0],
+      'mixamorigNeck': [0, 0, 0]
+    };
 
     // Inicjalizacja tablic dla każdej kości
     allBoneNamesSet.forEach((rawName) => {
@@ -165,10 +190,19 @@ export class MotionEngine {
 
       let hipPitch = 0;
       let hipYaw = 0;
+      let maxKneeBend = 0;
 
       // Dla KAŻDEJ znanej kości dodaj wartosc dla CAŁEJ klatki kluczowej
       allBoneNamesSet.forEach((rawName) => {
-        const rot = currentKfRotations.get(rawName) || lastRotations.get(rawName) || [0, 0, 0];
+        let rot = currentKfRotations.get(rawName) || lastRotations.get(rawName) || defaultNaturalRotations[rawName] || [0, 0, 0];
+        
+        // Korekta anatomii kolan: w Mixamo kolano ugina się WYŁĄCZNIE na dodatniej osi X (+X)
+        if (rawName.includes('Leg') && !rawName.includes('UpLeg')) {
+          const clampedKneeX = Math.abs(rot[0]); // Zawsze dodatnie ugięcie kolana do tyłu (anatomia człowieka)
+          rot = [clampedKneeX, rot[1], rot[2]];
+          maxKneeBend = Math.max(maxKneeBend, clampedKneeX);
+        }
+
         if (rawName.includes('Hips')) {
           hipPitch = rot[0];
           hipYaw = rot[1];
@@ -181,9 +215,9 @@ export class MotionEngine {
         boneTracksMap.get(trackName)!.push(q.x, q.y, q.z, q.w);
       });
 
-      // Hips translation (dynamic bounce Y and step X/Z)
-      const bounceY = -0.12 * Math.max(0, Math.sin(kf.beatOffset * Math.PI)) - 0.05 * Math.abs(hipPitch);
-      const stepX = 0.15 * Math.sin(hipYaw);
+      // Translacja miednicy: obniżanie miednicy przy ugięciu kolan utrzymujące stopy na ziemi (Contact Consistency)
+      const bounceY = -0.15 * Math.sin(maxKneeBend) - 0.05 * Math.abs(hipPitch);
+      const stepX = 0.12 * Math.sin(hipYaw);
       hipsPosValues.push(stepX, bounceY, 0);
     }
 
