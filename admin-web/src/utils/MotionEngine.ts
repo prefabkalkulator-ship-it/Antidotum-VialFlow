@@ -112,6 +112,15 @@ export class MotionEngine {
     this.mixer.setTime(currentTimeSeconds);
   }
 
+  private getExactBoneNodeName(rawName: string): string {
+    if (this.skeletonBones.has(rawName)) return this.skeletonBones.get(rawName)!.name;
+    const clean = rawName.replace('mixamorig:', '').replace('mixamorig', '');
+    if (this.skeletonBones.has(clean)) return this.skeletonBones.get(clean)!.name;
+    if (this.skeletonBones.has(`mixamorig${clean}`)) return this.skeletonBones.get(`mixamorig${clean}`)!.name;
+    if (this.skeletonBones.has(`mixamorig:${clean}`)) return this.skeletonBones.get(`mixamorig:${clean}`)!.name;
+    return rawName;
+  }
+
   /**
    * Tworzy natywny THREE.AnimationClip z 60 FPS z pełną translacją miednicy (bounce, wyskoki) i rotacjami 24 stawów
    */
@@ -143,8 +152,8 @@ export class MotionEngine {
           hipRoll = r.rotation[2];
         }
 
-        const boneName = r.boneName.startsWith('mixamorig') ? r.boneName : `mixamorig:${r.boneName.replace('mixamorig', '')}`;
-        const trackName = `${boneName}.quaternion`;
+        const nodeName = this.getExactBoneNodeName(r.boneName);
+        const trackName = `${nodeName}.quaternion`;
 
         const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(r.rotation[0], r.rotation[1], r.rotation[2], 'XYZ'));
         if (!boneTracksMap.has(trackName)) {
@@ -162,8 +171,9 @@ export class MotionEngine {
 
     const tracks: THREE.KeyframeTrack[] = [];
     
-    // Track translacji miednicy
-    tracks.push(new THREE.VectorKeyframeTrack('mixamorig:Hips.position', times, hipsPosValues));
+    // Track translacji miednicy z dopasowaną precyzyjną nazwą kości
+    const hipsNodeName = this.getExactBoneNodeName('mixamorigHips');
+    tracks.push(new THREE.VectorKeyframeTrack(`${hipsNodeName}.position`, times, hipsPosValues));
 
     // Tracki rotacji kości
     boneTracksMap.forEach((values, trackName) => {

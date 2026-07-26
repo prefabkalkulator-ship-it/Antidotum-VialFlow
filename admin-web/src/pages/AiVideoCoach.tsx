@@ -120,18 +120,22 @@ export default function AiVideoCoach() {
     setIsLoadingHomework(true);
     try {
       const tasksRes = await fetchWithFallback('/api/coach/tasks');
-      const tasksData = await tasksRes.json();
-      if (Array.isArray(tasksData)) {
-        setActiveTasks(tasksData);
-        if (tasksData.length > 0 && !selectedActiveTaskId) {
-          setSelectedActiveTaskId(tasksData[0].id);
+      if (tasksRes.ok) {
+        const tasksData = await tasksRes.json();
+        if (Array.isArray(tasksData)) {
+          setActiveTasks(tasksData);
+          if (tasksData.length > 0 && !selectedActiveTaskId) {
+            setSelectedActiveTaskId(tasksData[0].id);
+          }
         }
       }
 
       const resultsRes = await fetchWithFallback('/api/coach/homework/results');
-      const resultsData = await resultsRes.json();
-      if (Array.isArray(resultsData)) {
-        setHomeworkResults(resultsData);
+      if (resultsRes.ok) {
+        const resultsData = await resultsRes.json();
+        if (Array.isArray(resultsData)) {
+          setHomeworkResults(resultsData);
+        }
       }
     } catch (err) {
       console.error('Błąd pobierania zadań i wyników:', err);
