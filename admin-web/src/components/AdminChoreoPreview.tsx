@@ -44,9 +44,16 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
   const [isLoadingModel, setIsLoadingModel] = useState(!cachedGLTF);
   const [probeLogs, setProbeLogs] = useState<string[]>([]);
 
-  const logProbe = (msg: string) => {
-    console.log(`[3D Probe] ${msg}`);
-    setProbeLogs((prev) => [...prev.slice(-6), `${new Date().toLocaleTimeString()} - ${msg}`]);
+  const logProbe = (msg: string, isError: boolean = false) => {
+    const formatted = `${new Date().toLocaleTimeString()} - ${msg}`;
+    if (isError) {
+      console.error(`[3D PROBE ERROR] ${msg}`);
+    } else {
+      console.info(`%c[3D PROBE] ${msg}`, 'color: #00ff00; font-weight: bold;');
+    }
+    (window as any).__3dProbeLogs = (window as any).__3dProbeLogs || [];
+    (window as any).__3dProbeLogs.push(formatted);
+    setProbeLogs((prev) => [...prev.slice(-8), formatted]);
   };
 
   const currentTimeRef = useRef(0);
@@ -181,12 +188,12 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
           }
         },
         (err: any) => {
-          logProbe(`❌ Błąd pobierania /Y-Bot.glb: ${err?.message || err}`);
+          logProbe(`❌ Błąd pobierania /Y-Bot.glb: ${err?.message || err}`, true);
           setIsLoadingModel(false);
         }
       );
     } catch (err: any) {
-      logProbe(`❌ Krytyczny błąd WebGL: ${err?.message || err}`);
+      logProbe(`❌ Krytyczny błąd WebGL: ${err?.message || err}`, true);
       setHasWebGLError(true);
       return;
     }
@@ -229,7 +236,9 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
           currentTimeRef.current,
           true
         );
-      } catch (e) {}
+      } catch (e: any) {
+        logProbe(`⚠️ Błąd klatki animacji: ${e?.message || e}`, true);
+      }
 
       if (rendererRef.current && sceneRef.current && cameraRef.current) {
         rendererRef.current.render(sceneRef.current, cameraRef.current);
@@ -253,6 +262,25 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
 
   return (
     <div className="bg-[#0B0B0C] border border-gray-800 rounded-xl p-3 mb-4 overflow-hidden relative">
+      {/* Sonda Diagnostyczna NA SAMEJ GÓRZE KOMPONENTU */}
+      <div className="mb-3 p-2 bg-[#000000]/95 border border-green-500/40 rounded-lg text-[10px] font-mono text-green-400 max-h-36 overflow-y-auto z-20 relative">
+        <div className="font-bold text-gray-300 mb-1 border-b border-gray-800 pb-1 flex justify-between items-center">
+          <span className="flex items-center gap-1.5 text-green-400">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-ping"></span>
+            SONDA DIAGNOSTYCZNA 3D (Wszystkie wpisy są w konsoli F12)
+          </span>
+          <span className="text-[9px] bg-green-950 text-green-300 px-1.5 py-0.5 rounded">F12 Console</span>
+        </div>
+        {probeLogs.map((log, idx) => (
+          <div key={idx} className="leading-tight py-0.5 border-b border-gray-900/60 last:border-0 font-mono">
+            {log}
+          </div>
+        ))}
+        {probeLogs.length === 0 && (
+          <div className="text-gray-500 italic">Ładowanie rejestratora sondy 3D...</div>
+        )}
+      </div>
+
       {isLoadingModel && (
         <div className="absolute inset-0 bg-[#0B0B0C]/90 z-10 flex flex-col items-center justify-center gap-2 text-gray-400 text-xs font-mono">
           <Loader2 size={24} className="animate-spin text-primary" />
@@ -290,23 +318,6 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
         >
           <RotateCcw size={14} />
         </button>
-      </div>
-
-      {/* Sonda Diagnostyczna na Żywo */}
-      <div className="mt-3 p-2.5 bg-[#000000]/90 border border-green-500/30 rounded-lg text-[10px] font-mono text-green-400 max-h-32 overflow-y-auto">
-        <div className="font-bold text-gray-300 mb-1 border-b border-gray-800 pb-1 flex justify-between items-center">
-          <span className="flex items-center gap-1 text-green-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping"></span>
-            SONDA DIAGNOSTYCZNA 3D
-          </span>
-          <span className="text-[9px] text-gray-500">Logi operacji</span>
-        </div>
-        {probeLogs.map((log, idx) => (
-          <div key={idx} className="leading-tight py-0.5 border-b border-gray-900/50 last:border-0">{log}</div>
-        ))}
-        {probeLogs.length === 0 && (
-          <div className="text-gray-600 italic">Oczekuję na montowanie elementu 3D...</div>
-        )}
       </div>
     </div>
   );
