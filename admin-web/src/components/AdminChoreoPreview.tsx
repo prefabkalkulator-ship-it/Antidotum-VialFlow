@@ -102,25 +102,31 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
 
   const [hasWebGLError, setHasWebGLError] = useState(false);
 
-  // Three.js 3D Viewer Loop
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+
+  // 1. Inicjalizacja Sceny WebGL (uruchamiana TYLKO RAZ przy montowaniu montu)
   useEffect(() => {
     if (!mountRef.current) return;
 
-    let renderer: THREE.WebGLRenderer;
     try {
       const width = Math.max(300, mountRef.current.clientWidth || 360);
       const height = 260;
 
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(0x0b0b0c);
+      sceneRef.current = scene;
 
       const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
       camera.position.set(0, 1.2, 2.6);
       camera.lookAt(0, 1.0, 0);
+      cameraRef.current = camera;
 
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setSize(width, height);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      rendererRef.current = renderer;
 
       mountRef.current.appendChild(renderer.domElement);
 
@@ -135,20 +141,12 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
       grid.position.y = 0;
       scene.add(grid);
 
-      let yBotModel: THREE.Object3D | null = null;
       const loader = new GLTFLoader();
-
-      const renderOnce = () => {
-        if (renderer && scene && camera) {
-          renderer.render(scene, camera);
-        }
-      };
-
       loader.load(
         '/Y-Bot.glb',
         (gltf) => {
           if (!mountRef.current) return;
-          yBotModel = gltf.scene;
+          const yBotModel = gltf.scene;
           yBotModel.traverse((child) => {
             if ((child as THREE.Mesh).isMesh) {
               child.castShadow = true;
@@ -164,7 +162,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
           yBotModel.position.set(0, 0, 0);
           scene.add(yBotModel);
           setIsLoadingModel(false);
-          renderOnce();
+          renderer.render(scene, camera);
         },
         undefined,
         (err) => {
@@ -172,45 +170,6 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
           setIsLoadingModel(false);
         }
       );
-
-      let animId: number;
-      let lastTime = performance.now();
-
-      const animate = () => {
-        if (!paramsRef.current.isPlaying) {
-          renderOnce();
-          return;
-        }
-        animId = requestAnimationFrame(animate);
-        
-        const now = performance.now();
-        const delta = Math.min(0.1, (now - lastTime) / 1000);
-        lastTime = now;
-
-        if (audioRef.current && !audioRef.current.paused) {
-          currentTimeRef.current = audioRef.current.currentTime;
-        } else {
-          currentTimeRef.current += delta;
-        }
-
-        try {
-          motionEngineRef.current.updatePose(
-            paramsRef.current.sequence,
-            currentTimeRef.current,
-            true // Mirror view for instructor
-          );
-        } catch (e) {
-          // Zapobiega zawieszaniu pętli renderującej przy błędach
-        }
-
-        renderOnce();
-      };
-
-      if (isPlaying) {
-        animate();
-      } else {
-        renderOnce();
-      }
     } catch (err) {
       console.warn('WebGL Initialization error in AdminChoreoPreview:', err);
       setHasWebGLError(true);
@@ -218,13 +177,54 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
     }
 
     return () => {
-      cancelAnimationFrame(animId);
-      if (renderer) renderer.dispose();
-      if (mountRef.current && renderer?.domElement) {
+      if (rendererRef.current) {
+        rendererRef.current.dispose();
+      }
+      if (mountRef.current && rendererRef.current?.domElement) {
         try {
-          mountRef.current.removeChild(renderer.domElement);
+          mountRef.current.removeChild(rendererRef.current.domElement);
         } catch (e) {}
       }
+    };
+  }, []);
+
+  // 2. Pętla Odtwarzania Animacji (sterowana wyłącznie flagą isPlaying)
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    let animId: number;
+    let lastTime = performance.now();
+
+    const animate = () => {
+      animId = requestAnimationFrame(animate);
+
+      const now = performance.now();
+      const delta = Math.min(0.1, (now - lastTime) / 1000);
+      lastTime = now;
+
+      if (audioRef.current && !audioRef.current.paused) {
+        currentTimeRef.current = audioRef.current.currentTime;
+      } else {
+        currentTimeRef.current += delta;
+      }
+
+      try {
+        motionEngineRef.current.updatePose(
+          paramsRef.current.sequence,
+          currentTimeRef.current,
+          true
+        );
+      } catch (e) {}
+
+      if (rendererRef.current && sceneRef.current && cameraRef.current) {
+        rendererRef.current.render(sceneRef.current, cameraRef.current);
+      }
+    };
+
+    animate();
+
+    return () => {
+      cancelAnimationFrame(animId);
     };
   }, [isPlaying]);
 
