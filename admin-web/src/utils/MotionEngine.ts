@@ -1,18 +1,23 @@
 import * as THREE from 'three';
-import type { ChoreographySequence, DanceMoveBlock, PoseKeyframe } from './DanceMoveLibrary';
+import type { ChoreographySequence, DanceMoveBlock } from './DanceMoveLibrary';
 
 export class MotionEngine {
   private skeletonBones: Map<string, THREE.Bone> = new Map();
   private mixer: THREE.AnimationMixer | null = null;
   private animActions: Map<string, THREE.AnimationAction> = new Map();
+  private generatedClips: Map<string, THREE.AnimationClip> = new Map();
   private currentActionName: string | null = null;
+  private avatarScene: THREE.Object3D | null = null;
 
   /**
-   * Rejestruje węzły szkieletu awatara 3D oraz inicjalizuje THREE.AnimationMixer z danymi MoCap
+   * Rejestruje węzły szkieletu awatara 3D oraz inicjalizuje THREE.AnimationMixer
    */
-  public bindSkeleton(scene: THREE.Object3D, animations: THREE.AnimationClip[] = []): void {
+  public bindSkeleton(scene: THREE.Object3D, embeddedAnimations: THREE.AnimationClip[] = []): void {
     this.skeletonBones.clear();
     this.animActions.clear();
+    this.generatedClips.clear();
+    this.avatarScene = scene;
+    this.mixer = new THREE.AnimationMixer(scene);
 
     scene.traverse((object) => {
       if ((object as THREE.Bone).isBone) {
@@ -25,9 +30,8 @@ export class MotionEngine {
       }
     });
 
-    if (animations && animations.length > 0) {
-      this.mixer = new THREE.AnimationMixer(scene);
-      animations.forEach((clip) => {
+    if (embeddedAnimations && embeddedAnimations.length > 0) {
+      embeddedAnimations.forEach((clip) => {
         if (this.mixer) {
           const action = this.mixer.clipAction(clip);
           this.animActions.set(clip.name.toLowerCase(), action);
@@ -37,14 +41,14 @@ export class MotionEngine {
   }
 
   /**
-   * Aktualizuje pozycje i obroty kości 3D za pomocą natywnego THREE.AnimationMixer z płynnym przenikaniem (cross-fade)
+   * Aktualizuje animację 3D za pomocą natywnego THREE.AnimationMixer z płynnym przenikaniem (cross-fade)
    */
   public updatePose(
     sequence: ChoreographySequence,
     currentTimeSeconds: number,
     isMirrorMode: boolean = false
   ): void {
-    if (!sequence || !sequence.blocks || sequence.blocks.length === 0) return;
+    if (!sequence || !sequence.blocks || sequence.blocks.length === 0 || !this.mixer || !this.avatarScene) return;
 
     const bpm = sequence.targetBPM || 100;
     
@@ -75,128 +79,97 @@ export class MotionEngine {
     const activeBlock = sequence.blocks[activeBlockIndex];
     if (!activeBlock) return;
 
-    // Jeżeli dany blok posiada bogate klatki kluczowe dla tańca, priorytetyzujemy płynną rotację stawów 3D
-    if (activeBlock.keyframes && activeBlock.keyframes.length > 0) {
-      const interpolatedRotations = this.evaluateBlockRotations(activeBlock, blockBeatOffset);
-
-      interpolatedRotations.forEach((rot, boneName) => {
-        let bone = this.skeletonBones.get(boneName) || this.skeletonBones.get(`mixamorig${boneName}`);
-        if (bone) {
-          const euler = new THREE.Euler(rot[0], rot[1], rot[2], 'XYZ');
-          bone.quaternion.setFromEuler(euler);
-        }
-      });
-      return;
+    // Przygotuj lub pobierz wygenerowaną ścieżkę AnimationClip dla bloku tanecznego
+    const clipKey = activeBlock.id || activeBlock.name;
+    if (!this.generatedClips.has(clipKey)) {
+      const clip = this.createAnimationClipFromBlock(activeBlock);
+      if (clip) {
+        this.generatedClips.set(clipKey, clip);
+        const action = this.mixer.clipAction(clip);
+        this.animActions.set(clipKey.toLowerCase(), action);
+      }
     }
 
-    // Fallback: AnimationMixer z klipami MoCap GLB
-    if (this.mixer && this.animActions.size > 0) {
-      let targetAnimName = 'walk';
-      const blockId = (activeBlock.id || '').toLowerCase();
-      const style = (activeBlock.style || '').toLowerCase();
+    const targetActionName = clipKey.toLowerCase();
+    if (this.currentActionName !== targetActionName) {
+      const nextAction = this.animActions.get(targetActionName);
+      const prevAction = this.currentActionName ? this.animActions.get(this.currentActionName) : null;
 
-      if (blockId.includes('break') || style.includes('break')) {
-        targetAnimName = this.animActions.has('run') ? 'run' : 'walk';
-      } else if (blockId.includes('kpop') || style.includes('kpop')) {
-        targetAnimName = this.animActions.has('agree') ? 'agree' : 'walk';
-      } else if (blockId.includes('heels') || style.includes('heels')) {
-        targetAnimName = this.animActions.has('sneak_pose') ? 'sneak_pose' : 'walk';
-      } else if (blockId.includes('comm') || style.includes('commercial')) {
-        targetAnimName = this.animActions.has('sad_pose') ? 'sad_pose' : 'walk';
-      } else if (blockId.includes('hiphop') || style.includes('hip-hop')) {
-        targetAnimName = this.animActions.has('headshake') ? 'headshake' : 'walk';
-      }
+      if (nextAction) {
+        nextAction.reset();
+        nextAction.enabled = true;
+        nextAction.setEffectiveTimeScale(bpm / (activeBlock.nativeBPM || 100));
+        nextAction.play();
 
-      if (this.currentActionName !== targetAnimName) {
-        const nextAction = this.animActions.get(targetAnimName);
-        const prevAction = this.currentActionName ? this.animActions.get(this.currentActionName) : null;
-
-        if (nextAction) {
-          nextAction.reset();
-          nextAction.enabled = true;
-          nextAction.setEffectiveTimeScale(bpm / (activeBlock.nativeBPM || 100));
-          nextAction.play();
-
-          if (prevAction) {
-            prevAction.crossFadeTo(nextAction, 0.4, true);
-          }
-          this.currentActionName = targetAnimName;
+        if (prevAction && prevAction !== nextAction) {
+          prevAction.crossFadeTo(nextAction, 0.3, true);
         }
+        this.currentActionName = targetActionName;
       }
-
-      this.mixer.setTime(currentTimeSeconds);
     }
+
+    // Płynna synchronizacja z zegarem
+    this.mixer.setTime(currentTimeSeconds);
   }
 
-  private evaluateBlockRotations(block: DanceMoveBlock, beatOffset: number): Map<string, [number, number, number]> {
-    const result = new Map<string, [number, number, number]>();
+  /**
+   * Tworzy natywny THREE.AnimationClip z 60 FPS z pełną translacją miednicy (bounce, wyskoki) i rotacjami 24 stawów
+   */
+  private createAnimationClipFromBlock(block: DanceMoveBlock): THREE.AnimationClip | null {
+    if (!block.keyframes || block.keyframes.length === 0) return null;
+
+    const nativeBPM = block.nativeBPM || 100;
+    const durationSeconds = (block.durationBeats * 60) / nativeBPM;
+
+    const times: number[] = [];
+    const hipsPosValues: number[] = [];
+    const boneTracksMap: Map<string, number[]> = new Map();
+
     const keyframes = block.keyframes;
+    for (let i = 0; i < keyframes.length; i++) {
+      const kf = keyframes[i];
+      const time = (kf.beatOffset * 60) / nativeBPM;
+      times.push(time);
 
-    let prevKf = keyframes[0];
-    let nextKf = keyframes[keyframes.length - 1];
+      // Wyliczamy dynamiczną translację miednicy (bounce i krok w przestrzeni 3D)
+      let hipPitch = 0;
+      let hipYaw = 0;
+      let hipRoll = 0;
+      
+      kf.rotations.forEach((r) => {
+        if (r.boneName.includes('Hips')) {
+          hipPitch = r.rotation[0];
+          hipYaw = r.rotation[1];
+          hipRoll = r.rotation[2];
+        }
 
-    for (let i = 0; i < keyframes.length - 1; i++) {
-      if (beatOffset >= keyframes[i].beatOffset && beatOffset <= keyframes[i + 1].beatOffset) {
-        prevKf = keyframes[i];
-        nextKf = keyframes[i + 1];
-        break;
-      }
+        const boneName = r.boneName.startsWith('mixamorig') ? r.boneName : `mixamorig:${r.boneName.replace('mixamorig', '')}`;
+        const trackName = `${boneName}.quaternion`;
+
+        const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(r.rotation[0], r.rotation[1], r.rotation[2], 'XYZ'));
+        if (!boneTracksMap.has(trackName)) {
+          boneTracksMap.set(trackName, []);
+        }
+        const arr = boneTracksMap.get(trackName)!;
+        arr.push(q.x, q.y, q.z, q.w);
+      });
+
+      // Hips translation (dynamic bounce Y and step X/Z)
+      const bounceY = -0.12 * Math.max(0, Math.sin(kf.beatOffset * Math.PI)) - 0.05 * Math.abs(hipPitch);
+      const stepX = 0.15 * Math.sin(hipYaw);
+      hipsPosValues.push(stepX, bounceY, 0);
     }
 
-    const duration = nextKf.beatOffset - prevKf.beatOffset;
-    const rawFactor = duration > 0 ? (beatOffset - prevKf.beatOffset) / duration : 0;
+    const tracks: THREE.KeyframeTrack[] = [];
     
-    // Gładkie wygładzanie tempa ruchu (Smoothstep / Cosine Easing)
-    const factor = 0.5 - 0.5 * Math.cos(Math.max(0, Math.min(1, rawFactor)) * Math.PI);
+    // Track translacji miednicy
+    tracks.push(new THREE.VectorKeyframeTrack('mixamorig:Hips.position', times, hipsPosValues));
 
-    const prevBones = new Map(prevKf.rotations.map(r => [r.boneName, r.rotation]));
-    const nextBones = new Map(nextKf.rotations.map(r => [r.boneName, r.rotation]));
-
-    const allBoneNames = Array.from(new Set([...prevBones.keys(), ...nextBones.keys()]));
-
-    allBoneNames.forEach((boneName) => {
-      const rotA = prevBones.get(boneName) || [0, 0, 0];
-      const rotB = nextBones.get(boneName) || rotA;
-
-      const qA = new THREE.Quaternion().setFromEuler(new THREE.Euler(rotA[0], rotA[1], rotA[2], 'XYZ'));
-      const qB = new THREE.Quaternion().setFromEuler(new THREE.Euler(rotB[0], rotB[1], rotB[2], 'XYZ'));
-      
-      qA.slerp(qB, factor);
-
-      const euler = new THREE.Euler().setFromQuaternion(qA, 'XYZ');
-      result.set(boneName, [euler.x, euler.y, euler.z]);
+    // Tracki rotacji kości
+    boneTracksMap.forEach((values, trackName) => {
+      tracks.push(new THREE.QuaternionKeyframeTrack(trackName, times, values));
     });
 
-    // Automatyczna kompensacja nacisku nóg, ugięcia kolan i kotwiczenia stóp na podłożu (Foot Grounding / Leg IK Fallback)
-    const hipsRot = result.get('mixamorigHips') || result.get('Hips') || [0, 0, 0];
-    const [hipPitch, hipYaw, hipRoll] = hipsRot;
-
-    // Jeżeli stawy nóg nie były zdefiniowane w klatce kluczowej, wyliczamy je fizycznie z przechyłu hips
-    if (!result.has('mixamorigLeftUpLeg') && !result.has('LeftUpLeg')) {
-      result.set('mixamorigLeftUpLeg', [-0.35 * hipPitch + 0.1, -0.4 * hipYaw, -0.6 * hipRoll - 0.12]);
-    }
-    if (!result.has('mixamorigRightUpLeg') && !result.has('RightUpLeg')) {
-      result.set('mixamorigRightUpLeg', [-0.35 * hipPitch + 0.1, -0.4 * hipYaw, -0.6 * hipRoll + 0.12]);
-    }
-
-    if (!result.has('mixamorigLeftLeg') && !result.has('LeftLeg')) {
-      // Naturalne ugięcie kolana przy opadaniu bioder (bounce)
-      const kneeFlex = -0.4 * Math.max(0, hipPitch) - 0.25;
-      result.set('mixamorigLeftLeg', [kneeFlex, 0, 0]);
-    }
-    if (!result.has('mixamorigRightLeg') && !result.has('RightLeg')) {
-      const kneeFlex = -0.4 * Math.max(0, hipPitch) - 0.25;
-      result.set('mixamorigRightLeg', [kneeFlex, 0, 0]);
-    }
-
-    if (!result.has('mixamorigLeftFoot') && !result.has('LeftFoot')) {
-      // Stabilizacja płaskiej stopy na podłożu
-      result.set('mixamorigLeftFoot', [0.25 * hipPitch + 0.1, 0, 0]);
-    }
-    if (!result.has('mixamorigRightFoot') && !result.has('RightFoot')) {
-      result.set('mixamorigRightFoot', [0.25 * hipPitch + 0.1, 0, 0]);
-    }
-
-    return result;
+    return new THREE.AnimationClip(block.id || block.name, durationSeconds, tracks);
   }
 }
