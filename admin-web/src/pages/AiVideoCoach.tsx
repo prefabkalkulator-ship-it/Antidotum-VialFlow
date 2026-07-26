@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { FlaskConical, Activity, Loader2, UploadCloud, CheckCircle2, AlertTriangle, Medal, Play, Send, CheckSquare, XCircle, ChevronDown, Search, Plus, Trash2, Music, Sparkles } from 'lucide-react';
+import { FlaskConical, Activity, Loader2, UploadCloud, CheckCircle2, AlertTriangle, Medal, Play, Send, CheckSquare, XCircle, X, ChevronDown, Search, Plus, Trash2, Music, Sparkles } from 'lucide-react';
 import AdminChoreoPreview from '../components/AdminChoreoPreview';
 import { DANCE_MOVE_LIBRARY, DEFAULT_CHOREOGRAPHY_SEQUENCE } from '../utils/DanceMoveLibrary';
 import type { ChoreographySequence } from '../utils/DanceMoveLibrary';
