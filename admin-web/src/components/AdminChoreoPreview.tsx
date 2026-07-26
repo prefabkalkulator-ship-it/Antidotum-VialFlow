@@ -71,13 +71,9 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
 
   const initialSeqIdRef = useRef(sequence.id);
 
-  // Automatyczne odtwarzanie animacji 3D tylko przy wygenerowaniu NOWEJ sekwencji (nie przy otwarciu modala)
+  // Automatyczne odtwarzanie animacji 3D przy wygenerowaniu NOWEJ sekwencji z promptu
   useEffect(() => {
     if (sequence && sequence.id) {
-      if (sequence.id === initialSeqIdRef.current) {
-        setIsPlaying(false);
-        return;
-      }
       currentTimeRef.current = 0;
       setIsPlaying(true);
       if (audioRef.current) {
@@ -85,7 +81,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
         audioRef.current.play().catch(err => console.warn('Audio autoplay blocked by browser policy:', err));
       }
     }
-  }, [sequence.id]);
+  }, [sequence?.id]);
 
   const togglePlay = () => {
     if (isPlaying) {
@@ -125,15 +121,16 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
     try {
       logProbe('Inicjalizacja widżetu 3D...');
       const width = Math.max(300, mountRef.current.clientWidth || 360);
-      const height = 380; // Powiększony obszar podglądu, w którym cały awatar mieści się idealnie
+      const height = 380; // Powiększony obszar podglądu dla pełnej sylwetki 1.8 m
 
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(0x0b0b0c);
       sceneRef.current = scene;
 
       const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-      camera.position.set(0, 0.95, 3.2); // Odsunięta kamera wycentrowana na wysokości miednicy, ukazująca buty i stopy awatara
-      camera.lookAt(0, 0.75, 0);
+      // Precyzyjne kadrowanie dla awatara 1.8m: cel w środku ciężkości y = 0.90m, kamera z odległości 3.6m
+      camera.position.set(0, 1.05, 3.6);
+      camera.lookAt(0, 0.90, 0);
       cameraRef.current = camera;
 
       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
@@ -143,11 +140,11 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
 
       mountRef.current.appendChild(renderer.domElement);
 
-      // OrbitControls - umożliwia pełne obracanie, przybliżanie i przesuwanie kamery przez Trenera
+      // OrbitControls - obrót 360°, wycentrowany na wysokości miednicy (y = 0.90 m)
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.05;
-      controls.target.set(0, 0.75, 0);
+      controls.target.set(0, 0.90, 0);
       controls.maxPolarAngle = Math.PI / 2 + 0.1;
       controls.update();
       controlsRef.current = controls;
