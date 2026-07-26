@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { ChoreographySequence } from '../utils/DanceMoveLibrary';
 import { MotionEngine } from '../utils/MotionEngine';
 import { Play, Pause, RotateCcw, Loader2 } from 'lucide-react';
@@ -42,20 +43,13 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoadingModel, setIsLoadingModel] = useState(!cachedGLTF);
-  const probeBoxRef = useRef<HTMLDivElement>(null);
-  const [probeLogs, setProbeLogs] = useState<string[]>([]);
 
   const logProbe = (msg: string, isError: boolean = false) => {
-    const formatted = `${new Date().toLocaleTimeString()} - ${msg}`;
     if (isError) {
       console.error(`[3D PROBE ERROR] ${msg}`);
     } else {
       console.info(`%c[3D PROBE] ${msg}`, 'color: #00ff00; font-weight: bold;');
     }
-    (window as any).__3dProbeLogs = (window as any).__3dProbeLogs || [];
-    (window as any).__3dProbeLogs.unshift(formatted);
-    // NAJNOWSZY WPIS ZAWSZE NA SAMEJ GÓRZE (NAJPIERW) - BEZ KONIECZNOŚCI SCROLLOWANIA
-    setProbeLogs((prev) => [formatted, ...prev]);
   };
 
   const currentTimeRef = useRef(0);
@@ -122,93 +116,116 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const controlsRef = useRef<OrbitControls | null>(null);
 
-  // 1. Inicjalizacja Sceny WebGL (uruchamiana TYLKO RAZ przy montowaniu montu)
+  // 1. Inicjalizacja Sceny WebGL + OrbitControls (uruchamiana TYLKO RAZ przy montowaniu)
   useEffect(() => {
     if (!mountRef.current) return;
 
     try {
-      logProbe('Sonda gotowa, sprawdzanie obszaru montowania Canvas...');
+      logProbe('Inicjalizacja widżetu 3D...');
       const width = Math.max(300, mountRef.current.clientWidth || 360);
-      const height = 260;
+      const height = 380; // Powiększony obszar podglądu, w którym cały awatar mieści się idealnie
 
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(0x0b0b0c);
       sceneRef.current = scene;
 
       const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-      camera.position.set(0, 1.2, 2.6);
-      camera.lookAt(0, 1.0, 0);
+      camera.position.set(0, 1.1, 3.0); // Zoptymalizowany kąt kamery obejmujący całą sylwetkę awatara
+      camera.lookAt(0, 0.9, 0);
       cameraRef.current = camera;
 
-      logProbe('Tworzenie natywnego kontekstu THREE.WebGLRenderer...');
-      const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: 'low-power' });
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
       renderer.setSize(width, height);
-      renderer.setPixelRatio(1);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       rendererRef.current = renderer;
 
       mountRef.current.appendChild(renderer.domElement);
-      logProbe(`Płótno WebGL podpięte do DOM (${width}x${height}px)`);
 
-      const ambientLight = new THREE.AmbientLight(0xffffff, 1.4);
+      // OrbitControls - umożliwia pełne obracanie, przybliżanie i przesuwanie kamery przez Trenera
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.target.set(0, 0.9, 0);
+      controls.maxPolarAngle = Math.PI / 2 + 0.1;
+      controls.update();
+      controlsRef.current = controls;
+
+      // Profesjonalne Oświetlenie 3D (Key Light + Pink Rim Light + Fill Light)
+      const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
       scene.add(ambientLight);
 
-      const dirLight = new THREE.DirectionalLight(0xff44aa, 1.8);
-      dirLight.position.set(2, 4, 3);
-      scene.add(dirLight);
+      const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
+      keyLight.position.set(2, 4, 3);
+      scene.add(keyLight);
 
-      const grid = new THREE.GridHelper(10, 20, 0xf472b6, 0x27272a);
+      const rimLight = new THREE.DirectionalLight(0xf472b6, 1.5);
+      rimLight.position.set(-2, 2, -2);
+      scene.add(rimLight);
+
+      const grid = new THREE.GridHelper(10, 20, 0xf472b6, 0x3f3f46);
       grid.position.y = 0;
       scene.add(grid);
 
-      logProbe('Rozpoczęcie natywnego pobierania fetch("/Y-Bot.glb")...');
+      logProbe('Rozpoczęcie pobierania pliku /Y-Bot.glb...');
       fetch('/Y-Bot.glb')
         .then((res) => {
-          logProbe(`Odpowiedź HTTP dla Y-Bot.glb: Status ${res.status} ${res.statusText}`);
           if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
           return res.arrayBuffer();
         })
         .then((buffer) => {
-          logProbe(`Pobrano bufor binarny: ${(buffer.byteLength / (1024 * 1024)).toFixed(2)} MB. Parsowanie GLTF...`);
           const loader = new GLTFLoader();
           loader.parse(
             buffer,
             '',
             (gltf) => {
-              logProbe('Parsowanie GLTF ukończone! Podpinanie do sceny...');
               if (!mountRef.current) return;
               const yBotModel = gltf.scene;
+
+              yBotModel.traverse((child) => {
+                if ((child as THREE.Mesh).isMesh) {
+                  const mesh = child as THREE.Mesh;
+                  if (mesh.material && (mesh.material as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
+                    const mat = mesh.material as THREE.MeshStandardMaterial;
+                    mat.metalness = 0.2;
+                    mat.roughness = 0.3;
+                  }
+                }
+              });
+
               try {
                 motionEngineRef.current.bindSkeleton(gltf.scene, gltf.animations);
-                logProbe('Powiązano szkielet postaci w MotionEngine (24 kości)');
                 motionEngineRef.current.updatePose(paramsRef.current.sequence, 0, true);
-                logProbe('Ustawiono pozę początkową awatara');
               } catch (e: any) {
-                logProbe(`⚠️ Ostrzeżenie przy wiązaniu kości: ${e?.message || e}`, true);
+                logProbe(`Ostrzeżenie szkieletu: ${e?.message || e}`, true);
               }
               yBotModel.position.set(0, 0, 0);
               scene.add(yBotModel);
               setIsLoadingModel(false);
               renderer.render(scene, camera);
-              logProbe('✅ Pierwsza klatka awatara zrenderowana pomyślnie!');
+              logProbe('✅ Awatar 3D zrenderowany pomyślnie!');
             },
             (parseErr: any) => {
-              logProbe(`❌ Błąd parsowania GLTF: ${parseErr?.message || parseErr}`, true);
+              logProbe(`Błąd parsowania GLTF: ${parseErr?.message || parseErr}`, true);
               setIsLoadingModel(false);
             }
           );
         })
         .catch((fetchErr: any) => {
-          logProbe(`❌ Błąd pobierania pliku /Y-Bot.glb: ${fetchErr?.message || fetchErr}`, true);
+          logProbe(`Błąd pobierania /Y-Bot.glb: ${fetchErr?.message || fetchErr}`, true);
           setIsLoadingModel(false);
         });
     } catch (err: any) {
-      logProbe(`❌ Krytyczny błąd WebGL: ${err?.message || err}`, true);
+      logProbe(`Krytyczny błąd WebGL: ${err?.message || err}`, true);
       setHasWebGLError(true);
       return;
     }
 
     return () => {
+      if (controlsRef.current) {
+        controlsRef.current.dispose();
+      }
       if (rendererRef.current) {
         rendererRef.current.dispose();
       }
@@ -220,34 +237,36 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
     };
   }, []);
 
-  // 2. Pętla Odtwarzania Animacji (sterowana wyłącznie flagą isPlaying)
+  // 2. Pętla Odtwarzania Animacji + Renderowania klatek (sterowana flagą isPlaying)
   useEffect(() => {
-    if (!isPlaying) return;
-
     let animId: number;
     let lastTime = performance.now();
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
 
+      if (controlsRef.current) {
+        controlsRef.current.update();
+      }
+
       const now = performance.now();
       const delta = Math.min(0.1, (now - lastTime) / 1000);
       lastTime = now;
 
-      if (audioRef.current && !audioRef.current.paused) {
-        currentTimeRef.current = audioRef.current.currentTime;
-      } else {
-        currentTimeRef.current += delta;
-      }
+      if (paramsRef.current.isPlaying) {
+        if (audioRef.current && !audioRef.current.paused) {
+          currentTimeRef.current = audioRef.current.currentTime;
+        } else {
+          currentTimeRef.current += delta;
+        }
 
-      try {
-        motionEngineRef.current.updatePose(
-          paramsRef.current.sequence,
-          currentTimeRef.current,
-          true
-        );
-      } catch (e: any) {
-        logProbe(`⚠️ Błąd klatki animacji: ${e?.message || e}`, true);
+        try {
+          motionEngineRef.current.updatePose(
+            paramsRef.current.sequence,
+            currentTimeRef.current,
+            true
+          );
+        } catch (e: any) {}
       }
 
       if (rendererRef.current && sceneRef.current && cameraRef.current) {
@@ -271,26 +290,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
   }
 
   return (
-    <div className="bg-[#0B0B0C] border border-gray-800 rounded-xl p-3 mb-4 overflow-hidden relative">
-      {/* Sonda Diagnostyczna NA SAMEJ GÓRZE KOMPONENTU */}
-      <div ref={probeBoxRef} className="mb-3 p-2.5 bg-[#000000]/95 border border-green-500/40 rounded-lg text-[10px] font-mono text-green-400 max-h-40 overflow-y-auto z-20 relative shadow-lg">
-        <div className="font-bold text-gray-300 mb-1 border-b border-gray-800 pb-1 flex justify-between items-center">
-          <span className="flex items-center gap-1.5 text-green-400">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-ping"></span>
-            SONDA DIAGNOSTYCZNA 3D (Wszystkie wpisy są w konsoli F12)
-          </span>
-          <span className="text-[9px] bg-green-950 text-green-300 px-1.5 py-0.5 rounded">F12 Console</span>
-        </div>
-        {probeLogs.map((log, idx) => (
-          <div key={idx} className="leading-tight py-0.5 border-b border-gray-900/60 last:border-0 font-mono">
-            {log}
-          </div>
-        ))}
-        {probeLogs.length === 0 && (
-          <div className="text-gray-500 italic">Ładowanie rejestratora sondy 3D...</div>
-        )}
-      </div>
-
+    <div className="bg-[#0B0B0C] border border-gray-800 rounded-xl p-3 mb-4 overflow-hidden relative shadow-2xl">
       {isLoadingModel && (
         <div className="absolute inset-0 bg-[#0B0B0C]/90 z-10 flex flex-col items-center justify-center gap-2 text-gray-400 text-xs font-mono">
           <Loader2 size={24} className="animate-spin text-primary" />
@@ -301,20 +301,20 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
       <div className="flex justify-between items-center mb-2 px-1">
         <span className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-          Podgląd 3D Awatara dla Trenera
+          Podgląd 3D Awatara dla Trenera (Przeciągnij myszą, aby obrócić widok 360°)
         </span>
         <span className="text-xs font-mono text-primary font-bold">
           {sequence.targetBPM} BPM | {sequence.blocks.length} x 8-liczeń
         </span>
       </div>
 
-      <div ref={mountRef} className="w-full h-[260px] rounded-lg overflow-hidden relative pointer-events-none" />
+      <div ref={mountRef} className="w-full h-[380px] rounded-lg overflow-hidden relative cursor-grab active:cursor-grabbing" />
 
       <div className="flex items-center justify-between mt-3 bg-[#18181B] p-2 rounded-lg border border-gray-800">
         <button
           type="button"
           onClick={togglePlay}
-          className="flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-4 py-1.5 rounded-md font-bold text-xs transition-colors"
+          className="flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-4 py-1.5 rounded-md font-bold text-xs transition-colors cursor-pointer"
         >
           {isPlaying ? <Pause size={14} /> : <Play size={14} />}
           <span>{isPlaying ? 'Pauza' : 'Odtwórz Podgląd 3D'}</span>
@@ -323,7 +323,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
         <button
           type="button"
           onClick={resetPlay}
-          className="text-gray-400 hover:text-white p-1.5 rounded-md transition-colors"
+          className="text-gray-400 hover:text-white p-1.5 rounded-md transition-colors cursor-pointer"
           title="Od nowa"
         >
           <RotateCcw size={14} />
