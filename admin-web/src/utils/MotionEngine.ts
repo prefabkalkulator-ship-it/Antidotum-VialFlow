@@ -131,9 +131,24 @@ export class MotionEngine {
     const nativeBPM = block.nativeBPM || 100;
     const durationSeconds = (block.durationBeats * 60) / nativeBPM;
 
+    // 1. Zbierz wszystkie unikalne kości występujące w CAŁYM bloku
+    const allBoneNamesSet = new Set<string>();
+    block.keyframes.forEach((kf) => {
+      kf.rotations.forEach((r) => allBoneNamesSet.add(r.boneName));
+    });
+
     const times: number[] = [];
     const hipsPosValues: number[] = [];
     const boneTracksMap: Map<string, number[]> = new Map();
+
+    // Inicjalizacja tablic dla każdej kości
+    allBoneNamesSet.forEach((rawName) => {
+      const nodeName = this.getExactBoneNodeName(rawName);
+      boneTracksMap.set(`${nodeName}.quaternion`, []);
+    });
+
+    // Ostatnie znane rotacje dla każdej kości (fallback przy braku klucza w klatce)
+    const lastRotations = new Map<string, [number, number, number]>();
 
     const keyframes = block.keyframes;
     for (let i = 0; i < keyframes.length; i++) {
@@ -141,27 +156,29 @@ export class MotionEngine {
       const time = (kf.beatOffset * 60) / nativeBPM;
       times.push(time);
 
-      // Wyliczamy dynamiczną translację miednicy (bounce i krok w przestrzeni 3D)
+      // Aktualizuj mapę podanych rotacji w tej klatce
+      const currentKfRotations = new Map<string, [number, number, number]>();
+      kf.rotations.forEach((r) => {
+        currentKfRotations.set(r.boneName, r.rotation);
+        lastRotations.set(r.boneName, r.rotation);
+      });
+
       let hipPitch = 0;
       let hipYaw = 0;
-      let hipRoll = 0;
-      
-      kf.rotations.forEach((r) => {
-        if (r.boneName.includes('Hips')) {
-          hipPitch = r.rotation[0];
-          hipYaw = r.rotation[1];
-          hipRoll = r.rotation[2];
+
+      // Dla KAŻDEJ znanej kości dodaj wartosc dla CAŁEJ klatki kluczowej
+      allBoneNamesSet.forEach((rawName) => {
+        const rot = currentKfRotations.get(rawName) || lastRotations.get(rawName) || [0, 0, 0];
+        if (rawName.includes('Hips')) {
+          hipPitch = rot[0];
+          hipYaw = rot[1];
         }
 
-        const nodeName = this.getExactBoneNodeName(r.boneName);
+        const nodeName = this.getExactBoneNodeName(rawName);
         const trackName = `${nodeName}.quaternion`;
-
-        const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(r.rotation[0], r.rotation[1], r.rotation[2], 'XYZ'));
-        if (!boneTracksMap.has(trackName)) {
-          boneTracksMap.set(trackName, []);
-        }
-        const arr = boneTracksMap.get(trackName)!;
-        arr.push(q.x, q.y, q.z, q.w);
+        const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rot[0], rot[1], rot[2], 'XYZ'));
+        
+        boneTracksMap.get(trackName)!.push(q.x, q.y, q.z, q.w);
       });
 
       // Hips translation (dynamic bounce Y and step X/Z)
@@ -172,13 +189,15 @@ export class MotionEngine {
 
     const tracks: THREE.KeyframeTrack[] = [];
     
-    // Track translacji miednicy z dopasowaną precyzyjną nazwą kości
+    // Track translacji miednicy
     const hipsNodeName = this.getExactBoneNodeName('mixamorigHips');
     tracks.push(new THREE.VectorKeyframeTrack(`${hipsNodeName}.position`, times, hipsPosValues));
 
-    // Tracki rotacji kości
+    // Tracki rotacji kości (każdy ma TERAZ DOKŁADNIE times.length * 4 elementów!)
     boneTracksMap.forEach((values, trackName) => {
-      tracks.push(new THREE.QuaternionKeyframeTrack(trackName, times, values));
+      if (values.length === times.length * 4) {
+        tracks.push(new THREE.QuaternionKeyframeTrack(trackName, times, values));
+      }
     });
 
     return new THREE.AnimationClip(block.id || block.name, durationSeconds, tracks);
