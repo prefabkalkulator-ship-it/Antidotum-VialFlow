@@ -1377,6 +1377,10 @@ app.post('/api/coach/generate-choreo', (req, res) => {
   }
 });
 
+app.get('/api/coach/homework/results', (req, res) => {
+  res.json([]);
+});
+
 app.post('/api/coach/transition', (req, res) => {
   console.log('[Vertex AI Proxy] Żądanie in-betweening dla figur...');
   const numJoints = 24;
