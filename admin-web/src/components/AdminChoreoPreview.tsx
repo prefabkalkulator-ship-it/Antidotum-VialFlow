@@ -127,56 +127,66 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
       const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
       scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xff44aa, 2.0);
-    dirLight.position.set(2, 4, 3);
-    scene.add(dirLight);
+      const dirLight = new THREE.DirectionalLight(0xff44aa, 2.0);
+      dirLight.position.set(2, 4, 3);
+      scene.add(dirLight);
 
-    const grid = new THREE.GridHelper(10, 20, 0xf472b6, 0x27272a);
-    grid.position.y = 0;
-    scene.add(grid);
+      const grid = new THREE.GridHelper(10, 20, 0xf472b6, 0x27272a);
+      grid.position.y = 0;
+      scene.add(grid);
 
-    let yBotModel: THREE.Object3D | null = null;
-    const loader = new GLTFLoader();
+      let yBotModel: THREE.Object3D | null = null;
+      const loader = new GLTFLoader();
 
-    loader.load(
-      '/Y-Bot.glb',
-      (gltf) => {
-        if (!mountRef.current) return;
-        yBotModel = gltf.scene;
-        yBotModel.traverse((child) => {
-          if ((child as THREE.Mesh).isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-          }
-        });
-        try {
-          motionEngineRef.current.bindSkeleton(gltf.scene, gltf.animations);
-          motionEngineRef.current.updatePose(paramsRef.current.sequence, 0, true);
-        } catch (e) {
-          console.warn('Error binding initial skeleton pose:', e);
+      const renderOnce = () => {
+        if (renderer && scene && camera) {
+          renderer.render(scene, camera);
         }
-        yBotModel.position.set(0, 0, 0);
-        scene.add(yBotModel);
-        setIsLoadingModel(false);
-      },
-      undefined,
-      (err) => {
-        console.error('Error loading Y-Bot in admin preview:', err);
-        setIsLoadingModel(false);
-      }
-    );
+      };
 
-    let animId: number;
-    let lastTime = performance.now();
+      loader.load(
+        '/Y-Bot.glb',
+        (gltf) => {
+          if (!mountRef.current) return;
+          yBotModel = gltf.scene;
+          yBotModel.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+            }
+          });
+          try {
+            motionEngineRef.current.bindSkeleton(gltf.scene, gltf.animations);
+            motionEngineRef.current.updatePose(paramsRef.current.sequence, 0, true);
+          } catch (e) {
+            console.warn('Error binding initial skeleton pose:', e);
+          }
+          yBotModel.position.set(0, 0, 0);
+          scene.add(yBotModel);
+          setIsLoadingModel(false);
+          renderOnce();
+        },
+        undefined,
+        (err) => {
+          console.error('Error loading Y-Bot in admin preview:', err);
+          setIsLoadingModel(false);
+        }
+      );
 
-    const animate = () => {
-      animId = requestAnimationFrame(animate);
-      
-      const now = performance.now();
-      const delta = Math.min(0.1, (now - lastTime) / 1000);
-      lastTime = now;
+      let animId: number;
+      let lastTime = performance.now();
 
-      if (paramsRef.current.isPlaying) {
+      const animate = () => {
+        if (!paramsRef.current.isPlaying) {
+          renderOnce();
+          return;
+        }
+        animId = requestAnimationFrame(animate);
+        
+        const now = performance.now();
+        const delta = Math.min(0.1, (now - lastTime) / 1000);
+        lastTime = now;
+
         if (audioRef.current && !audioRef.current.paused) {
           currentTimeRef.current = audioRef.current.currentTime;
         } else {
@@ -192,12 +202,15 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
         } catch (e) {
           // Zapobiega zawieszaniu pętli renderującej przy błędach
         }
+
+        renderOnce();
+      };
+
+      if (isPlaying) {
+        animate();
+      } else {
+        renderOnce();
       }
-
-      renderer.render(scene, camera);
-    };
-
-    animate();
     } catch (err) {
       console.warn('WebGL Initialization error in AdminChoreoPreview:', err);
       setHasWebGLError(true);
@@ -213,7 +226,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
         } catch (e) {}
       }
     };
-  }, []);
+  }, [isPlaying]);
 
   if (hasWebGLError) {
     return (
