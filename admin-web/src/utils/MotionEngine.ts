@@ -1,239 +1,243 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { ChoreographySequence, DanceMoveBlock } from './DanceMoveLibrary';
 
+/**
+ * Katalog mapujący nazwy klipów na ścieżki do plików GLB z animacjami MoCap.
+ * Klucze to `clipName` z DanceMoveBlock, wartości to URL do pliku GLB.
+ */
+const CLIP_CATALOG: Record<string, string> = {
+  // Animacje osadzone w Y-Bot.glb (nie wymagają osobnego pliku)
+  idle: '__embedded__',
+  walk: '__embedded__',
+  run: '__embedded__',
+  agree: '__embedded__',
+  headshake: '__embedded__',
+  sad_pose: '__embedded__',
+  sneak_pose: '__embedded__',
+
+  // Animacje taneczne z osobnych plików GLB (Mixamo MoCap)
+  hiphop_bounce: '/assets/animations/hiphop_bounce.glb',
+  bboy_footwork: '/assets/animations/bboy_footwork.glb',
+  kpop_isolation: '/assets/animations/kpop_isolation.glb',
+  commercial_wave: '/assets/animations/commercial_wave.glb',
+  heels_strut: '/assets/animations/heels_strut.glb',
+};
+
+/**
+ * Mapowanie styl taneczny → preferowany clipName (fallback jeśli brak dedykowanego klipu)
+ */
+const STYLE_FALLBACKS: Record<string, string[]> = {
+  'Hip-Hop': ['hiphop_bounce', 'run', 'walk'],
+  'Breakdance': ['bboy_footwork', 'hiphop_bounce', 'run'],
+  'K-Pop': ['kpop_isolation', 'hiphop_bounce', 'walk'],
+  'Commercial': ['commercial_wave', 'walk', 'idle'],
+  'High Heels': ['heels_strut', 'commercial_wave', 'walk'],
+};
+
 export class MotionEngine {
-  private skeletonBones: Map<string, THREE.Bone> = new Map();
   private mixer: THREE.AnimationMixer | null = null;
-  private animActions: Map<string, THREE.AnimationAction> = new Map();
-  private generatedClips: Map<string, THREE.AnimationClip> = new Map();
+  private embeddedActions: Map<string, THREE.AnimationAction> = new Map();
+  private loadedActions: Map<string, THREE.AnimationAction> = new Map();
   private currentActionName: string | null = null;
   private avatarScene: THREE.Object3D | null = null;
+  private loadingClips: Set<string> = new Set();
+  private gltfLoader: GLTFLoader = new GLTFLoader();
 
   /**
-   * Rejestruje węzły szkieletu awatara 3D oraz inicjalizuje THREE.AnimationMixer
+   * Rejestruje węzły szkieletu awatara 3D oraz inicjalizuje THREE.AnimationMixer.
+   * Osadzone animacje z Y-Bot.glb są natychmiast rejestrowane jako dostępne akcje.
    */
   public bindSkeleton(scene: THREE.Object3D, embeddedAnimations: THREE.AnimationClip[] = []): void {
-    this.skeletonBones.clear();
-    this.animActions.clear();
-    this.generatedClips.clear();
+    this.embeddedActions.clear();
+    this.loadedActions.clear();
+    this.currentActionName = null;
     this.avatarScene = scene;
     this.mixer = new THREE.AnimationMixer(scene);
 
-    scene.traverse((object) => {
-      if ((object as THREE.Bone).isBone) {
-        const bone = object as THREE.Bone;
-        this.skeletonBones.set(bone.name, bone);
-        if (bone.name.startsWith('mixamorig')) {
-          const cleanName = bone.name.replace('mixamorig', '');
-          this.skeletonBones.set(cleanName, bone);
-        }
-      }
-    });
-
+    // Rejestracja osadzonych animacji z Y-Bot.glb (idle, walk, run, etc.)
     if (embeddedAnimations && embeddedAnimations.length > 0) {
       embeddedAnimations.forEach((clip) => {
         if (this.mixer) {
           const action = this.mixer.clipAction(clip);
-          this.animActions.set(clip.name.toLowerCase(), action);
+          const key = clip.name.toLowerCase();
+          this.embeddedActions.set(key, action);
+          this.loadedActions.set(key, action);
+          console.info(`[MotionEngine] Zarejestrowano osadzony klip: "${key}" (${clip.duration.toFixed(1)}s, ${clip.tracks.length} tracków)`);
         }
       });
     }
+
+    // Domyślnie odtwarzaj animację "idle" jako naturalną pozę spoczynkową
+    this.playClipByName('idle', 1.0);
   }
 
   /**
-   * Aktualizuje animację 3D za pomocą natywnego THREE.AnimationMixer z płynnym przenikaniem (cross-fade)
+   * Odtwarza klip animacyjny po nazwie z płynnym przenikaniem (crossFade).
+   * Jeśli klip jest osadzony — odtwarza natychmiast.
+   * Jeśli klip to zewnętrzny GLB — ładuje asynchronicznie, potem odtwarza.
+   */
+  public playClipByName(clipName: string, timeScale: number = 1.0, crossFadeDuration: number = 0.3): void {
+    if (!this.mixer) return;
+    const key = clipName.toLowerCase();
+
+    // Jeśli już odtwarzamy ten klip, dostosuj jedynie tempo
+    if (this.currentActionName === key) {
+      const action = this.loadedActions.get(key);
+      if (action) action.setEffectiveTimeScale(timeScale);
+      return;
+    }
+
+    // Sprawdź czy klip jest już załadowany (osadzony lub wcześniej pobrany)
+    const existingAction = this.loadedActions.get(key);
+    if (existingAction) {
+      this.crossFadeToAction(existingAction, key, timeScale, crossFadeDuration);
+      return;
+    }
+
+    // Klip zewnętrzny — załaduj GLB asynchronicznie
+    const clipUrl = CLIP_CATALOG[key];
+    if (!clipUrl || clipUrl === '__embedded__') {
+      // Brak pliku GLB, użyj fallbacku
+      console.warn(`[MotionEngine] Klip "${key}" niedostępny, fallback na "idle"`);
+      const fallback = this.loadedActions.get('idle');
+      if (fallback && this.currentActionName !== 'idle') {
+        this.crossFadeToAction(fallback, 'idle', 1.0, crossFadeDuration);
+      }
+      return;
+    }
+
+    // Unikaj wielokrotnego ładowania tego samego klipu
+    if (this.loadingClips.has(key)) return;
+    this.loadingClips.add(key);
+
+    console.info(`[MotionEngine] Ładowanie klipu tanecznego: "${key}" z ${clipUrl}...`);
+    this.gltfLoader.load(
+      clipUrl,
+      (gltf) => {
+        this.loadingClips.delete(key);
+        if (!this.mixer) return;
+
+        if (gltf.animations && gltf.animations.length > 0) {
+          const clip = gltf.animations[0];
+          const action = this.mixer.clipAction(clip);
+          this.loadedActions.set(key, action);
+          console.info(`[MotionEngine] ✅ Załadowano klip "${key}" (${clip.duration.toFixed(1)}s, ${clip.tracks.length} tracków)`);
+          this.crossFadeToAction(action, key, timeScale, crossFadeDuration);
+        } else {
+          console.warn(`[MotionEngine] Plik ${clipUrl} nie zawiera animacji`);
+        }
+      },
+      undefined,
+      (err) => {
+        this.loadingClips.delete(key);
+        console.warn(`[MotionEngine] Nie udało się załadować "${key}" z ${clipUrl}:`, err);
+        // Fallback: spróbuj odtworzyć osadzony klip
+        const fallbackName = this.findFallbackClipName(key);
+        if (fallbackName && this.currentActionName !== fallbackName) {
+          const fallback = this.loadedActions.get(fallbackName);
+          if (fallback) this.crossFadeToAction(fallback, fallbackName, timeScale, crossFadeDuration);
+        }
+      }
+    );
+  }
+
+  /**
+   * Główna metoda aktualizacji — wywoływana co klatkę renderowania.
+   * Obsługuje oś czasu sekwencji choreograficznej i przełącza klipy MoCap.
    */
   public updatePose(
     sequence: ChoreographySequence,
-    currentTimeSeconds: number,
-    isMirrorMode: boolean = false
+    delta: number,
+    _isMirrorMode: boolean = false
   ): void {
-    if (!sequence || !sequence.blocks || sequence.blocks.length === 0 || !this.mixer || !this.avatarScene) return;
+    if (!this.mixer) return;
 
+    // Aktualizuj AnimationMixer o delta czasu (kluczowe dla płynności!)
+    this.mixer.update(delta);
+
+    if (!sequence || !sequence.blocks || sequence.blocks.length === 0) return;
+
+    // Znajdź aktywny blok w sekwencji na podstawie czasu
     const bpm = sequence.targetBPM || 100;
-    
-    let totalBeats = 0;
-    sequence.blocks.forEach((b) => {
-      totalBeats += b.durationBeats;
-    });
+    const block = sequence.blocks[0]; // Na razie odtwarzamy pierwszy blok
+    if (!block) return;
 
-    if (totalBeats <= 0) return;
+    // Określ nazwę klipu do odtworzenia
+    const clipName = (block as any).clipName || this.resolveClipNameForBlock(block);
+    const timeScale = bpm / (block.nativeBPM || 100);
 
-    const beatsPerSecond = bpm / 60;
-    const currentBeat = (currentTimeSeconds * beatsPerSecond) % totalBeats;
-
-    let accumulatedBeats = 0;
-    let activeBlockIndex = 0;
-    let blockBeatOffset = 0;
-
-    for (let i = 0; i < sequence.blocks.length; i++) {
-      const block = sequence.blocks[i];
-      if (currentBeat >= accumulatedBeats && currentBeat < accumulatedBeats + block.durationBeats) {
-        activeBlockIndex = i;
-        blockBeatOffset = currentBeat - accumulatedBeats;
-        break;
-      }
-      accumulatedBeats += block.durationBeats;
-    }
-
-    const activeBlock = sequence.blocks[activeBlockIndex];
-    if (!activeBlock) return;
-
-    // Przygotuj lub pobierz wygenerowaną ścieżkę AnimationClip dla bloku tanecznego
-    const clipKey = activeBlock.id || activeBlock.name;
-    if (!this.generatedClips.has(clipKey)) {
-      const clip = this.createAnimationClipFromBlock(activeBlock);
-      if (clip) {
-        this.generatedClips.set(clipKey, clip);
-        const action = this.mixer.clipAction(clip);
-        this.animActions.set(clipKey.toLowerCase(), action);
-      }
-    }
-
-    const targetActionName = clipKey.toLowerCase();
-    if (this.currentActionName !== targetActionName) {
-      const nextAction = this.animActions.get(targetActionName);
-      const prevAction = this.currentActionName ? this.animActions.get(this.currentActionName) : null;
-
-      if (nextAction) {
-        nextAction.reset();
-        nextAction.enabled = true;
-        nextAction.setEffectiveTimeScale(bpm / (activeBlock.nativeBPM || 100));
-        nextAction.play();
-
-        if (prevAction && prevAction !== nextAction) {
-          prevAction.crossFadeTo(nextAction, 0.3, true);
-        }
-        this.currentActionName = targetActionName;
-      }
-    }
-
-    // Płynna synchronizacja z zegarem
-    this.mixer.setTime(currentTimeSeconds);
-    this.mixer.update(0);
-  }
-
-  private getExactBoneNodeName(rawName: string): string {
-    if (this.skeletonBones.has(rawName)) return this.skeletonBones.get(rawName)!.name;
-    const clean = rawName.replace('mixamorig:', '').replace('mixamorig', '');
-    if (this.skeletonBones.has(clean)) return this.skeletonBones.get(clean)!.name;
-    if (this.skeletonBones.has(`mixamorig${clean}`)) return this.skeletonBones.get(`mixamorig${clean}`)!.name;
-    if (this.skeletonBones.has(`mixamorig:${clean}`)) return this.skeletonBones.get(`mixamorig:${clean}`)!.name;
-    return rawName;
+    this.playClipByName(clipName, timeScale);
   }
 
   /**
-   * Tworzy natywny THREE.AnimationClip z 60 FPS z pełną translacją miednicy (bounce, wyskoki) i rotacjami 24 stawów
+   * Tick mixera bez zmiany klipu (do użycia gdy isPlaying=false ale scena potrzebuje idle)
    */
-  private createAnimationClipFromBlock(block: DanceMoveBlock): THREE.AnimationClip | null {
-    if (!block.keyframes || block.keyframes.length === 0) return null;
+  public tick(delta: number): void {
+    if (this.mixer) this.mixer.update(delta);
+  }
 
-    const nativeBPM = block.nativeBPM || 100;
-    const durationSeconds = (block.durationBeats * 60) / nativeBPM;
+  /**
+   * Zwraca mixer do zewnętrznej inspekcji (diagnostyka)
+   */
+  public getMixer(): THREE.AnimationMixer | null {
+    return this.mixer;
+  }
 
-    const allBoneNamesSet = new Set<string>();
-    block.keyframes.forEach((kf) => {
-      kf.rotations.forEach((r) => allBoneNamesSet.add(r.boneName));
-    });
+  /**
+   * Mapuje blok taneczny na nazwę klipu MoCap na podstawie stylu
+   */
+  private resolveClipNameForBlock(block: DanceMoveBlock): string {
+    const style = block.style || 'Hip-Hop';
+    const fallbacks = STYLE_FALLBACKS[style] || STYLE_FALLBACKS['Hip-Hop'];
 
-    // Gwarancja uwzględnienia kluczowych kości kończyn (ramiona, łokcie, kolana)
-    const essentialBones = [
-      'mixamorigLeftArm', 'mixamorigRightArm',
-      'mixamorigLeftForeArm', 'mixamorigRightForeArm',
-      'mixamorigLeftUpLeg', 'mixamorigRightUpLeg',
-      'mixamorigLeftLeg', 'mixamorigRightLeg',
-      'mixamorigHips', 'mixamorigSpine', 'mixamorigSpine2', 'mixamorigNeck'
-    ];
-    essentialBones.forEach((b) => allBoneNamesSet.add(b));
-
-    const times: number[] = [];
-    const hipsPosValues: number[] = [];
-    const boneTracksMap: Map<string, number[]> = new Map();
-
-    // Domyślna naturalna poza spoczynkowa (zamiast sztywnego T-Pose)
-    const defaultNaturalRotations: Record<string, [number, number, number]> = {
-      'mixamorigLeftArm': [0.2, 0.2, -1.2],
-      'mixamorigRightArm': [0.2, -0.2, 1.2],
-      'mixamorigLeftForeArm': [0.6, 0.2, 0.1],
-      'mixamorigRightForeArm': [0.6, -0.2, -0.1],
-      'mixamorigLeftUpLeg': [0.1, 0, 0],
-      'mixamorigRightUpLeg': [0.1, 0, 0],
-      'mixamorigLeftLeg': [0.2, 0, 0],
-      'mixamorigRightLeg': [0.2, 0, 0],
-      'mixamorigHips': [0, 0, 0],
-      'mixamorigSpine': [0.05, 0, 0],
-      'mixamorigSpine2': [0.05, 0, 0],
-      'mixamorigNeck': [0, 0, 0]
-    };
-
-    // Inicjalizacja tablic dla każdej kości
-    allBoneNamesSet.forEach((rawName) => {
-      const nodeName = this.getExactBoneNodeName(rawName);
-      boneTracksMap.set(`${nodeName}.quaternion`, []);
-    });
-
-    // Ostatnie znane rotacje dla każdej kości (fallback przy braku klucza w klatce)
-    const lastRotations = new Map<string, [number, number, number]>();
-
-    const keyframes = block.keyframes;
-    for (let i = 0; i < keyframes.length; i++) {
-      const kf = keyframes[i];
-      const time = (kf.beatOffset * 60) / nativeBPM;
-      times.push(time);
-
-      // Aktualizuj mapę podanych rotacji w tej klatce
-      const currentKfRotations = new Map<string, [number, number, number]>();
-      kf.rotations.forEach((r) => {
-        currentKfRotations.set(r.boneName, r.rotation);
-        lastRotations.set(r.boneName, r.rotation);
-      });
-
-      let hipPitch = 0;
-      let hipYaw = 0;
-      let maxKneeBend = 0;
-
-      // Dla KAŻDEJ znanej kości dodaj wartosc dla CAŁEJ klatki kluczowej
-      allBoneNamesSet.forEach((rawName) => {
-        let rot = currentKfRotations.get(rawName) || lastRotations.get(rawName) || defaultNaturalRotations[rawName] || [0, 0, 0];
-        
-        // Korekta anatomii kolan: w Mixamo kolano ugina się WYŁĄCZNIE na dodatniej osi X (+X)
-        if (rawName.includes('Leg') && !rawName.includes('UpLeg')) {
-          const clampedKneeX = Math.abs(rot[0]); // Zawsze dodatnie ugięcie kolana do tyłu (anatomia człowieka)
-          rot = [clampedKneeX, rot[1], rot[2]];
-          maxKneeBend = Math.max(maxKneeBend, clampedKneeX);
-        }
-
-        if (rawName.includes('Hips')) {
-          hipPitch = rot[0];
-          hipYaw = rot[1];
-        }
-
-        const nodeName = this.getExactBoneNodeName(rawName);
-        const trackName = `${nodeName}.quaternion`;
-        const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rot[0], rot[1], rot[2], 'XYZ'));
-        
-        boneTracksMap.get(trackName)!.push(q.x, q.y, q.z, q.w);
-      });
-
-      // Translacja miednicy: obniżanie miednicy przy ugięciu kolan utrzymujące stopy na ziemi (Contact Consistency)
-      const bounceY = -0.15 * Math.sin(maxKneeBend) - 0.05 * Math.abs(hipPitch);
-      const stepX = 0.12 * Math.sin(hipYaw);
-      hipsPosValues.push(stepX, bounceY, 0);
+    for (const candidate of fallbacks) {
+      if (this.loadedActions.has(candidate) || CLIP_CATALOG[candidate]) {
+        return candidate;
+      }
     }
 
-    const tracks: THREE.KeyframeTrack[] = [];
-    
-    // Track translacji miednicy
-    const hipsNodeName = this.getExactBoneNodeName('mixamorigHips');
-    tracks.push(new THREE.VectorKeyframeTrack(`${hipsNodeName}.position`, times, hipsPosValues));
+    // Ostateczny fallback — którakolwiek dostępna animacja
+    if (this.loadedActions.size > 0) {
+      return this.loadedActions.keys().next().value!;
+    }
+    return 'idle';
+  }
 
-    // Tracki rotacji kości (każdy ma TERAZ DOKŁADNIE times.length * 4 elementów!)
-    boneTracksMap.forEach((values, trackName) => {
-      if (values.length === times.length * 4) {
-        tracks.push(new THREE.QuaternionKeyframeTrack(trackName, times, values));
-      }
-    });
+  /**
+   * Znajduje najlepszy dostępny klip zastępczy
+   */
+  private findFallbackClipName(failedKey: string): string | null {
+    // Szukaj w osadzonych klipach: preferuj walk > run > idle
+    for (const fallback of ['walk', 'run', 'idle']) {
+      if (this.loadedActions.has(fallback)) return fallback;
+    }
+    return null;
+  }
 
-    return new THREE.AnimationClip(block.id || block.name, durationSeconds, tracks);
+  /**
+   * Płynne przejście z aktywnego klipu na nowy z crossFade
+   */
+  private crossFadeToAction(
+    nextAction: THREE.AnimationAction,
+    nextName: string,
+    timeScale: number,
+    crossFadeDuration: number
+  ): void {
+    const prevAction = this.currentActionName ? this.loadedActions.get(this.currentActionName) : null;
+
+    nextAction.reset();
+    nextAction.enabled = true;
+    nextAction.setEffectiveTimeScale(timeScale);
+    nextAction.setLoop(THREE.LoopRepeat, Infinity);
+    nextAction.clampWhenFinished = false;
+    nextAction.play();
+
+    if (prevAction && prevAction !== nextAction) {
+      prevAction.crossFadeTo(nextAction, crossFadeDuration, true);
+    }
+
+    this.currentActionName = nextName;
+    console.info(`[MotionEngine] ▶ Odtwarzanie: "${nextName}" (tempo: ${timeScale.toFixed(2)}x)`);
   }
 }

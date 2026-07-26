@@ -1024,350 +1024,82 @@ app.post('/api/coach/generate-choreo', (req, res) => {
     const { prompt = '', style = '', difficulty = '' } = req.body || {};
     const text = String(prompt).toLowerCase();
 
-    // Inteligentny wybór klocków ruchowych 3D na podstawie opisu trenera
-    let selectedMoveIds = ['hiphop_toprock_cross', 'hiphop_bounce_groove', 'comm_body_wave', 'break_toprock_basic'];
+    // Katalog bloków tanecznych z odwołaniami do klipów MoCap
+    // clipName mapuje się na plik GLB w admin-web/public/assets/animations/{clipName}.glb
+    // Jeśli plik nie istnieje, frontend używa fallbacków (walk, run, idle)
+    const CLIP_BLOCKS: Record<string, any> = {
+      'hiphop_bounce': {
+        id: 'hiphop_bounce', name: 'Hip-Hop Bounce', style: 'Hip-Hop',
+        difficulty: 'Początkujący', nativeBPM: 100, durationBeats: 8,
+        description: 'Dynamiczny bounce z pracą ramion i miednicy.',
+        tags: ['hiphop', 'bounce', 'groove'], clipName: 'hiphop_bounce', keyframes: []
+      },
+      'bboy_footwork': {
+        id: 'bboy_footwork', name: 'B-Boy Footwork', style: 'Breakdance',
+        difficulty: 'Średniozaawansowany', nativeBPM: 112, durationBeats: 8,
+        description: 'Klasyczny Indian Step z wykrętem bioder.',
+        tags: ['bboy', 'street', 'footwork'], clipName: 'bboy_footwork', keyframes: []
+      },
+      'kpop_isolation': {
+        id: 'kpop_isolation', name: 'K-Pop Sharp Isolation', style: 'K-Pop',
+        difficulty: 'Zaawansowany', nativeBPM: 120, durationBeats: 8,
+        description: 'Precyzyjne blokady ramion i klatki.',
+        tags: ['kpop', 'isolation', 'sharp'], clipName: 'kpop_isolation', keyframes: []
+      },
+      'commercial_wave': {
+        id: 'commercial_wave', name: 'Commercial Body Wave', style: 'Commercial',
+        difficulty: 'Średniozaawansowany', nativeBPM: 108, durationBeats: 8,
+        description: 'Płynna fala przechodząca od głowy przez kręgosłup do bioder.',
+        tags: ['wave', 'commercial', 'fluid'], clipName: 'commercial_wave', keyframes: []
+      },
+      'heels_strut': {
+        id: 'heels_strut', name: 'High Heels Sassy Strut', style: 'High Heels',
+        difficulty: 'Średniozaawansowany', nativeBPM: 104, durationBeats: 8,
+        description: 'Zmysłowy krok w obcasach z hip-popami.',
+        tags: ['heels', 'sassy', 'strut'], clipName: 'heels_strut', keyframes: []
+      },
+      'walk': {
+        id: 'walk', name: 'Walk Groove', style: 'Commercial',
+        difficulty: 'Początkujący', nativeBPM: 100, durationBeats: 8,
+        description: 'Chód rytmiczny zsynchronizowany z muzyką.',
+        tags: ['walk', 'basic'], clipName: 'walk', keyframes: []
+      },
+      'run': {
+        id: 'run', name: 'Run Energy', style: 'Hip-Hop',
+        difficulty: 'Początkujący', nativeBPM: 120, durationBeats: 8,
+        description: 'Energetyczny bieg z pracą ramion.',
+        tags: ['run', 'energy'], clipName: 'run', keyframes: []
+      }
+    };
+
+    // Mapowanie promptu na klipy
+    let selectedClipIds = ['hiphop_bounce', 'walk', 'commercial_wave', 'run'];
     let targetBPM = 104;
     let sequenceTitle = 'AI Wygenerowany Układ Treningowy';
 
     if (text.includes('kpop') || text.includes('k-pop') || text.includes('ostry') || text.includes('sharp')) {
-      selectedMoveIds = ['kpop_sharp_locks', 'hiphop_toprock_cross', 'comm_body_wave', 'kpop_sharp_locks'];
+      selectedClipIds = ['kpop_isolation', 'hiphop_bounce', 'commercial_wave', 'kpop_isolation'];
       targetBPM = 120;
       sequenceTitle = 'K-Pop Sharp Routine (AI)';
     } else if (text.includes('heels') || text.includes('obcas') || text.includes('zmysłow') || text.includes('sassy')) {
-      selectedMoveIds = ['heels_sassy_strut', 'comm_body_wave', 'heels_sassy_strut', 'hiphop_bounce_groove'];
+      selectedClipIds = ['heels_strut', 'commercial_wave', 'heels_strut', 'walk'];
       targetBPM = 104;
       sequenceTitle = 'High Heels Glam Routine (AI)';
     } else if (text.includes('break') || text.includes('b-boy') || text.includes('street') || text.includes('parter')) {
-      selectedMoveIds = ['break_toprock_basic', 'hiphop_toprock_cross', 'break_toprock_basic', 'hiphop_bounce_groove'];
+      selectedClipIds = ['bboy_footwork', 'hiphop_bounce', 'bboy_footwork', 'run'];
       targetBPM = 112;
       sequenceTitle = 'B-Boy Street Combo (AI)';
     } else if (text.includes('commercial') || text.includes('funk') || text.includes('fala') || text.includes('jazz')) {
-      selectedMoveIds = ['comm_body_wave', 'hiphop_bounce_groove', 'comm_body_wave', 'heels_sassy_strut'];
+      selectedClipIds = ['commercial_wave', 'walk', 'commercial_wave', 'heels_strut'];
       targetBPM = 108;
       sequenceTitle = 'Commercial Fluid Routine (AI)';
     } else if (text.includes('hip-hop') || text.includes('hiphop') || text.includes('bounce') || text.includes('groove')) {
-      selectedMoveIds = ['hiphop_toprock_cross', 'hiphop_bounce_groove', 'break_toprock_basic', 'hiphop_bounce_groove'];
+      selectedClipIds = ['hiphop_bounce', 'run', 'hiphop_bounce', 'walk'];
       targetBPM = 100;
       sequenceTitle = 'Hip-Hop Urban Routine (AI)';
     }
 
-    const DANCE_MOVE_CATALOG: Record<string, any> = {
-      'hiphop_toprock_cross': {
-        id: 'hiphop_toprock_cross',
-        name: 'Toprock Cross Step',
-        style: 'Hip-Hop',
-        difficulty: 'Początkujący',
-        nativeBPM: 100,
-        durationBeats: 8,
-        description: 'Dynamiczny krok otwarcia z krzyżowaniem nóg i pracą ramion w rytmie bounce.',
-        tags: ['toprock', 'bounce', 'footwork'],
-        keyframes: [
-          { beatOffset: 0, rotations: [
-            { boneName: 'mixamorigHips', rotation: [0.1, 0, 0] },
-            { boneName: 'mixamorigSpine', rotation: [0.1, 0, 0] },
-            { boneName: 'mixamorigSpine2', rotation: [0.15, 0, 0] },
-            { boneName: 'mixamorigNeck', rotation: [0, 0, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [0.2, 0.2, -1.1] },
-            { boneName: 'mixamorigLeftForeArm', rotation: [0.5, 0.2, 0] },
-            { boneName: 'mixamorigRightArm', rotation: [0.2, -0.2, 1.1] },
-            { boneName: 'mixamorigRightForeArm', rotation: [0.5, -0.2, 0] },
-            { boneName: 'mixamorigLeftUpLeg', rotation: [-0.2, 0.3, -0.2] },
-            { boneName: 'mixamorigLeftLeg', rotation: [-0.4, 0, 0] },
-            { boneName: 'mixamorigRightUpLeg', rotation: [-0.2, -0.3, 0.2] },
-            { boneName: 'mixamorigRightLeg', rotation: [-0.4, 0, 0] }
-          ] },
-          { beatOffset: 2, rotations: [
-            { boneName: 'mixamorigHips', rotation: [0.25, 0.4, -0.2] },
-            { boneName: 'mixamorigSpine', rotation: [0.2, 0.3, 0] },
-            { boneName: 'mixamorigSpine2', rotation: [0.3, 0.4, 0.1] },
-            { boneName: 'mixamorigNeck', rotation: [-0.1, -0.2, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [0.6, 0.4, -0.6] },
-            { boneName: 'mixamorigLeftForeArm', rotation: [0.9, 0.3, 0] },
-            { boneName: 'mixamorigRightArm', rotation: [-0.2, -0.4, 1.3] },
-            { boneName: 'mixamorigRightForeArm', rotation: [0.4, -0.2, 0] },
-            { boneName: 'mixamorigLeftUpLeg', rotation: [0.4, 0.6, -0.1] },
-            { boneName: 'mixamorigLeftLeg', rotation: [-0.8, 0, 0] },
-            { boneName: 'mixamorigRightUpLeg', rotation: [-0.4, -0.2, 0.3] },
-            { boneName: 'mixamorigRightLeg', rotation: [-0.2, 0, 0] }
-          ] },
-          { beatOffset: 4, rotations: [
-            { boneName: 'mixamorigHips', rotation: [0.1, 0, 0] },
-            { boneName: 'mixamorigSpine', rotation: [0.1, 0, 0] },
-            { boneName: 'mixamorigSpine2', rotation: [0.15, 0, 0] },
-            { boneName: 'mixamorigNeck', rotation: [0, 0, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [0.2, 0.2, -1.1] },
-            { boneName: 'mixamorigLeftForeArm', rotation: [0.5, 0.2, 0] },
-            { boneName: 'mixamorigRightArm', rotation: [0.2, -0.2, 1.1] },
-            { boneName: 'mixamorigRightForeArm', rotation: [0.5, -0.2, 0] },
-            { boneName: 'mixamorigLeftUpLeg', rotation: [-0.2, 0.3, -0.2] },
-            { boneName: 'mixamorigLeftLeg', rotation: [-0.4, 0, 0] },
-            { boneName: 'mixamorigRightUpLeg', rotation: [-0.2, -0.3, 0.2] },
-            { boneName: 'mixamorigRightLeg', rotation: [-0.4, 0, 0] }
-          ] },
-          { beatOffset: 6, rotations: [
-            { boneName: 'mixamorigHips', rotation: [0.25, -0.4, 0.2] },
-            { boneName: 'mixamorigSpine', rotation: [0.2, -0.3, 0] },
-            { boneName: 'mixamorigSpine2', rotation: [0.3, -0.4, -0.1] },
-            { boneName: 'mixamorigNeck', rotation: [-0.1, 0.2, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [-0.2, 0.4, -1.3] },
-            { boneName: 'mixamorigLeftForeArm', rotation: [0.4, 0.2, 0] },
-            { boneName: 'mixamorigRightArm', rotation: [0.6, -0.4, 0.6] },
-            { boneName: 'mixamorigRightForeArm', rotation: [0.9, -0.3, 0] },
-            { boneName: 'mixamorigLeftUpLeg', rotation: [-0.4, 0.2, -0.3] },
-            { boneName: 'mixamorigLeftLeg', rotation: [-0.2, 0, 0] },
-            { boneName: 'mixamorigRightUpLeg', rotation: [0.4, -0.6, 0.1] },
-            { boneName: 'mixamorigRightLeg', rotation: [-0.8, 0, 0] }
-          ] },
-          { beatOffset: 8, rotations: [
-            { boneName: 'mixamorigHips', rotation: [0.1, 0, 0] },
-            { boneName: 'mixamorigSpine', rotation: [0.1, 0, 0] },
-            { boneName: 'mixamorigSpine2', rotation: [0.15, 0, 0] },
-            { boneName: 'mixamorigNeck', rotation: [0, 0, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [0.2, 0.2, -1.1] },
-            { boneName: 'mixamorigLeftForeArm', rotation: [0.5, 0.2, 0] },
-            { boneName: 'mixamorigRightArm', rotation: [0.2, -0.2, 1.1] },
-            { boneName: 'mixamorigRightForeArm', rotation: [0.5, -0.2, 0] },
-            { boneName: 'mixamorigLeftUpLeg', rotation: [-0.2, 0.3, -0.2] },
-            { boneName: 'mixamorigLeftLeg', rotation: [-0.4, 0, 0] },
-            { boneName: 'mixamorigRightUpLeg', rotation: [-0.2, -0.3, 0.2] },
-            { boneName: 'mixamorigRightLeg', rotation: [-0.4, 0, 0] }
-          ] }
-        ]
-      },
-      'hiphop_bounce_groove': {
-        id: 'hiphop_bounce_groove',
-        name: 'Hip-Hop Heavy Groove',
-        style: 'Hip-Hop',
-        difficulty: 'Początkujący',
-        nativeBPM: 96,
-        durationBeats: 8,
-        description: 'Głęboki groove z opadaniem klatki piersiowej i ugięciem kolan.',
-        tags: ['groove', 'bounce'],
-        keyframes: [
-          { beatOffset: 0, rotations: [
-            { boneName: 'mixamorigHips', rotation: [0.05, 0, 0] },
-            { boneName: 'mixamorigSpine', rotation: [0.05, 0, 0] },
-            { boneName: 'mixamorigSpine2', rotation: [0.1, 0, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [0.5, 0.2, 0.3] },
-            { boneName: 'mixamorigRightArm', rotation: [0.5, -0.2, -0.3] },
-            { boneName: 'mixamorigLeftUpLeg', rotation: [-0.1, 0, -0.1] },
-            { boneName: 'mixamorigLeftLeg', rotation: [-0.2, 0, 0] },
-            { boneName: 'mixamorigRightUpLeg', rotation: [-0.1, 0, 0.1] },
-            { boneName: 'mixamorigRightLeg', rotation: [-0.2, 0, 0] }
-          ] },
-          { beatOffset: 2, rotations: [
-            { boneName: 'mixamorigHips', rotation: [0.4, 0, 0] },
-            { boneName: 'mixamorigSpine', rotation: [0.4, 0, 0] },
-            { boneName: 'mixamorigSpine2', rotation: [0.5, 0, 0] },
-            { boneName: 'mixamorigNeck', rotation: [-0.2, 0, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [1.1, 0.4, 0.8] },
-            { boneName: 'mixamorigLeftForeArm', rotation: [1.0, 0, 0] },
-            { boneName: 'mixamorigRightArm', rotation: [1.1, -0.4, -0.8] },
-            { boneName: 'mixamorigRightForeArm', rotation: [1.0, 0, 0] },
-            { boneName: 'mixamorigLeftUpLeg', rotation: [-0.4, 0.1, -0.15] },
-            { boneName: 'mixamorigLeftLeg', rotation: [-0.75, 0, 0] },
-            { boneName: 'mixamorigRightUpLeg', rotation: [-0.4, -0.1, 0.15] },
-            { boneName: 'mixamorigRightLeg', rotation: [-0.75, 0, 0] }
-          ] },
-          { beatOffset: 4, rotations: [
-            { boneName: 'mixamorigHips', rotation: [0.05, 0, 0] },
-            { boneName: 'mixamorigSpine', rotation: [0.05, 0, 0] },
-            { boneName: 'mixamorigSpine2', rotation: [0.1, 0, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [0.5, 0.2, 0.3] },
-            { boneName: 'mixamorigRightArm', rotation: [0.5, -0.2, -0.3] },
-            { boneName: 'mixamorigLeftUpLeg', rotation: [-0.1, 0, -0.1] },
-            { boneName: 'mixamorigLeftLeg', rotation: [-0.2, 0, 0] },
-            { boneName: 'mixamorigRightUpLeg', rotation: [-0.1, 0, 0.1] },
-            { boneName: 'mixamorigRightLeg', rotation: [-0.2, 0, 0] }
-          ] },
-          { beatOffset: 6, rotations: [
-            { boneName: 'mixamorigHips', rotation: [0.4, 0, 0] },
-            { boneName: 'mixamorigSpine', rotation: [0.4, 0, 0] },
-            { boneName: 'mixamorigSpine2', rotation: [0.5, 0, 0] },
-            { boneName: 'mixamorigNeck', rotation: [-0.2, 0, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [1.1, 0.4, 0.8] },
-            { boneName: 'mixamorigLeftForeArm', rotation: [1.0, 0, 0] },
-            { boneName: 'mixamorigRightArm', rotation: [1.1, -0.4, -0.8] },
-            { boneName: 'mixamorigRightForeArm', rotation: [1.0, 0, 0] },
-            { boneName: 'mixamorigLeftUpLeg', rotation: [-0.4, 0.1, -0.15] },
-            { boneName: 'mixamorigLeftLeg', rotation: [-0.75, 0, 0] },
-            { boneName: 'mixamorigRightUpLeg', rotation: [-0.4, -0.1, 0.15] },
-            { boneName: 'mixamorigRightLeg', rotation: [-0.75, 0, 0] }
-          ] },
-          { beatOffset: 8, rotations: [
-            { boneName: 'mixamorigHips', rotation: [0.05, 0, 0] },
-            { boneName: 'mixamorigSpine', rotation: [0.05, 0, 0] },
-            { boneName: 'mixamorigSpine2', rotation: [0.1, 0, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [0.5, 0.2, 0.3] },
-            { boneName: 'mixamorigRightArm', rotation: [0.5, -0.2, -0.3] },
-            { boneName: 'mixamorigLeftUpLeg', rotation: [-0.1, 0, -0.1] },
-            { boneName: 'mixamorigLeftLeg', rotation: [-0.2, 0, 0] },
-            { boneName: 'mixamorigRightUpLeg', rotation: [-0.1, 0, 0.1] },
-            { boneName: 'mixamorigRightLeg', rotation: [-0.2, 0, 0] }
-          ] }
-        ]
-      },
-      'comm_body_wave': {
-        id: 'comm_body_wave',
-        name: 'Commercial Fluid Body Wave',
-        style: 'Commercial',
-        difficulty: 'Średniozaawansowany',
-        nativeBPM: 108,
-        durationBeats: 8,
-        description: 'Płynna fala przechodząca od głowy przez kręgosłup do bioder.',
-        tags: ['wave', 'commercial'],
-        keyframes: [
-          { beatOffset: 0, rotations: [
-            { boneName: 'mixamorigNeck', rotation: [-0.3, 0, 0] },
-            { boneName: 'mixamorigSpine', rotation: [-0.1, 0, 0] },
-            { boneName: 'mixamorigSpine2', rotation: [-0.1, 0, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [0.2, 0.4, 1.2] },
-            { boneName: 'mixamorigRightArm', rotation: [0.2, -0.4, -1.2] }
-          ] },
-          { beatOffset: 2, rotations: [
-            { boneName: 'mixamorigNeck', rotation: [0.4, 0, 0] },
-            { boneName: 'mixamorigSpine', rotation: [-0.2, 0, 0] },
-            { boneName: 'mixamorigSpine2', rotation: [-0.3, 0, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [0.6, 0.2, 0.8] },
-            { boneName: 'mixamorigRightArm', rotation: [0.6, -0.2, -0.8] }
-          ] },
-          { beatOffset: 4, rotations: [
-            { boneName: 'mixamorigNeck', rotation: [0, 0, 0] },
-            { boneName: 'mixamorigSpine', rotation: [0.3, 0, 0] },
-            { boneName: 'mixamorigSpine2', rotation: [0.4, 0, 0] },
-            { boneName: 'mixamorigHips', rotation: [-0.2, 0, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [0.8, 0, 0.4] },
-            { boneName: 'mixamorigRightArm', rotation: [0.8, 0, -0.4] }
-          ] },
-          { beatOffset: 6, rotations: [
-            { boneName: 'mixamorigNeck', rotation: [-0.2, 0, 0] },
-            { boneName: 'mixamorigSpine', rotation: [0.1, 0, 0] },
-            { boneName: 'mixamorigSpine2', rotation: [0.1, 0, 0] },
-            { boneName: 'mixamorigHips', rotation: [0.3, 0, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [0.4, 0.3, 1.0] },
-            { boneName: 'mixamorigRightArm', rotation: [0.4, -0.3, -1.0] }
-          ] },
-          { beatOffset: 8, rotations: [
-            { boneName: 'mixamorigNeck', rotation: [-0.3, 0, 0] },
-            { boneName: 'mixamorigSpine', rotation: [-0.1, 0, 0] },
-            { boneName: 'mixamorigSpine2', rotation: [-0.1, 0, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [0.2, 0.4, 1.2] },
-            { boneName: 'mixamorigRightArm', rotation: [0.2, -0.4, -1.2] }
-          ] }
-        ]
-      },
-      'break_toprock_basic': {
-        id: 'break_toprock_basic',
-        name: 'B-Boy Toprock Indian Step',
-        style: 'Breakdance',
-        difficulty: 'Średniozaawansowany',
-        nativeBPM: 112,
-        durationBeats: 8,
-        description: 'Klasyczny Indian Step z wykrętem bioder i mocnym otwarciem rąk.',
-        tags: ['bboy', 'street'],
-        keyframes: [
-          { beatOffset: 0, rotations: [
-            { boneName: 'mixamorigHips', rotation: [0.2, 0.6, -0.1] },
-            { boneName: 'mixamorigSpine', rotation: [0.2, 0.4, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [1.4, 0.5, 0.8] },
-            { boneName: 'mixamorigRightArm', rotation: [-0.4, -0.5, -0.4] },
-            { boneName: 'mixamorigLeftUpLeg', rotation: [0.5, 0.4, 0.1] },
-            { boneName: 'mixamorigLeftLeg', rotation: [-0.9, 0, 0] },
-            { boneName: 'mixamorigRightUpLeg', rotation: [-0.3, -0.2, 0.2] },
-            { boneName: 'mixamorigRightLeg', rotation: [-0.3, 0, 0] }
-          ] },
-          { beatOffset: 4, rotations: [
-            { boneName: 'mixamorigHips', rotation: [0.2, -0.6, 0.1] },
-            { boneName: 'mixamorigSpine', rotation: [0.2, -0.4, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [-0.4, 0.5, 0.4] },
-            { boneName: 'mixamorigRightArm', rotation: [1.4, -0.5, -0.8] },
-            { boneName: 'mixamorigLeftUpLeg', rotation: [-0.3, 0.2, -0.2] },
-            { boneName: 'mixamorigLeftLeg', rotation: [-0.3, 0, 0] },
-            { boneName: 'mixamorigRightUpLeg', rotation: [0.5, -0.4, -0.1] },
-            { boneName: 'mixamorigRightLeg', rotation: [-0.9, 0, 0] }
-          ] },
-          { beatOffset: 8, rotations: [
-            { boneName: 'mixamorigHips', rotation: [0.2, 0.6, -0.1] },
-            { boneName: 'mixamorigSpine', rotation: [0.2, 0.4, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [1.4, 0.5, 0.8] },
-            { boneName: 'mixamorigRightArm', rotation: [-0.4, -0.5, -0.4] },
-            { boneName: 'mixamorigLeftUpLeg', rotation: [0.5, 0.4, 0.1] },
-            { boneName: 'mixamorigLeftLeg', rotation: [-0.9, 0, 0] },
-            { boneName: 'mixamorigRightUpLeg', rotation: [-0.3, -0.2, 0.2] },
-            { boneName: 'mixamorigRightLeg', rotation: [-0.3, 0, 0] }
-          ] }
-        ]
-      },
-      'heels_sassy_strut': {
-        id: 'heels_sassy_strut',
-        name: 'High Heels Sassy Strut',
-        style: 'High Heels',
-        difficulty: 'Średniozaawansowany',
-        nativeBPM: 104,
-        durationBeats: 8,
-        description: 'Zmysłowy krok w obcasach z hip-popami.',
-        tags: ['heels', 'sassy'],
-        keyframes: [
-          { beatOffset: 0, rotations: [
-            { boneName: 'mixamorigHips', rotation: [0.1, 0.4, -0.3] },
-            { boneName: 'mixamorigSpine', rotation: [-0.1, -0.2, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [1.8, 0.6, 0.4] },
-            { boneName: 'mixamorigRightArm', rotation: [0.3, -0.4, -0.8] }
-          ] },
-          { beatOffset: 4, rotations: [
-            { boneName: 'mixamorigHips', rotation: [0.1, -0.4, 0.3] },
-            { boneName: 'mixamorigSpine', rotation: [-0.1, 0.2, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [0.3, 0.4, 0.8] },
-            { boneName: 'mixamorigRightArm', rotation: [1.8, -0.6, -0.4] }
-          ] },
-          { beatOffset: 8, rotations: [
-            { boneName: 'mixamorigHips', rotation: [0.1, 0.4, -0.3] },
-            { boneName: 'mixamorigSpine', rotation: [-0.1, -0.2, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [1.8, 0.6, 0.4] },
-            { boneName: 'mixamorigRightArm', rotation: [0.3, -0.4, -0.8] }
-          ] }
-        ]
-      },
-      'kpop_sharp_locks': {
-        id: 'kpop_sharp_locks',
-        name: 'K-Pop Sharp Isolation',
-        style: 'K-Pop',
-        difficulty: 'Zaawansowany',
-        nativeBPM: 120,
-        durationBeats: 8,
-        description: 'Precyzyjne blokady ramion i klatki.',
-        tags: ['kpop', 'isolation'],
-        keyframes: [
-          { beatOffset: 0, rotations: [
-            { boneName: 'mixamorigSpine2', rotation: [0.2, 0, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [1.5, 1.2, 0] },
-            { boneName: 'mixamorigRightArm', rotation: [1.5, -1.2, 0] }
-          ] },
-          { beatOffset: 2, rotations: [
-            { boneName: 'mixamorigSpine2', rotation: [-0.2, 0, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [0.8, 0, 1.4] },
-            { boneName: 'mixamorigRightArm', rotation: [0.8, 0, -1.4] }
-          ] },
-          { beatOffset: 4, rotations: [
-            { boneName: 'mixamorigHips', rotation: [0, 0.3, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [1.8, 0.5, 0.2] },
-            { boneName: 'mixamorigRightArm', rotation: [0.2, -0.8, -0.8] }
-          ] },
-          { beatOffset: 6, rotations: [
-            { boneName: 'mixamorigHips', rotation: [0, -0.3, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [0.2, 0.8, 0.8] },
-            { boneName: 'mixamorigRightArm', rotation: [1.8, -0.5, -0.2] }
-          ] },
-          { beatOffset: 8, rotations: [
-            { boneName: 'mixamorigSpine2', rotation: [0.2, 0, 0] },
-            { boneName: 'mixamorigLeftArm', rotation: [1.5, 1.2, 0] },
-            { boneName: 'mixamorigRightArm', rotation: [1.5, -1.2, 0] }
-          ] }
-        ]
-      }
-    };
-
-    const blocks = selectedMoveIds.map(id => DANCE_MOVE_CATALOG[id] || DANCE_MOVE_CATALOG['hiphop_toprock_cross']);
+    const blocks = selectedClipIds.map(id => CLIP_BLOCKS[id] || CLIP_BLOCKS['walk']);
 
     res.json({
       success: true,
@@ -1419,6 +1151,7 @@ app.post('/api/coach/generate-edge-dance', (req, res) => {
           durationBeats: 8,
           description: 'Początkowy krok otwarcia z dynamiczną pracą bioder i miednicy.',
           tags: ['edge', 'mocap', 'bounce'],
+          clipName: 'hiphop_bounce',
           keyframes: [
             { beatOffset: 0, rotations: [
               { boneName: 'mixamorigHips', rotation: [0.15, 0, 0] },

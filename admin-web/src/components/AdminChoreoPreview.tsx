@@ -193,7 +193,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
 
               try {
                 motionEngineRef.current.bindSkeleton(gltf.scene, gltf.animations);
-                motionEngineRef.current.updatePose(paramsRef.current.sequence, 0, true);
+                logProbe('Powiązano szkielet + osadzone animacje MoCap');
               } catch (e: any) {
                 logProbe(`Ostrzeżenie szkieletu: ${e?.message || e}`, true);
               }
@@ -260,9 +260,14 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
         try {
           motionEngineRef.current.updatePose(
             paramsRef.current.sequence,
-            currentTimeRef.current,
+            delta,
             true
           );
+        } catch (e: any) {}
+      } else {
+        // Nawet na pauzie: odtwarzaj idle (oddychanie) przez tick mixera
+        try {
+          motionEngineRef.current.tick(delta);
         } catch (e: any) {}
       }
 

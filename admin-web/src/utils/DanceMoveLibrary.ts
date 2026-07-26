@@ -18,6 +18,10 @@ export interface DanceMoveBlock {
   description: string;
   tags: string[];
   keyframes: PoseKeyframe[];
+  /** Nazwa klipu MoCap z katalogu (np. 'hiphop_bounce'). Gdy podana, MotionEngine ładuje GLB zamiast proceduralnych keyframes. */
+  clipName?: string;
+  /** URL do pliku GLB z animacją MoCap. Opcjonalny — jeśli brak, MotionEngine szuka w domyślnym katalogu. */
+  clipUrl?: string;
 }
 
 export interface ChoreographySequence {
