@@ -128,6 +128,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
           }
         });
         motionEngineRef.current.bindSkeleton(gltf.scene, gltf.animations);
+        motionEngineRef.current.updatePose(paramsRef.current.sequence, 0, true);
         yBotModel.position.set(0, 0, 0);
         scene.add(yBotModel);
       },
@@ -151,13 +152,13 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
         } else {
           currentTimeRef.current += delta;
         }
-      }
 
-      motionEngineRef.current.updatePose(
-        paramsRef.current.sequence,
-        currentTimeRef.current,
-        true // Mirror view for instructor
-      );
+        motionEngineRef.current.updatePose(
+          paramsRef.current.sequence,
+          currentTimeRef.current,
+          true // Mirror view for instructor
+        );
+      }
 
       controls.update();
       renderer.render(scene, camera);
