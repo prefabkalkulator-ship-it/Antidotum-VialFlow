@@ -143,12 +143,13 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
     scene.add(grid);
 
     let yBotModel: THREE.Object3D | null = null;
+    const loader = new GLTFLoader();
 
-    loadGLTFOnce()
-      .then((gltfData) => {
+    loader.load(
+      '/Y-Bot.glb',
+      (gltf) => {
         if (!mountRef.current) return;
-        const clonedScene = SkeletonUtils.clone(gltfData.scene) as THREE.Object3D;
-        yBotModel = clonedScene;
+        yBotModel = gltf.scene;
         yBotModel.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
             child.castShadow = true;
@@ -156,7 +157,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
           }
         });
         try {
-          motionEngineRef.current.bindSkeleton(clonedScene, gltfData.animations);
+          motionEngineRef.current.bindSkeleton(gltf.scene, gltf.animations);
           motionEngineRef.current.updatePose(paramsRef.current.sequence, 0, true);
         } catch (e) {
           console.warn('Error binding initial skeleton pose:', e);
@@ -164,11 +165,13 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
         yBotModel.position.set(0, 0, 0);
         scene.add(yBotModel);
         setIsLoadingModel(false);
-      })
-      .catch((err) => {
+      },
+      undefined,
+      (err) => {
         console.error('Error loading Y-Bot in admin preview:', err);
         setIsLoadingModel(false);
-      });
+      }
+    );
 
     let animId: number;
     let lastTime = performance.now();
@@ -202,6 +205,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
       renderer.render(scene, camera);
     };
 
+    animate();
     } catch (err) {
       console.warn('WebGL Initialization error in AdminChoreoPreview:', err);
       setHasWebGLError(true);

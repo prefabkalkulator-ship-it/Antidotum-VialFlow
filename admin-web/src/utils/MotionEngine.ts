@@ -110,6 +110,7 @@ export class MotionEngine {
 
     // Płynna synchronizacja z zegarem
     this.mixer.setTime(currentTimeSeconds);
+    this.mixer.update(0);
   }
 
   private getExactBoneNodeName(rawName: string): string {
