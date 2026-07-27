@@ -1,7 +1,12 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { ChoreographySequence, DanceMoveBlock } from './DanceMoveLibrary';
+
+interface SwapModel {
+  scene: THREE.Object3D;
+  mixer: THREE.AnimationMixer;
+  action: THREE.AnimationAction;
+}
 
 /**
  * Katalog mapujący nazwy klipów na animacje.
@@ -36,10 +41,10 @@ const STYLE_FALLBACKS: Record<string, string[]> = {
 export class MotionEngine {
   private mixer: THREE.AnimationMixer | null = null;
   private embeddedActions: Map<string, THREE.AnimationAction> = new Map();
-  private loadedActions: Map<string, THREE.AnimationAction> = new Map();
+  private loadedActions: Map<string, THREE.AnimationAction> = new Map(); // Used just for checking existence
+  private swapModels: Map<string, SwapModel> = new Map();
   private currentActionName: string | null = null;
   private avatarScene: THREE.Object3D | null = null;
-  private loadingClips: Set<string> = new Set();
   private gltfLoader: GLTFLoader = new GLTFLoader();
 
   /**
@@ -70,64 +75,105 @@ export class MotionEngine {
   }
 
   /**
-   * Asynchronicznie ładuje paczkę GLB z MOCAP i na w locie przelicza kwaterniony różnic macierzowych (LRA) na siatkę docelową
-   * używając zaawansowanej matematyki SkeletonUtils.retargetClip!
+   * Ładuje całe pliki MOCAP jako oddzielne instancje modeli (Model Swapping).
+   * Omija problem macierzy szkieletów Y-Up vs Z-Up, ponieważ każda animacja
+   * ma własną powłokę "With Skin", z którą działa bezbłędnie.
    */
   public async loadRemoteAnimations(animUrls: {name: string, url: string}[]): Promise<void> {
-    if (!this.avatarScene || !this.mixer) return;
-    
-    // Potrzebujemy "source" szkieletu i "target" szkieletu. 
-    // Target to ten podany w bindSkeleton (czyli this.avatarScene)
-    const target = this.avatarScene;
+    if (!this.avatarScene) return;
 
     const loader = new GLTFLoader();
     for (const {name, url} of animUrls) {
-      if (this.loadedActions.has(name)) continue;
+      if (this.swapModels.has(name)) continue;
 
       try {
         const gltf = await loader.loadAsync(url);
         if (gltf.animations.length > 0) {
-          const sourceClip = gltf.animations[0]; // Pierwsza i jedyna animacja w paczce
-          
-          // Magia THREEJS! Runtime przeliczenie macierzy kości miednicy i ramion względem obu siatek rest-pose
-          const retargetedClip = (SkeletonUtils as any).retargetClip(target, gltf.scene, sourceClip);
-          retargetedClip.name = name;
+          const clip = gltf.animations[0];
+          const scene = gltf.scene;
 
-          const action = this.mixer.clipAction(retargetedClip);
+          // Dopasowanie estetyki Neon Vibes na nowych siatkach
+          scene.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+              const mesh = child as THREE.Mesh;
+              if (mesh.material && (mesh.material as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
+                const mat = mesh.material as THREE.MeshStandardMaterial;
+                mat.metalness = 0.5;
+                mat.roughness = 0.2;
+                mat.color = new THREE.Color(0x887799);
+              }
+            }
+          });
+
+          scene.position.set(0, 0, 0);
+          scene.visible = false; // Domyślnie w ukryciu
+          
+          if (this.avatarScene.parent) {
+             this.avatarScene.parent.add(scene);
+          }
+
+          const modelMixer = new THREE.AnimationMixer(scene);
+          const action = modelMixer.clipAction(clip);
+          action.setLoop(THREE.LoopRepeat, Infinity);
+          action.play();
+
+          this.swapModels.set(name, { scene, mixer: modelMixer, action });
           this.loadedActions.set(name, action);
-          console.info(`[MotionEngine] Zarejestrowano klip (Runtime Retarget): "${name}" (${retargetedClip.duration.toFixed(1)}s)`);
+          
+          console.info(`[MotionEngine] Zarejestrowano Swap Model: "${name}" (${clip.duration.toFixed(1)}s)`);
         }
       } catch (err) {
-        console.error(`Nie udało się pobrać i zretargetować: ${name}`, err);
+        console.error(`Nie udało się pobrać Swap Modelu: ${name}`, err);
       }
     }
   }
 
   /**
-   * Odtwarza klip animacyjny po nazwie z zatrzymaniem poprzednich akcji.
+   * Odtwarza klip używając techniki Model Swapping.
    */
   public playClipByName(clipName: string, timeScale: number = 1.0, crossFadeDuration: number = 0.3): void {
-    if (!this.mixer) return;
+    if (!this.mixer || !this.avatarScene) return;
     const key = clipName.toLowerCase();
-
-    if (this.currentActionName === key) {
-      const action = this.loadedActions.get(key);
-      if (action) action.setEffectiveTimeScale(timeScale);
-      return;
+    
+    let activeKey = key;
+    if (!this.swapModels.has(key) && !this.embeddedActions.has(key)) {
+       activeKey = this.findFallbackClipName(key) || 'idle';
     }
 
-    const existingAction = this.loadedActions.get(key);
-    if (existingAction) {
-      this.crossFadeToAction(existingAction, key, timeScale, crossFadeDuration);
-      return;
+    if (this.currentActionName === activeKey) {
+       if (this.swapModels.has(activeKey)) {
+          this.swapModels.get(activeKey)!.action.setEffectiveTimeScale(timeScale);
+       } else if (this.embeddedActions.has(activeKey)) {
+          this.embeddedActions.get(activeKey)!.setEffectiveTimeScale(timeScale);
+       }
+       return;
     }
 
-    // Jeśli klip nie jest osadzony w pamięci, użyj fallbacku
-    const fallbackName = this.findFallbackClipName(key);
-    const fallback = fallbackName ? this.loadedActions.get(fallbackName) : null;
-    if (fallback) {
-      this.crossFadeToAction(fallback, fallbackName || 'idle', 1.0, crossFadeDuration);
+    // SWAP: Hide current model
+    if (this.currentActionName) {
+       if (this.swapModels.has(this.currentActionName)) {
+          this.swapModels.get(this.currentActionName)!.scene.visible = false;
+       } else {
+          this.avatarScene.visible = false;
+       }
     }
+
+    // SWAP: Show new model and reset action
+    if (this.swapModels.has(activeKey)) {
+       const swap = this.swapModels.get(activeKey)!;
+       swap.scene.visible = true;
+       swap.action.reset();
+       swap.action.setEffectiveTimeScale(timeScale);
+       swap.action.play();
+    } else if (this.embeddedActions.has(activeKey)) {
+       this.avatarScene.visible = true;
+       const action = this.embeddedActions.get(activeKey)!;
+       action.reset();
+       action.setEffectiveTimeScale(timeScale);
+       action.play();
+    }
+
+    this.currentActionName = activeKey;
   }
 
   /**
@@ -142,6 +188,7 @@ export class MotionEngine {
     if (!this.mixer) return;
 
     this.mixer.update(delta);
+    this.swapModels.forEach(m => m.mixer.update(delta));
 
     if (!sequence || !sequence.blocks || sequence.blocks.length === 0) return;
 
@@ -186,13 +233,11 @@ export class MotionEngine {
     if (!this.mixer) return;
 
     if (this.currentActionName !== 'idle') {
-      const idleAction = this.loadedActions.get('idle') || this.embeddedActions.get('idle');
-      if (idleAction) {
-        this.crossFadeToAction(idleAction, 'idle', 1.0, 0.3);
-      }
+      this.playClipByName('idle', 1.0);
     }
 
     this.mixer.update(delta);
+    this.swapModels.forEach(m => m.mixer.update(delta));
   }
 
   public getMixer(): THREE.AnimationMixer | null {
@@ -225,28 +270,6 @@ export class MotionEngine {
     timeScale: number,
     crossFadeDuration: number
   ): void {
-    if (this.currentActionName === nextName && nextAction.isRunning()) {
-      nextAction.setEffectiveTimeScale(timeScale);
-      return;
-    }
-
-    const prevAction = this.currentActionName 
-      ? (this.loadedActions.get(this.currentActionName) || this.embeddedActions.get(this.currentActionName)) 
-      : null;
-
-    nextAction.reset();
-    nextAction.enabled = true;
-    nextAction.setEffectiveTimeScale(timeScale);
-    nextAction.setEffectiveWeight(1.0);
-    nextAction.setLoop(THREE.LoopRepeat, Infinity);
-    nextAction.clampWhenFinished = false;
-    nextAction.play();
-
-    if (prevAction && prevAction !== nextAction) {
-      nextAction.crossFadeFrom(prevAction, crossFadeDuration, true);
-    }
-
-    this.currentActionName = nextName;
-    console.info(`[MotionEngine] ▶ Odtwarzanie osadzonej animacji: "${nextName}" (tempo: ${timeScale.toFixed(2)}x, crossFade: ${crossFadeDuration}s)`);
+    // CrossFading usunięty na rzecz natychmiastowego swapu. Metoda zdeprecjonowana.
   }
 }
