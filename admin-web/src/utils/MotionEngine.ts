@@ -184,9 +184,6 @@ export class MotionEngine {
     return 'idle';
   }
 
-  /**
-   * Zatrzymuje poprzednio odtwarzane akcje i przełącza na akcję taneczną z crossFade.
-   */
   private crossFadeToAction(
     nextAction: THREE.AnimationAction,
     nextName: string,
@@ -198,21 +195,23 @@ export class MotionEngine {
       return;
     }
 
-    // Zatrzymujemy poprzednie akcje
-    this.loadedActions.forEach((action, key) => {
-      if (key !== nextName && action !== nextAction) {
-        action.stop();
-      }
-    });
+    const prevAction = this.currentActionName 
+      ? (this.loadedActions.get(this.currentActionName) || this.embeddedActions.get(this.currentActionName)) 
+      : null;
 
     nextAction.reset();
     nextAction.enabled = true;
     nextAction.setEffectiveTimeScale(timeScale);
+    nextAction.setEffectiveWeight(1.0);
     nextAction.setLoop(THREE.LoopRepeat, Infinity);
     nextAction.clampWhenFinished = false;
     nextAction.play();
 
+    if (prevAction && prevAction !== nextAction) {
+      nextAction.crossFadeFrom(prevAction, crossFadeDuration, true);
+    }
+
     this.currentActionName = nextName;
-    console.info(`[MotionEngine] ▶ Odtwarzanie osadzonej animacji: "${nextName}" (tempo: ${timeScale.toFixed(2)}x)`);
+    console.info(`[MotionEngine] ▶ Odtwarzanie osadzonej animacji: "${nextName}" (tempo: ${timeScale.toFixed(2)}x, crossFade: ${crossFadeDuration}s)`);
   }
 }
