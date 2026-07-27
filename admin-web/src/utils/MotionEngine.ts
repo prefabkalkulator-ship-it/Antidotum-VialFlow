@@ -3,10 +3,10 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { ChoreographySequence, DanceMoveBlock } from './DanceMoveLibrary';
 
 /**
- * Katalog mapujący nazwy klipów na ścieżki do plików GLB z animacjami MoCap.
+ * Katalog mapujący nazwy klipów na animacje.
+ * Wszystkie 12 animacji (w tym 5 tanecznych) są osadzone bezpośrednio w Y-Bot.glb!
  */
 const CLIP_CATALOG: Record<string, string> = {
-  // Animacje osadzone w Y-Bot.glb
   idle: '__embedded__',
   walk: '__embedded__',
   run: '__embedded__',
@@ -15,25 +15,21 @@ const CLIP_CATALOG: Record<string, string> = {
   sad_pose: '__embedded__',
   sneak_pose: '__embedded__',
 
-  // Dedykowane animacje taneczne MoCap z plików GLB (pełne 23 kości)
-  hiphop_bounce: '/assets/animations/hiphop_bounce.glb',
-  bboy_footwork: '/assets/animations/bboy_footwork.glb',
-  kpop_isolation: '/assets/animations/kpop_isolation.glb',
-  commercial_wave: '/assets/animations/commercial_wave.glb',
-  heels_strut: '/assets/animations/heels_strut.glb',
-  dance: '/assets/animations/dance.glb',
-  dance_hiphop: '/assets/animations/dance_hiphop.glb',
+  hiphop_bounce: '__embedded__',
+  bboy_footwork: '__embedded__',
+  kpop_isolation: '__embedded__',
+  commercial_wave: '__embedded__',
+  heels_strut: '__embedded__',
+  dance: '__embedded__',
+  dance_hiphop: '__embedded__',
 };
 
-/**
- * Mapowanie styl taneczny → preferowany klip
- */
 const STYLE_FALLBACKS: Record<string, string[]> = {
-  'Hip-Hop': ['hiphop_bounce', 'dance_hiphop', 'dance'],
-  'Breakdance': ['bboy_footwork', 'dance', 'hiphop_bounce'],
-  'K-Pop': ['kpop_isolation', 'dance_hiphop', 'dance'],
-  'Commercial': ['commercial_wave', 'dance', 'dance_hiphop'],
-  'High Heels': ['heels_strut', 'dance_hiphop', 'dance'],
+  'Hip-Hop': ['hiphop_bounce', 'run'],
+  'Breakdance': ['bboy_footwork', 'hiphop_bounce'],
+  'K-Pop': ['kpop_isolation', 'hiphop_bounce'],
+  'Commercial': ['commercial_wave', 'walk'],
+  'High Heels': ['heels_strut', 'commercial_wave'],
 };
 
 export class MotionEngine {
@@ -47,6 +43,7 @@ export class MotionEngine {
 
   /**
    * Rejestruje szkielet awatara 3D oraz inicjalizuje THREE.AnimationMixer.
+   * Wszystkie osadzone animacje z Y-Bot.glb są natychmiastowo rejestrowane.
    */
   public bindSkeleton(scene: THREE.Object3D, embeddedAnimations: THREE.AnimationClip[] = []): void {
     this.embeddedActions.clear();
@@ -67,38 +64,8 @@ export class MotionEngine {
       });
     }
 
-    // Pre-load wszystkich 5 tanecznych plików GLB natychmiast po załadowaniu sceny
-    this.preloadDanceClips();
-
     // Domyślnie odtwarzaj animację "idle"
     this.playClipByName('idle', 1.0);
-  }
-
-  /**
-   * Natychmiastowo ładuje w tle wszystkie 5 dedykowanych animacji tanecznych
-   */
-  private preloadDanceClips(): void {
-    const clipsToPreload = ['hiphop_bounce', 'bboy_footwork', 'kpop_isolation', 'commercial_wave', 'heels_strut', 'dance_hiphop', 'dance'];
-    clipsToPreload.forEach((key) => {
-      const clipUrl = CLIP_CATALOG[key];
-      if (clipUrl && clipUrl !== '__embedded__' && !this.loadedActions.has(key) && !this.loadingClips.has(key)) {
-        this.loadingClips.add(key);
-        this.gltfLoader.load(
-          clipUrl,
-          (gltf) => {
-            this.loadingClips.delete(key);
-            if (this.mixer && gltf.animations && gltf.animations.length > 0) {
-              const clip = gltf.animations[0];
-              const action = this.mixer.clipAction(clip);
-              this.loadedActions.set(key, action);
-              console.info(`[MotionEngine] ✅ Preloaded dance clip "${key}" (${clip.duration.toFixed(1)}s, ${clip.tracks.length} tracks)`);
-            }
-          },
-          undefined,
-          () => { this.loadingClips.delete(key); }
-        );
-      }
-    });
   }
 
   /**
@@ -120,47 +87,12 @@ export class MotionEngine {
       return;
     }
 
-    const clipUrl = CLIP_CATALOG[key];
-    if (!clipUrl || clipUrl === '__embedded__') {
-      const fallbackName = this.findFallbackClipName(key);
-      const fallback = fallbackName ? this.loadedActions.get(fallbackName) : null;
-      if (fallback) {
-        this.crossFadeToAction(fallback, fallbackName || 'idle', 1.0, crossFadeDuration);
-      }
-      return;
+    // Jeśli klip nie jest osadzony w pamięci, użyj fallbacku
+    const fallbackName = this.findFallbackClipName(key);
+    const fallback = fallbackName ? this.loadedActions.get(fallbackName) : null;
+    if (fallback) {
+      this.crossFadeToAction(fallback, fallbackName || 'idle', 1.0, crossFadeDuration);
     }
-
-    if (this.loadingClips.has(key)) return;
-    this.loadingClips.add(key);
-
-    console.info(`[MotionEngine] Ładowanie klipu tanecznego: "${key}" z ${clipUrl}...`);
-    this.gltfLoader.load(
-      clipUrl,
-      (gltf) => {
-        this.loadingClips.delete(key);
-        if (!this.mixer) return;
-
-        if (gltf.animations && gltf.animations.length > 0) {
-          const clip = gltf.animations[0];
-          const action = this.mixer.clipAction(clip);
-          this.loadedActions.set(key, action);
-          console.info(`[MotionEngine] ✅ Załadowano klip "${key}" (${clip.duration.toFixed(1)}s)`);
-          this.crossFadeToAction(action, key, timeScale, crossFadeDuration);
-        } else {
-          console.warn(`[MotionEngine] Plik ${clipUrl} nie zawiera animacji`);
-        }
-      },
-      undefined,
-      (err) => {
-        this.loadingClips.delete(key);
-        console.warn(`[MotionEngine] Nie udało się załadować "${key}" z ${clipUrl}:`, err);
-        const fallbackName = this.findFallbackClipName(key);
-        if (fallbackName && this.currentActionName !== fallbackName) {
-          const fallback = this.loadedActions.get(fallbackName);
-          if (fallback) this.crossFadeToAction(fallback, fallbackName, timeScale, crossFadeDuration);
-        }
-      }
-    );
   }
 
   /**
@@ -237,7 +169,7 @@ export class MotionEngine {
     const fallbacks = STYLE_FALLBACKS[style] || STYLE_FALLBACKS['Hip-Hop'];
 
     for (const candidate of fallbacks) {
-      if (this.loadedActions.has(candidate) || CLIP_CATALOG[candidate]) {
+      if (this.loadedActions.has(candidate)) {
         return candidate;
       }
     }
@@ -247,13 +179,13 @@ export class MotionEngine {
 
   private findFallbackClipName(_failedKey: string): string | null {
     for (const fallback of ['hiphop_bounce', 'dance_hiphop', 'dance', 'idle']) {
-      if (this.loadedActions.has(fallback) || CLIP_CATALOG[fallback]) return fallback;
+      if (this.loadedActions.has(fallback)) return fallback;
     }
     return 'idle';
   }
 
   /**
-   * Zatrzymuje WSZYSTKIE poprzednio odtwarzane akcje (w tym walk/run) i płynnie włącza docelową akcję taneczną.
+   * Zatrzymuje poprzednio odtwarzane akcje i przełącza na akcję taneczną z crossFade.
    */
   private crossFadeToAction(
     nextAction: THREE.AnimationAction,
@@ -266,7 +198,7 @@ export class MotionEngine {
       return;
     }
 
-    // Zwróć uwagę: zatrzymujemy WSZYSTKIE poprzednie akcje, aby usunąć ścieżki chodu/biegu
+    // Zatrzymujemy poprzednie akcje
     this.loadedActions.forEach((action, key) => {
       if (key !== nextName && action !== nextAction) {
         action.stop();
@@ -281,6 +213,6 @@ export class MotionEngine {
     nextAction.play();
 
     this.currentActionName = nextName;
-    console.info(`[MotionEngine] ▶ Odtwarzanie MoCap: "${nextName}" (tempo: ${timeScale.toFixed(2)}x)`);
+    console.info(`[MotionEngine] ▶ Odtwarzanie osadzonej animacji: "${nextName}" (tempo: ${timeScale.toFixed(2)}x)`);
   }
 }
