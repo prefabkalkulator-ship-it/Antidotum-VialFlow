@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { ChoreographySequence, DanceMoveBlock } from './DanceMoveLibrary';
 
 /**
@@ -66,6 +67,40 @@ export class MotionEngine {
 
     // Domyślnie odtwarzaj animację "idle"
     this.playClipByName('idle', 1.0);
+  }
+
+  /**
+   * Asynchronicznie ładuje paczkę GLB z MOCAP i na w locie przelicza kwaterniony różnic macierzowych (LRA) na siatkę docelową
+   * używając zaawansowanej matematyki SkeletonUtils.retargetClip!
+   */
+  public async loadRemoteAnimations(animUrls: {name: string, url: string}[]): Promise<void> {
+    if (!this.avatarScene || !this.mixer) return;
+    
+    // Potrzebujemy "source" szkieletu i "target" szkieletu. 
+    // Target to ten podany w bindSkeleton (czyli this.avatarScene)
+    const target = this.avatarScene;
+
+    const loader = new GLTFLoader();
+    for (const {name, url} of animUrls) {
+      if (this.loadedActions.has(name)) continue;
+
+      try {
+        const gltf = await loader.loadAsync(url);
+        if (gltf.animations.length > 0) {
+          const sourceClip = gltf.animations[0]; // Pierwsza i jedyna animacja w paczce
+          
+          // Magia THREEJS! Runtime przeliczenie macierzy kości miednicy i ramion względem obu siatek rest-pose
+          const retargetedClip = (SkeletonUtils as any).retargetClip(target, gltf.scene, sourceClip);
+          retargetedClip.name = name;
+
+          const action = this.mixer.clipAction(retargetedClip);
+          this.loadedActions.set(name, action);
+          console.info(`[MotionEngine] Zarejestrowano klip (Runtime Retarget): "${name}" (${retargetedClip.duration.toFixed(1)}s)`);
+        }
+      } catch (err) {
+        console.error(`Nie udało się pobrać i zretargetować: ${name}`, err);
+      }
+    }
   }
 
   /**

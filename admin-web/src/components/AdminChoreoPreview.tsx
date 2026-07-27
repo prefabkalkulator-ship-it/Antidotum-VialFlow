@@ -205,13 +205,31 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
 
               try {
                 motionEngineRef.current.bindSkeleton(gltf.scene, gltf.animations);
-                logProbe('Powiązano szkielet + osadzone animacje MoCap');
+                logProbe('Powiązano szkielet bazowy (Y-Bot)');
+
+                const animsToLoad = [
+                  { name: 'hiphop_bounce', url: '/assets/animations/hiphop_bounce.glb' },
+                  { name: 'bboy_footwork', url: '/assets/animations/bboy_footwork.glb' },
+                  { name: 'kpop_isolation', url: '/assets/animations/kpop_isolation.glb' },
+                  { name: 'commercial_wave', url: '/assets/animations/commercial_wave.glb' },
+                  { name: 'heels_strut', url: '/assets/animations/heels_strut.glb' }
+                ];
+                
+                logProbe(`Rozpoczęto asynchroniczny retargeting ${animsToLoad.length} plików MOCAP...`);
+                motionEngineRef.current.loadRemoteAnimations(animsToLoad)
+                  .then(() => {
+                    logProbe('✅ Wszystkie zewnętrzne MOCAPy załadowane i zretargetowane!');
+                  })
+                  .finally(() => {
+                    setIsLoadingModel(false);
+                  });
+                  
               } catch (e: any) {
                 logProbe(`Ostrzeżenie szkieletu: ${e?.message || e}`, true);
+                setIsLoadingModel(false);
               }
               yBotModel.position.set(0, 0, 0);
               scene.add(yBotModel);
-              setIsLoadingModel(false);
               renderer.render(scene, camera);
               logProbe('✅ Awatar 3D zrenderowany pomyślnie!');
             },
