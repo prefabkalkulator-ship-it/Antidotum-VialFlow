@@ -27,14 +27,15 @@ async function generateDances() {
     animMap[a.getName()] = a;
   }
 
-  // Map MVP dance sequences to anatomically correct Mixamo animations 
-  // rather than generating broken math quaternions.
+  // Map MVP dance sequences to anatomically correct Mixamo animations.
+  // Avoid 'agree', 'headShake', 'sad_pose', 'sneak_pose' as they are either too subtle or only 2 frames long (causing epileptic shaking).
+  // We strictly use 'idle' (60 frames), 'walk' (30 frames), and 'run' (20 frames) for fluid looping.
   const DANCE_MAPPING = [
-    { name: 'hiphop_bounce', source: 'agree' }, // Heavy head/body bounce
-    { name: 'bboy_footwork', source: 'sneak_pose' }, // Low crouching street step
-    { name: 'kpop_isolation', source: 'sad_pose' }, // Upper body isolation
-    { name: 'commercial_wave', source: 'headShake' }, // Head isolation wave
-    { name: 'heels_strut', source: 'walk' } // Classic strutting walk
+    { name: 'hiphop_bounce', source: 'idle' },       // Deep breath / groove
+    { name: 'bboy_footwork', source: 'run' },        // Fast footwork
+    { name: 'kpop_isolation', source: 'idle' },      // Static pose / waiting for beat
+    { name: 'commercial_wave', source: 'idle' },     // Slow body groove
+    { name: 'heels_strut', source: 'walk' }          // Strutting
   ];
 
   for (const style of DANCE_MAPPING) {
