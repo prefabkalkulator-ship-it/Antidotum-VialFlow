@@ -12,14 +12,29 @@ const jsonChunkLength = fileBuffer.readUInt32LE(12);
 const jsonStr = fileBuffer.toString('utf8', 20, 20 + jsonChunkLength);
 const gltfJson = JSON.parse(jsonStr);
 
-// Strip any previously injected animations (keep only original 7)
+// Strip any previously injected animations AND their accessors/bufferViews
+// Original Y-Bot.glb has exactly 7 animations, 1426 accessors, 1426 bufferViews
+const ORIG_ACCESSOR_COUNT = 1426;
+const ORIG_BUFFERVIEW_COUNT = 1426;
+
 if (gltfJson.animations.length > 7) {
   gltfJson.animations = gltfJson.animations.slice(0, 7);
+}
+if (gltfJson.accessors.length > ORIG_ACCESSOR_COUNT) {
+  gltfJson.accessors = gltfJson.accessors.slice(0, ORIG_ACCESSOR_COUNT);
+}
+if (gltfJson.bufferViews.length > ORIG_BUFFERVIEW_COUNT) {
+  gltfJson.bufferViews = gltfJson.bufferViews.slice(0, ORIG_BUFFERVIEW_COUNT);
 }
 
 const binChunkHeaderOffset = 20 + jsonChunkLength;
 const binChunkLength = fileBuffer.readUInt32LE(binChunkHeaderOffset);
-const origBinBuffer = fileBuffer.subarray(binChunkHeaderOffset + 8, binChunkHeaderOffset + 8 + binChunkLength);
+const fullBinBuffer = fileBuffer.subarray(binChunkHeaderOffset + 8, binChunkHeaderOffset + 8 + binChunkLength);
+
+// Only use the original binary data (up to the last original bufferView's end)
+const lastOrigBv = gltfJson.bufferViews[ORIG_BUFFERVIEW_COUNT - 1];
+const origBinEnd = lastOrigBv.byteOffset + lastOrigBv.byteLength;
+const origBinBuffer = fullBinBuffer.subarray(0, origBinEnd);
 
 const walkAnim = gltfJson.animations[6]; // 'walk' — 201 channels
 

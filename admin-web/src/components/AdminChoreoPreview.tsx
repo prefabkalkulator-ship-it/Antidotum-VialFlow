@@ -166,12 +166,14 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
       scene.add(grid);
 
       logProbe('Rozpoczęcie pobierania pliku /Y-Bot.glb...');
-      fetch('/Y-Bot.glb')
+      fetch(`/Y-Bot.glb?v=${Date.now()}`)
         .then((res) => {
           if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+          logProbe(`Y-Bot.glb pobrano: ${res.headers.get('content-length') || '?'} bytes`);
           return res.arrayBuffer();
         })
         .then((buffer) => {
+          logProbe(`Y-Bot.glb ArrayBuffer: ${buffer.byteLength} bytes (${(buffer.byteLength / 1024 / 1024).toFixed(2)} MB)`);
           const loader = new GLTFLoader();
           loader.parse(
             buffer,
@@ -179,6 +181,11 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
             (gltf) => {
               if (!mountRef.current) return;
               const yBotModel = gltf.scene;
+
+              logProbe(`GLTF parsed: ${gltf.animations.length} animacji znaleziono`);
+              gltf.animations.forEach((clip, i) => {
+                logProbe(`  [${i}] "${clip.name}" — ${clip.duration.toFixed(2)}s, ${clip.tracks.length} tracków`);
+              });
 
               yBotModel.traverse((child) => {
                 if ((child as THREE.Mesh).isMesh) {
