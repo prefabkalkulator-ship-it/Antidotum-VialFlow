@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { FlaskConical, Activity, Loader2, UploadCloud, CheckCircle2, AlertTriangle, Medal, Play, Send, CheckSquare, XCircle, X, ChevronDown, Search, Plus, Trash2, Music, Sparkles } from 'lucide-react';
+import { FlaskConical, Activity, Loader2, UploadCloud, CheckCircle2, AlertTriangle, Medal, Play, Send, CheckSquare, XCircle, X, ChevronDown, ChevronUp, Search, Plus, Trash2, Music, Sparkles } from 'lucide-react';
 import AdminChoreoPreview from '../components/AdminChoreoPreview';
 import { DANCE_MOVE_LIBRARY, DEFAULT_CHOREOGRAPHY_SEQUENCE } from '../utils/DanceMoveLibrary';
 import type { ChoreographySequence } from '../utils/DanceMoveLibrary';
@@ -82,8 +82,9 @@ export default function AiVideoCoach() {
 
   // Sequencer 3D stany dla trenera
   const [customSequence, setCustomSequence] = useState<ChoreographySequence>(DEFAULT_CHOREOGRAPHY_SEQUENCE);
-  const [audioUrl, setAudioUrl] = useState('https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=hip-hop-beat-112702.mp3');
-  const [show3dPreview, setShow3dPreview] = useState(false);
+  const [audioUrl, setAudioUrl] = useState('/assets/female_hip_hop_104_bpm.mp3');
+  const [homeworkTitle, setHomeworkTitle] = useState('Trening Choreografii - Tydzień 1');
+  const [draggedBlockIdx, setDraggedBlockIdx] = useState<number | null>(null);
 
   // AI Choreography Generator stany
   const [aiPrompt, setAiPrompt] = useState('');
@@ -111,7 +112,6 @@ export default function AiVideoCoach() {
       const data = await res.json();
       if (data.success && data.sequence) {
         setCustomSequence(data.sequence);
-        setShow3dPreview(true);
         setAiSuccessMsg(`✨ Wygenerowano nowy układ 3D: "${data.sequence.title}"!`);
       } else {
         setAiErrorMsg(data.error || 'Nie udało się wygenerować choreografii.');
@@ -269,10 +269,8 @@ export default function AiVideoCoach() {
 
   const handleCreateTask = async () => {
     const targetsToUse = selectedTargets.length > 0 ? selectedTargets : (targetGroup ? [targetGroup] : []);
-    if (!selectedChoreoId || targetsToUse.length === 0 || isSubmittingTask) return;
-    
-    const choreo = choreographies.find(c => c.id === selectedChoreoId);
-    if (!choreo) return;
+    if (!homeworkTitle.trim() || targetsToUse.length === 0 || isSubmittingTask) return;
+
 
     setIsSubmittingTask(true);
 
@@ -288,13 +286,13 @@ export default function AiVideoCoach() {
         const isGrp = isAll ? false : Array.isArray(groups) && groups.some(g => g.name === tgt);
         
         return {
-          title: choreo.title,
-          choreoId: selectedChoreoId,
+          title: homeworkTitle,
+          choreoId: 'custom-ai-gen',
           targetType: isAll ? 'all' : (isGrp ? 'group' : 'student'),
           targetValue: isAll ? 'Wszystkie Grupy' : tgt,
           videoUrl: refLink,
           deadline: deadlineDate,
-          instructor: choreo.instructor || 'Instruktor',
+          instructor: 'Instruktor (Kreator AI)',
           audioUrl: audioUrl,
           sequenceJson: JSON.stringify(customSequence),
           targetBPM: customSequence.targetBPM
@@ -656,7 +654,7 @@ export default function AiVideoCoach() {
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
             <div className="bg-[#18181B] border border-gray-700 rounded-2xl p-6 md:p-8 max-w-4xl w-full shadow-2xl max-h-[90vh] overflow-y-auto relative">
               <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-800">
-                <h2 className="text-2xl font-bold font-heading text-white">Nowe Zadanie Domowe</h2>
+                <h2 className="text-2xl font-bold font-heading text-white">Nowe Zadanie Domowe z AI</h2>
                 <button
                   type="button"
                   onClick={() => {
@@ -686,8 +684,8 @@ export default function AiVideoCoach() {
                     
                     <div className="flex flex-col gap-2 mb-2">
                       <textarea
-                        rows={2}
-                        placeholder="Wpisz szczegółowy opis układu (np. Ostry układ K-Pop z blokadami rąk)..."
+                        rows={4}
+                        placeholder="Wpisz szczegółowy opis układu (np. Krok w bok i klasyczny Running Man)..."
                         value={aiPrompt}
                         onChange={(e) => {
                           setAiPrompt(e.target.value);
@@ -699,13 +697,13 @@ export default function AiVideoCoach() {
                             handleGenerateAiChoreo();
                           }
                         }}
-                        className="w-full bg-[#27272A] text-white p-3 rounded-lg text-xs border border-gray-700 focus:outline-none focus:border-primary resize-y min-h-[64px] max-h-[120px] leading-relaxed"
+                        className="w-full bg-[#27272A] text-white p-3 rounded-lg text-sm border border-gray-700 focus:outline-none focus:border-primary resize-y min-h-[120px] leading-relaxed"
                       />
                       <button
                         type="button"
                         onClick={() => handleGenerateAiChoreo()}
                         disabled={isGeneratingAi}
-                        className="bg-primary hover:bg-primary-dark text-white px-4 py-2.5 rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50 w-full"
+                        className="bg-primary hover:bg-primary-dark text-white px-4 py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 w-full"
                       >
                         {isGeneratingAi ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
                         <span>{isGeneratingAi ? 'Generowanie...' : 'Generuj 3D'}</span>
@@ -725,71 +723,87 @@ export default function AiVideoCoach() {
                         <span>{aiErrorMsg}</span>
                       </div>
                     )}
-
-                    {/* Szybkie opcje styli */}
-                    <div className="flex flex-wrap gap-1.5">
-                      <span className="text-[10px] text-gray-500 self-center">Szybki styl:</span>
-                      {[
-                        { label: '★ Hip-Hop Groove', prompt: 'Hip-Hop z bouncem i toprockiem' },
-                        { label: '★ K-Pop Sharp', prompt: 'K-Pop ostry z blokadami rąk' },
-                        { label: '★ High Heels Sassy', prompt: 'High Heels zmysłowy z obcasami' },
-                        { label: '★ B-Boy Street', prompt: 'Breakdance z Indian Stepem' }
-                      ].map((chip, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => {
-                            setAiPrompt(chip.prompt);
-                            handleGenerateAiChoreo(chip.prompt);
-                          }}
-                          className="bg-[#27272A] hover:bg-primary/20 text-gray-300 hover:text-primary text-[10px] px-2 py-0.5 rounded border border-gray-700 hover:border-primary/40 transition-colors"
-                        >
-                          {chip.label}
-                        </button>
-                      ))}
-                    </div>
                   </div>
 
-                  {/* Przycisk przełączania podglądu 3D */}
-                  <button
-                    type="button"
-                    onClick={() => setShow3dPreview(!show3dPreview)}
-                    className="w-full bg-[#0B0B0C] hover:bg-gray-800 border border-gray-800 text-gray-300 hover:text-white py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer"
-                  >
-                    <Play size={14} className="text-primary" />
-                    <span>{show3dPreview ? 'Ukryj Podgląd 3D Awatara' : '🎭 Otwórz Podgląd 3D Awatara dla Trenera'}</span>
-                  </button>
-
                   {/* Interaktywny Sekwencer 3D & Podgląd Awatara */}
-                  {show3dPreview && (
-                    <SafeChoreoPreviewBoundary>
-                      <AdminChoreoPreview sequence={customSequence} audioUrl={audioUrl} />
-                    </SafeChoreoPreviewBoundary>
-                  )}
+                  <SafeChoreoPreviewBoundary>
+                    <AdminChoreoPreview sequence={customSequence} audioUrl={audioUrl} />
+                  </SafeChoreoPreviewBoundary>
 
                   <div className="bg-[#0B0B0C] border border-gray-800 p-4 rounded-xl">
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-                        <Sparkles size={14} className="text-primary" /> Sekwencer 8-Liczeń
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400 font-mono">BPM:</span>
-                        <input
-                          type="number"
-                          min={70}
-                          max={160}
-                          value={customSequence.targetBPM}
-                          onChange={(e) => setCustomSequence({ ...customSequence, targetBPM: Number(e.target.value) || 100 })}
-                          className="w-16 bg-[#27272A] text-white text-xs font-bold p-1 rounded text-center border border-gray-700 focus:outline-none focus:border-primary"
+                    {/* Metronom i tempo */}
+                    <div className="mb-3 bg-[#18181B] p-2 rounded-lg border border-gray-800">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-gray-400 flex items-center gap-1.5"><Activity size={14} className="text-primary" /> Tempo / Podkład MP3</span>
+                        <label htmlFor="customAudioUpload" className="text-primary hover:underline cursor-pointer flex items-center gap-1 text-[11px] font-semibold lowercase">
+                          <UploadCloud size={12} /> + wgraj własny MP3
+                        </label>
+                        <input 
+                          id="customAudioUpload"
+                          type="file" 
+                          accept="audio/*" 
+                          className="hidden" 
+                          onChange={(e) => {
+                            const uploadedFile = e.target.files?.[0];
+                            if (uploadedFile) {
+                              const customObjectUrl = URL.createObjectURL(uploadedFile);
+                              setAudioUrl(customObjectUrl);
+                              setCustomSequence({ ...customSequence, targetBPM: 0 }); // Oznacza custom
+                              setAiSuccessMsg(`🎵 Wgrano plik audio: "${uploadedFile.name}"`);
+                            }
+                          }}
                         />
+                      </div>
+                      <div className="flex gap-1">
+                        <select
+                          value={customSequence.targetBPM}
+                          onChange={(e) => {
+                             const newBpm = Number(e.target.value);
+                             setCustomSequence({ ...customSequence, targetBPM: newBpm });
+                             if (newBpm !== 0) {
+                               setAudioUrl(`/assets/female_hip_hop_${newBpm}_bpm.mp3`);
+                             }
+                          }}
+                          className="w-full bg-[#27272A] text-white text-xs font-bold p-1 rounded border border-gray-700 focus:outline-none focus:border-primary cursor-pointer"
+                        >
+                          <option value="0" disabled={customSequence.targetBPM !== 0}>Własny (Custom)</option>
+                          <option value="85">85 BPM (Powolne wejście)</option>
+                          <option value="104">104 BPM (Urban Beat)</option>
+                          <option value="128">128 BPM (Dynamiczny K-Pop)</option>
+                        </select>
                       </div>
                     </div>
 
-                    {/* Lista ułożonych bloków */}
-                    <div className="space-y-2 mb-3 max-h-36 overflow-y-auto">
-                      {customSequence.blocks.map((block, bIdx) => (
-                        <div key={bIdx} className="bg-[#18181B] border border-gray-800 p-2 rounded-lg flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
+                    {/* Lista ułożonych bloków z Drag & Drop */}
+                    <div className="space-y-2 mb-3 max-h-48 overflow-y-auto pr-2">
+                      {customSequence.blocks.map((block: any, bIdx) => (
+                        <div 
+                          key={block.instanceId || bIdx} 
+                          draggable
+                          onDragStart={(e) => { 
+                            setDraggedBlockIdx(bIdx); 
+                            e.dataTransfer.setData('text/plain', bIdx.toString());
+                            e.dataTransfer.effectAllowed = 'move';
+                          }}
+                          onDragEnter={(e) => e.preventDefault()}
+                          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                          onDrop={(e) => {
+                             e.preventDefault();
+                             const draggedStr = e.dataTransfer.getData('text/plain');
+                             if (draggedStr !== '') {
+                               const dIdx = parseInt(draggedStr, 10);
+                               if (!isNaN(dIdx) && dIdx !== bIdx) {
+                                 const newBlocks = [...customSequence.blocks];
+                                 const item = newBlocks.splice(dIdx, 1)[0];
+                                 newBlocks.splice(bIdx, 0, item);
+                                 setCustomSequence({...customSequence, blocks: newBlocks});
+                               }
+                             }
+                             setDraggedBlockIdx(null);
+                          }}
+                          className={`bg-[#18181B] border border-gray-800 p-2 rounded-lg flex items-center justify-between gap-2 cursor-grab active:cursor-grabbing transition-all ${draggedBlockIdx === bIdx ? 'opacity-30 scale-95 border-primary' : 'opacity-100 hover:border-gray-600'}`}
+                        >
+                          <div className="flex items-center gap-2 pointer-events-none select-none">
                             <span className="w-5 h-5 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center shrink-0">
                               {bIdx + 1}
                             </span>
@@ -798,19 +812,51 @@ export default function AiVideoCoach() {
                               <p className="text-[10px] text-gray-400">{block.style} • {block.durationBeats} liczeń</p>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newBlocks = customSequence.blocks.filter((_, idx) => idx !== bIdx);
-                              setCustomSequence({ ...customSequence, blocks: newBlocks });
-                            }}
-                            className="text-gray-500 hover:text-red-400 p-1"
-                            title="Usuń blok"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          
+                          <div className="flex items-center">
+                            <div className="flex flex-col border-r border-gray-800 pr-2 mr-2">
+                              <button 
+                                type="button" 
+                                disabled={bIdx === 0}
+                                onClick={() => {
+                                  const newBlocks = [...customSequence.blocks];
+                                  const item = newBlocks.splice(bIdx, 1)[0];
+                                  newBlocks.splice(bIdx - 1, 0, item);
+                                  setCustomSequence({...customSequence, blocks: newBlocks});
+                                }} 
+                                className="text-gray-500 hover:text-white p-0.5 disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                              >
+                                <ChevronUp size={14} />
+                              </button>
+                              <button 
+                                type="button"
+                                disabled={bIdx === customSequence.blocks.length - 1} 
+                                onClick={() => {
+                                  const newBlocks = [...customSequence.blocks];
+                                  const item = newBlocks.splice(bIdx, 1)[0];
+                                  newBlocks.splice(bIdx + 1, 0, item);
+                                  setCustomSequence({...customSequence, blocks: newBlocks});
+                                }} 
+                                className="text-gray-500 hover:text-white p-0.5 disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                              >
+                                <ChevronDown size={14} />
+                              </button>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nb = [...customSequence.blocks];
+                                nb.splice(bIdx, 1);
+                                setCustomSequence({ ...customSequence, blocks: nb });
+                              }}
+                              className="text-gray-500 hover:text-red-500 p-1"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         </div>
                       ))}
+
                       {customSequence.blocks.length === 0 && (
                         <p className="text-xs text-gray-500 italic text-center py-2">Brak dodanych bloków 8-liczeń.</p>
                       )}
@@ -823,7 +869,8 @@ export default function AiVideoCoach() {
                         onChange={(e) => {
                           const found = DANCE_MOVE_LIBRARY.find(m => m.id === e.target.value);
                           if (found) {
-                            setCustomSequence({ ...customSequence, blocks: [...customSequence.blocks, found] });
+                            const newBlock = { ...found, instanceId: Date.now().toString() + Math.random().toString() };
+                            setCustomSequence({ ...customSequence, blocks: [...customSequence.blocks, newBlock] });
                             e.target.value = '';
                           }
                         }}
@@ -840,55 +887,16 @@ export default function AiVideoCoach() {
                 {/* Prawa kolumna: Formularz Zlecenia Zadania Domowego */}
                 <div className="space-y-4 flex flex-col justify-between">
                   <div>
-                    {/* Wybór utworu muzycznego */}
                     <div className="mb-4">
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 flex items-center justify-between">
-                        <span className="flex items-center gap-1.5"><Music size={14} className="text-primary" /> Podkład Muzyczny MP3</span>
-                        <label htmlFor="customAudioUpload" className="text-primary hover:underline cursor-pointer flex items-center gap-1 text-[11px] font-semibold lowercase">
-                          <UploadCloud size={12} /> + wgraj własny MP3
-                        </label>
-                      </label>
-                      <input 
-                        id="customAudioUpload"
-                        type="file" 
-                        accept="audio/*" 
-                        className="hidden" 
-                        onChange={(e) => {
-                          const uploadedFile = e.target.files?.[0];
-                          if (uploadedFile) {
-                            const customObjectUrl = URL.createObjectURL(uploadedFile);
-                            setAudioUrl(customObjectUrl);
-                            setAiSuccessMsg(`🎵 Wgrano plik audio: "${uploadedFile.name}"`);
-                          }
-                        }}
-                      />
-                      <select
-                        className="w-full bg-[#27272A] text-white p-3 rounded-lg font-sans text-sm border border-transparent focus:outline-none focus:border-primary cursor-pointer"
-                        value={audioUrl}
-                        onChange={(e) => setAudioUrl(e.target.value)}
-                      >
-                        <option value="https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=hip-hop-beat-112702.mp3">★ Hip-Hop Urban Beat (104 BPM)</option>
-                        <option value="https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8723b7b.mp3?filename=funky-groove-110034.mp3">★ Commercial Funk Groove (108 BPM)</option>
-                        <option value="https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=breakdance-street-beat-14324.mp3">★ B-Boy Street Beat (112 BPM)</option>
-                        {audioUrl && !audioUrl.startsWith('https://cdn.pixabay.com') && (
-                          <option value={audioUrl}>🎵 Wgrany Utwór Własny (Moja Muzyka)</option>
-                        )}
-                      </select>
-                    </div>
-
-                    <div className="mb-4">
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Wybierz Choreografię 3D</label>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Nazwij Zadanie Domowe</label>
                       <div className="relative">
-                        <select 
-                          className="w-full bg-[#27272A] text-white p-3 pr-12 rounded-lg font-sans text-sm focus:outline-none focus:border-primary border border-transparent appearance-none cursor-pointer"
-                          value={selectedChoreoId}
-                          onChange={(e) => setSelectedChoreoId(e.target.value)}
-                        >
-                          {Array.isArray(choreographies) && choreographies.map(ch => (
-                            <option key={ch.id} value={ch.id}>{ch.title} ({ch.instructor})</option>
-                          ))}
-                        </select>
-                        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
+                        <input
+                          type="text"
+                          className="w-full bg-[#27272A] text-white p-3 rounded-lg font-sans text-sm focus:outline-none focus:border-primary border border-transparent"
+                          value={homeworkTitle}
+                          onChange={(e) => setHomeworkTitle(e.target.value)}
+                          placeholder="Np. Podstawy Hip Hop - Trening"
+                        />
                       </div>
                     </div>
 
@@ -985,7 +993,7 @@ export default function AiVideoCoach() {
                     <button 
                       type="button"
                       onClick={handleCreateTask} 
-                      disabled={selectedTargets.length === 0 || !selectedChoreoId || isSubmittingTask}
+                      disabled={selectedTargets.length === 0 || !homeworkTitle.trim() || isSubmittingTask}
                       className="flex-1 py-3 rounded-xl font-bold text-white bg-primary hover:bg-primary-dark transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                       {isSubmittingTask ? (

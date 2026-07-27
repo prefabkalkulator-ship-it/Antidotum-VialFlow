@@ -2,12 +2,6 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import type { ChoreographySequence, DanceMoveBlock } from './DanceMoveLibrary';
 
-interface SwapModel {
-  scene: THREE.Object3D;
-  mixer: THREE.AnimationMixer;
-  action: THREE.AnimationAction;
-}
-
 /**
  * Katalog mapujący nazwy klipów na animacje.
  * Wszystkie 12 animacji (w tym 5 tanecznych) są osadzone bezpośrednio w Y-Bot.glb!
@@ -41,8 +35,7 @@ const STYLE_FALLBACKS: Record<string, string[]> = {
 export class MotionEngine {
   private mixer: THREE.AnimationMixer | null = null;
   private embeddedActions: Map<string, THREE.AnimationAction> = new Map();
-  private loadedActions: Map<string, THREE.AnimationAction> = new Map(); // Used just for checking existence
-  private swapModels: Map<string, SwapModel> = new Map();
+  private loadedActions: Map<string, THREE.AnimationAction> = new Map();
   private currentActionName: string | null = null;
   private avatarScene: THREE.Object3D | null = null;
   private gltfLoader: GLTFLoader = new GLTFLoader();
@@ -75,105 +68,57 @@ export class MotionEngine {
   }
 
   /**
-   * Ładuje całe pliki MOCAP jako oddzielne instancje modeli (Model Swapping).
-   * Omija problem macierzy szkieletów Y-Up vs Z-Up, ponieważ każda animacja
-   * ma własną powłokę "With Skin", z którą działa bezbłędnie.
+   * Ładuje animacje z zewnętrznych plików i zapina do bazowego miksera.
+   * Ponieważ szkielety są ujednolicone we wszystkich nowych układach, nie potrzebujemy retargetingu
+   * a przejścia są płynne.
    */
   public async loadRemoteAnimations(animUrls: {name: string, url: string}[]): Promise<void> {
-    if (!this.avatarScene) return;
+    if (!this.mixer) return;
 
     const loader = new GLTFLoader();
     for (const {name, url} of animUrls) {
-      if (this.swapModels.has(name)) continue;
+      if (this.loadedActions.has(name)) continue;
 
       try {
         const gltf = await loader.loadAsync(url);
         if (gltf.animations.length > 0) {
           const clip = gltf.animations[0];
-          const scene = gltf.scene;
+          clip.name = name;
 
-          // Dopasowanie estetyki Neon Vibes na nowych siatkach
-          scene.traverse((child) => {
-            if ((child as THREE.Mesh).isMesh) {
-              const mesh = child as THREE.Mesh;
-              if (mesh.material && (mesh.material as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
-                const mat = mesh.material as THREE.MeshStandardMaterial;
-                mat.metalness = 0.5;
-                mat.roughness = 0.2;
-                mat.color = new THREE.Color(0x887799);
-              }
-            }
-          });
-
-          scene.position.set(0, 0, 0);
-          scene.visible = false; // Domyślnie w ukryciu
-          
-          if (this.avatarScene.parent) {
-             this.avatarScene.parent.add(scene);
-          }
-
-          const modelMixer = new THREE.AnimationMixer(scene);
-          const action = modelMixer.clipAction(clip);
+          const action = this.mixer.clipAction(clip);
           action.setLoop(THREE.LoopRepeat, Infinity);
-          action.play();
-
-          this.swapModels.set(name, { scene, mixer: modelMixer, action });
           this.loadedActions.set(name, action);
           
-          console.info(`[MotionEngine] Zarejestrowano Swap Model: "${name}" (${clip.duration.toFixed(1)}s)`);
+          console.info(`[MotionEngine] Zarejestrowano zdalny klip do miksera bazy: "${name}" (${clip.duration.toFixed(1)}s)`);
         }
       } catch (err) {
-        console.error(`Nie udało się pobrać Swap Modelu: ${name}`, err);
+        console.error(`Nie udało się pobrać animacji: ${name}`, err);
       }
     }
   }
 
   /**
-   * Odtwarza klip używając techniki Model Swapping.
+   * Odtwarza klip używając płynnego cross-fade.
    */
-  public playClipByName(clipName: string, timeScale: number = 1.0, crossFadeDuration: number = 0.3): void {
+  public playClipByName(clipName: string, timeScale: number = 1.0, crossFadeDuration: number = 0.4): void {
     if (!this.mixer || !this.avatarScene) return;
     const key = clipName.toLowerCase();
     
     let activeKey = key;
-    if (!this.swapModels.has(key) && !this.embeddedActions.has(key)) {
+    if (!this.loadedActions.has(key) && !this.embeddedActions.has(key)) {
        activeKey = this.findFallbackClipName(key) || 'idle';
     }
 
     if (this.currentActionName === activeKey) {
-       if (this.swapModels.has(activeKey)) {
-          this.swapModels.get(activeKey)!.action.setEffectiveTimeScale(timeScale);
-       } else if (this.embeddedActions.has(activeKey)) {
-          this.embeddedActions.get(activeKey)!.setEffectiveTimeScale(timeScale);
-       }
+       const action = this.loadedActions.get(activeKey) || this.embeddedActions.get(activeKey);
+       if (action) action.setEffectiveTimeScale(timeScale);
        return;
     }
 
-    // SWAP: Hide current model
-    if (this.currentActionName) {
-       if (this.swapModels.has(this.currentActionName)) {
-          this.swapModels.get(this.currentActionName)!.scene.visible = false;
-       } else {
-          this.avatarScene.visible = false;
-       }
+    const action = this.loadedActions.get(activeKey) || this.embeddedActions.get(activeKey);
+    if (action) {
+       this.crossFadeToAction(action, activeKey, timeScale, crossFadeDuration);
     }
-
-    // SWAP: Show new model and reset action
-    if (this.swapModels.has(activeKey)) {
-       const swap = this.swapModels.get(activeKey)!;
-       swap.scene.visible = true;
-       swap.action.reset();
-       swap.action.setEffectiveTimeScale(timeScale);
-       swap.action.play();
-    } else if (this.embeddedActions.has(activeKey)) {
-       this.avatarScene.visible = true;
-       const action = this.embeddedActions.get(activeKey)!;
-       action.reset();
-       action.setEffectiveTimeScale(timeScale);
-       action.play();
-    }
-
-    this.currentActionName = activeKey;
   }
 
   /**
@@ -188,7 +133,6 @@ export class MotionEngine {
     if (!this.mixer) return;
 
     this.mixer.update(delta);
-    this.swapModels.forEach(m => m.mixer.update(delta));
 
     if (!sequence || !sequence.blocks || sequence.blocks.length === 0) return;
 
@@ -227,17 +171,12 @@ export class MotionEngine {
   }
 
   /**
-   * Tick mixera na pauzie (przejście awatara w pozę spoczynkową idle)
+   * Tick mixera na pauzie (zamarzanie czasu).
    */
   public tick(delta: number): void {
     if (!this.mixer) return;
-
-    if (this.currentActionName !== 'idle') {
-      this.playClipByName('idle', 1.0);
-    }
-
+    // Nie resetujemy do idle, tylko aktualizujemy bieżący układ by delta wynosiła 0 (freeze frame).
     this.mixer.update(delta);
-    this.swapModels.forEach(m => m.mixer.update(delta));
   }
 
   public getMixer(): THREE.AnimationMixer | null {
@@ -270,6 +209,28 @@ export class MotionEngine {
     timeScale: number,
     crossFadeDuration: number
   ): void {
-    // CrossFading usunięty na rzecz natychmiastowego swapu. Metoda zdeprecjonowana.
+    if (this.currentActionName === nextName && nextAction.isRunning()) {
+      nextAction.setEffectiveTimeScale(timeScale);
+      return;
+    }
+
+    const prevAction = this.currentActionName 
+      ? (this.loadedActions.get(this.currentActionName) || this.embeddedActions.get(this.currentActionName)) 
+      : null;
+
+    nextAction.reset();
+    nextAction.enabled = true;
+    nextAction.setEffectiveTimeScale(timeScale);
+    nextAction.setEffectiveWeight(1.0);
+    nextAction.setLoop(THREE.LoopRepeat, Infinity);
+    nextAction.clampWhenFinished = false;
+    nextAction.play();
+
+    if (prevAction && prevAction !== nextAction) {
+      nextAction.crossFadeFrom(prevAction, crossFadeDuration, true);
+    }
+
+    this.currentActionName = nextName;
+    console.info(`[MotionEngine] ▶ Odtwarzanie animacji: "${nextName}" (tempo: ${timeScale.toFixed(2)}x)`);
   }
 }

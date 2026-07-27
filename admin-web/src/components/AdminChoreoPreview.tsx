@@ -71,9 +71,9 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
 
   const initialSeqIdRef = useRef(sequence.id);
 
-  // Automatyczne odtwarzanie animacji 3D przy wygenerowaniu NOWEJ sekwencji z promptu
+  // Automatyczne odtwarzanie animacji 3D zsynchronizowane z ładowaniem
   useEffect(() => {
-    if (sequence && sequence.id) {
+    if (sequence && sequence.id && !isLoadingModel) {
       currentTimeRef.current = 0;
       setIsPlaying(true);
       if (audioRef.current) {
@@ -81,7 +81,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
         audioRef.current.play().catch(err => console.warn('Audio autoplay blocked by browser policy:', err));
       }
     }
-  }, [sequence?.id]);
+  }, [sequence?.id, isLoadingModel]);
 
   const togglePlay = () => {
     if (isPlaying) {
@@ -169,15 +169,15 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
       grid.position.y = 0;
       scene.add(grid);
 
-      logProbe('Rozpoczęcie pobierania pliku /Y-Bot.glb...');
-      fetch(`/Y-Bot.glb?v=${Date.now()}`)
+      logProbe('Rozpoczęcie pobierania bazowego modelu (/assets/animations/female_hip_hop/kick_step.glb)...');
+      fetch(`/assets/animations/female_hip_hop/kick_step.glb?v=${Date.now()}`)
         .then((res) => {
           if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
           logProbe(`Y-Bot.glb pobrano: ${res.headers.get('content-length') || '?'} bytes`);
           return res.arrayBuffer();
         })
         .then((buffer) => {
-          logProbe(`Y-Bot.glb ArrayBuffer: ${buffer.byteLength} bytes (${(buffer.byteLength / 1024 / 1024).toFixed(2)} MB)`);
+          logProbe(`Bazowy GLB ArrayBuffer: ${buffer.byteLength} bytes (${(buffer.byteLength / 1024 / 1024).toFixed(2)} MB)`);
           const loader = new GLTFLoader();
           loader.parse(
             buffer,
@@ -194,11 +194,13 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
               yBotModel.traverse((child) => {
                 if ((child as THREE.Mesh).isMesh) {
                   const mesh = child as THREE.Mesh;
-                  if (mesh.material && (mesh.material as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
-                    const mat = mesh.material as THREE.MeshStandardMaterial;
-                    mat.metalness = 0.5;
-                    mat.roughness = 0.2;
-                    mat.color = new THREE.Color(0x887799); // Light gray-purple base for neon reflections
+                  const matName = (mesh.material as THREE.Material).name || '';
+                  if (matName.toLowerCase().includes('joint')) {
+                     // Stawy (brąz) ze światłocieniem Lamberta
+                     mesh.material = new THREE.MeshLambertMaterial({ color: 0x5c4033 });
+                  } else {
+                     // Ciało (róż) ze światłocieniem Lamberta (bez blików, ale z bryłą)
+                     mesh.material = new THREE.MeshLambertMaterial({ color: 0xff66b2 });
                   }
                 }
               });
@@ -208,11 +210,16 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
                 logProbe('Powiązano szkielet bazowy (Y-Bot)');
 
                 const animsToLoad = [
-                  { name: 'hiphop_bounce', url: '/assets/animations/hiphop_bounce.glb' },
-                  { name: 'bboy_footwork', url: '/assets/animations/bboy_footwork.glb' },
-                  { name: 'kpop_isolation', url: '/assets/animations/kpop_isolation.glb' },
-                  { name: 'commercial_wave', url: '/assets/animations/commercial_wave.glb' },
-                  { name: 'heels_strut', url: '/assets/animations/heels_strut.glb' }
+                  { name: 'arm_wave', url: '/assets/animations/female_hip_hop/arm_wave.glb' },
+                  { name: 'body_wave', url: '/assets/animations/female_hip_hop/body_wave.glb' },
+                  { name: 'hip_hop_quake', url: '/assets/animations/female_hip_hop/hip_hop_quake.glb' },
+                  { name: 'kick_step', url: '/assets/animations/female_hip_hop/kick_step.glb' },
+                  { name: 'rib_pops', url: '/assets/animations/female_hip_hop/rib_pops.glb' },
+                  { name: 'running_man', url: '/assets/animations/female_hip_hop/running_man.glb' },
+                  { name: 'side_step', url: '/assets/animations/female_hip_hop/side_step.glb' },
+                  { name: 'side_to_side', url: '/assets/animations/female_hip_hop/side_to_side.glb' },
+                  { name: 'step_hip_hop', url: '/assets/animations/female_hip_hop/step_hip_hop.glb' },
+                  { name: 'timid_dansing', url: '/assets/animations/female_hip_hop/timid_dansing.glb' }
                 ];
                 
                 logProbe(`Rozpoczęto asynchroniczny retargeting ${animsToLoad.length} plików MOCAP...`);
@@ -228,10 +235,15 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
                 logProbe(`Ostrzeżenie szkieletu: ${e?.message || e}`, true);
                 setIsLoadingModel(false);
               }
-              yBotModel.position.set(0, 0, 0);
-              scene.add(yBotModel);
+              // Wrapper zapobiegający nadpisywaniu rotacji przez AnimationMixer
+              const wrapper = new THREE.Group();
+              wrapper.add(yBotModel);
+              wrapper.rotation.set(0, 0, 0); // Bez obrotu, natywna pozycja
+              wrapper.position.set(0, 0, 0);
+              
+              scene.add(wrapper);
               renderer.render(scene, camera);
-              logProbe('✅ Awatar 3D zrenderowany pomyślnie!');
+              logProbe('✅ Awatar 3D zrenderowany pomyślnie na nogach!');
             },
             (parseErr: any) => {
               logProbe(`Błąd parsowania GLTF: ${parseErr?.message || parseErr}`, true);
@@ -240,7 +252,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
           );
         })
         .catch((fetchErr: any) => {
-          logProbe(`Błąd pobierania /Y-Bot.glb: ${fetchErr?.message || fetchErr}`, true);
+          logProbe(`Błąd pobierania bazowego modelu: ${fetchErr?.message || fetchErr}`, true);
           setIsLoadingModel(false);
         });
     } catch (err: any) {
@@ -298,7 +310,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
       } else {
         // Nawet na pauzie: odtwarzaj idle (oddychanie) przez tick mixera
         try {
-          motionEngineRef.current.tick(delta);
+          motionEngineRef.current.tick(0); // Zamrażanie animacji - delta 0
         } catch (e: any) {}
       }
 
@@ -334,7 +346,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
       <div className="flex justify-between items-center mb-2 px-1">
         <span className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-          Podgląd 3D Awatara dla Trenera (Przeciągnij myszą, aby obrócić widok 360°)
+          Przeciągnij myszą, aby obrócić widok 360°
         </span>
         <span className="text-xs font-mono text-primary font-bold">
           {sequence.targetBPM} BPM | {sequence.blocks.length} x 8-liczeń
