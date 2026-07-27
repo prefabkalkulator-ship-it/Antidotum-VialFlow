@@ -16,14 +16,14 @@ const CLIP_CATALOG: Record<string, string> = {
   sad_pose: '__embedded__',
   sneak_pose: '__embedded__',
 
-  // Animacje taneczne z plików GLB w public/assets/animations/
+  // Dedykowane animacje taneczne MoCap z plików GLB
+  hiphop_bounce: '/assets/animations/hiphop_bounce.glb',
+  bboy_footwork: '/assets/animations/bboy_footwork.glb',
+  kpop_isolation: '/assets/animations/kpop_isolation.glb',
+  commercial_wave: '/assets/animations/commercial_wave.glb',
+  heels_strut: '/assets/animations/heels_strut.glb',
   dance: '/assets/animations/dance.glb',
   dance_hiphop: '/assets/animations/dance_hiphop.glb',
-  hiphop_bounce: '/assets/animations/dance_hiphop.glb',
-  bboy_footwork: '/assets/animations/dance.glb',
-  kpop_isolation: '/assets/animations/dance_hiphop.glb',
-  commercial_wave: '/assets/animations/dance.glb',
-  heels_strut: '/assets/animations/dance_hiphop.glb',
 };
 
 /**
