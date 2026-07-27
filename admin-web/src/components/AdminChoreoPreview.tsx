@@ -260,6 +260,7 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
         try {
           motionEngineRef.current.updatePose(
             paramsRef.current.sequence,
+            currentTimeRef.current,
             delta,
             true
           );
