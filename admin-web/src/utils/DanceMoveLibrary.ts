@@ -43,6 +43,7 @@ export const DANCE_MOVE_LIBRARY: DanceMoveBlock[] = [
     durationBeats: 8,
     description: 'Dynamiczny krok otwarcia z krzyżowaniem nóg i pracą ramion w rytmie bounce.',
     tags: ['toprock', 'bounce', 'footwork'],
+    clipName: 'hiphop_bounce',
     keyframes: [
       {
         beatOffset: 0,
@@ -140,6 +141,7 @@ export const DANCE_MOVE_LIBRARY: DanceMoveBlock[] = [
     durationBeats: 8,
     description: 'Głęboki groove z opadaniem klatki piersiowej i ugięciem kolan.',
     tags: ['groove', 'bounce'],
+    clipName: 'hiphop_bounce',
     keyframes: [
       {
         beatOffset: 0,
@@ -228,6 +230,7 @@ export const DANCE_MOVE_LIBRARY: DanceMoveBlock[] = [
     durationBeats: 8,
     description: 'Płynna fala przechodząca od głowy, przez klatkę piersiową do bioder.',
     tags: ['wave', 'commercial', 'fluidity'],
+    clipName: 'commercial_wave',
     keyframes: [
       {
         beatOffset: 0,
@@ -290,6 +293,7 @@ export const DANCE_MOVE_LIBRARY: DanceMoveBlock[] = [
     durationBeats: 8,
     description: 'Klasyczny Indian Step z wykręceniem klatki, otwarciem rąk i skrętem bioder.',
     tags: ['bboy', 'toprock', 'street'],
+    clipName: 'bboy_footwork',
     keyframes: [
       {
         beatOffset: 0,
@@ -329,6 +333,7 @@ export const DANCE_MOVE_LIBRARY: DanceMoveBlock[] = [
     durationBeats: 8,
     description: 'Zmysłowy krok chodu w obcasach z akcentami bioder i kadrowaniem twarzy dłońmi.',
     tags: ['heels', 'sassy', 'strut', 'attitude'],
+    clipName: 'heels_strut',
     keyframes: [
       {
         beatOffset: 0,
@@ -371,6 +376,7 @@ export const DANCE_MOVE_LIBRARY: DanceMoveBlock[] = [
     durationBeats: 8,
     description: 'Precyzyjne i ostre jak brzytwa blokady ramion z szybkim popem klatki piersiowej.',
     tags: ['kpop', 'isolation', 'sharp', 'precision'],
+    clipName: 'kpop_isolation',
     keyframes: [
       {
         beatOffset: 0,
