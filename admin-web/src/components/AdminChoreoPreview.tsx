@@ -149,19 +149,23 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
       controls.update();
       controlsRef.current = controls;
 
-      // Profesjonalne Oświetlenie 3D (Key Light + Pink Rim Light + Fill Light)
-      const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+      // Profesjonalne Oświetlenie 3D Dyskotekowe - Neon Vibes (Premium Aesthetic)
+      const ambientLight = new THREE.AmbientLight(0x404040, 1.5); // Soft dark ambient
       scene.add(ambientLight);
 
-      const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
-      keyLight.position.set(2, 4, 3);
+      const keyLight = new THREE.DirectionalLight(0x00f3ff, 4.0); // Neon Cyan Key Light
+      keyLight.position.set(3, 4, 4);
       scene.add(keyLight);
 
-      const rimLight = new THREE.DirectionalLight(0xf472b6, 1.5);
-      rimLight.position.set(-2, 2, -2);
+      const rimLight = new THREE.DirectionalLight(0xff00b3, 5.0); // Neon Pink Rim Light
+      rimLight.position.set(-3, 2, -3);
       scene.add(rimLight);
+      
+      const fillLight = new THREE.DirectionalLight(0x7000ff, 3.0); // Deep Purple Fill
+      fillLight.position.set(0, -1, 2);
+      scene.add(fillLight);
 
-      const grid = new THREE.GridHelper(10, 20, 0xf472b6, 0x3f3f46);
+      const grid = new THREE.GridHelper(15, 30, 0xff00b3, 0x1a1a24);
       grid.position.y = 0;
       scene.add(grid);
 
@@ -192,8 +196,9 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
                   const mesh = child as THREE.Mesh;
                   if (mesh.material && (mesh.material as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
                     const mat = mesh.material as THREE.MeshStandardMaterial;
-                    mat.metalness = 0.2;
-                    mat.roughness = 0.3;
+                    mat.metalness = 0.8;
+                    mat.roughness = 0.15;
+                    mat.color = new THREE.Color(0x222222); // Dark base color so neon lights pop
                   }
                 }
               });

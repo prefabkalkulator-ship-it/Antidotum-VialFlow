@@ -25,11 +25,11 @@ const CLIP_CATALOG: Record<string, string> = {
 };
 
 const STYLE_FALLBACKS: Record<string, string[]> = {
-  'Hip-Hop': ['hiphop_bounce', 'run'],
-  'Breakdance': ['bboy_footwork', 'hiphop_bounce'],
-  'K-Pop': ['kpop_isolation', 'hiphop_bounce'],
-  'Commercial': ['commercial_wave', 'walk'],
-  'High Heels': ['heels_strut', 'commercial_wave'],
+  'Hip-Hop': ['sneak_pose', 'run'],
+  'Breakdance': ['sneak_pose', 'idle'],
+  'K-Pop': ['agree', 'walk'],
+  'Commercial': ['agree', 'walk'],
+  'High Heels': ['walk', 'idle'],
 };
 
 export class MotionEngine {
@@ -174,11 +174,11 @@ export class MotionEngine {
       }
     }
 
-    return 'hiphop_bounce';
+    return 'idle';
   }
 
   private findFallbackClipName(_failedKey: string): string | null {
-    for (const fallback of ['hiphop_bounce', 'dance_hiphop', 'dance', 'idle']) {
+    for (const fallback of ['sneak_pose', 'agree', 'idle']) {
       if (this.loadedActions.has(fallback)) return fallback;
     }
     return 'idle';
