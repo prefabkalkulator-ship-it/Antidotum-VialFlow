@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Re-read clean template Y-Bot.glb
 const templatePath = path.resolve(__dirname, '../public/Y-Bot.glb');
 const fileBuffer = fs.readFileSync(templatePath);
 
@@ -12,14 +13,14 @@ const jsonChunkLength = fileBuffer.readUInt32LE(12);
 const jsonStr = fileBuffer.toString('utf8', 20, 20 + jsonChunkLength);
 const gltfJson = JSON.parse(jsonStr);
 
+// We slice up to initial 7 animations to ensure clean state
+if (gltfJson.animations.length > 7) {
+  gltfJson.animations = gltfJson.animations.slice(0, 7);
+}
+
 const binChunkHeaderOffset = 20 + jsonChunkLength;
 const binChunkLength = fileBuffer.readUInt32LE(binChunkHeaderOffset);
 const origBinBuffer = fileBuffer.subarray(binChunkHeaderOffset + 8, binChunkHeaderOffset + 8 + binChunkLength);
-
-console.log('Original Y-Bot.glb stats:');
-console.log('  - Nodes:', gltfJson.nodes.length);
-console.log('  - Animations:', gltfJson.animations.length, gltfJson.animations.map(a => a.name));
-console.log('  - BIN buffer size:', (origBinBuffer.length / (1024 * 1024)).toFixed(2), 'MB');
 
 const nodeMap = new Map();
 gltfJson.nodes.forEach((n, i) => nodeMap.set(n.name, i));
@@ -91,6 +92,8 @@ function buildGLB(jsonObj, binBuf) {
 
 const newBinBuffers = [origBinBuffer];
 let currentBinOffset = origBinBuffer.length;
+
+const BASE_HIPS_Y = 101.8; // Mixamo Y-Bot natural standing pelvis height
 
 function createDanceAnimation(animName, styleType, durationSec = 4.0, fps = 30) {
   const totalFrames = Math.floor(durationSec * fps);
@@ -227,10 +230,10 @@ function createDanceAnimation(animName, styleType, durationSec = 4.0, fps = 30) 
     rToeRot.set(zeroQ, i * 4);
 
     if (styleType === 'hiphop_bounce') {
-      // Hip-Hop Bounce
-      hipsPos[i * 3 + 0] = Math.sin(phase) * 0.15;
-      hipsPos[i * 3 + 1] = -Math.abs(Math.sin(phase * 2)) * 0.18;
-      hipsPos[i * 3 + 2] = Math.cos(phase) * 0.08;
+      // Hip-Hop Bounce (Pelvis at Y = 101.8 + bounce)
+      hipsPos[i * 3 + 0] = Math.sin(phase) * 6.0;
+      hipsPos[i * 3 + 1] = BASE_HIPS_Y - Math.abs(Math.sin(phase * 2)) * 12.0; // Deep bounce down
+      hipsPos[i * 3 + 2] = Math.cos(phase) * 4.0;
 
       hipsRot.set(eulerToQuaternion(0.2, Math.sin(phase) * 0.2, Math.cos(phase) * 0.15), i * 4);
       spineRot.set(eulerToQuaternion(0.3 + Math.abs(Math.sin(phase * 2)) * 0.25, -Math.sin(phase) * 0.15, 0), i * 4);
@@ -249,8 +252,8 @@ function createDanceAnimation(animName, styleType, durationSec = 4.0, fps = 30) 
 
     } else if (styleType === 'bboy_footwork') {
       // Breakdance Toprock
-      hipsPos[i * 3 + 0] = Math.sin(phase) * 0.35;
-      hipsPos[i * 3 + 1] = -Math.abs(Math.cos(phase * 2)) * 0.12;
+      hipsPos[i * 3 + 0] = Math.sin(phase) * 15.0;
+      hipsPos[i * 3 + 1] = BASE_HIPS_Y - Math.abs(Math.cos(phase * 2)) * 8.0;
       hipsPos[i * 3 + 2] = 0;
 
       hipsRot.set(eulerToQuaternion(0.15, Math.sin(phase) * 0.6, Math.cos(phase) * 0.25), i * 4);
@@ -271,8 +274,8 @@ function createDanceAnimation(animName, styleType, durationSec = 4.0, fps = 30) 
     } else if (styleType === 'kpop_isolation') {
       // K-Pop Sharp Isolation
       const sharpStep = Math.sign(Math.sin(phase * 2));
-      hipsPos[i * 3 + 0] = sharpStep * 0.1;
-      hipsPos[i * 3 + 1] = -Math.abs(sharpStep) * 0.06;
+      hipsPos[i * 3 + 0] = sharpStep * 5.0;
+      hipsPos[i * 3 + 1] = BASE_HIPS_Y - Math.abs(sharpStep) * 4.0;
       hipsPos[i * 3 + 2] = 0;
 
       hipsRot.set(eulerToQuaternion(0, sharpStep * 0.3, 0), i * 4);
@@ -292,9 +295,9 @@ function createDanceAnimation(animName, styleType, durationSec = 4.0, fps = 30) 
 
     } else if (styleType === 'commercial_wave') {
       // Commercial Body Wave
-      hipsPos[i * 3 + 0] = Math.sin(phase) * 0.15;
-      hipsPos[i * 3 + 1] = Math.sin(phase * 2) * 0.08;
-      hipsPos[i * 3 + 2] = Math.cos(phase * 2) * 0.12;
+      hipsPos[i * 3 + 0] = Math.sin(phase) * 6.0;
+      hipsPos[i * 3 + 1] = BASE_HIPS_Y + Math.sin(phase * 2) * 4.0;
+      hipsPos[i * 3 + 2] = Math.cos(phase * 2) * 5.0;
 
       hipsRot.set(eulerToQuaternion(Math.sin(phase * 2) * 0.3, Math.cos(phase) * 0.3, 0), i * 4);
       spineRot.set(eulerToQuaternion(-Math.sin(phase * 2 - 0.5) * 0.35, 0, 0), i * 4);
@@ -313,9 +316,9 @@ function createDanceAnimation(animName, styleType, durationSec = 4.0, fps = 30) 
 
     } else if (styleType === 'heels_strut') {
       // High Heels Sassy Strut
-      hipsPos[i * 3 + 0] = Math.sin(phase) * 0.2;
-      hipsPos[i * 3 + 1] = -Math.abs(Math.sin(phase * 2)) * 0.08;
-      hipsPos[i * 3 + 2] = Math.cos(phase) * 0.06;
+      hipsPos[i * 3 + 0] = Math.sin(phase) * 8.0;
+      hipsPos[i * 3 + 1] = BASE_HIPS_Y - Math.abs(Math.sin(phase * 2)) * 4.0;
+      hipsPos[i * 3 + 2] = Math.cos(phase) * 3.0;
 
       hipsRot.set(eulerToQuaternion(0.12, Math.sin(phase) * 0.45, -Math.sin(phase) * 0.35), i * 4);
       spineRot.set(eulerToQuaternion(-0.2, -Math.sin(phase) * 0.3, 0), i * 4);
@@ -364,7 +367,7 @@ function createDanceAnimation(animName, styleType, durationSec = 4.0, fps = 30) 
     samplers: samplers
   });
 
-  console.log(`[Embedded Generator] Embedded animation "${animName}" (${channels.length} tracks)`);
+  console.log(`[Embedded Generator] Embedded animation "${animName}" (${channels.length} tracks, BASE_HIPS_Y=${BASE_HIPS_Y})`);
 }
 
 createDanceAnimation('hiphop_bounce', 'hiphop_bounce');
@@ -380,6 +383,6 @@ const glbBuf = buildGLB(gltfJson, finalBinBuffer);
 
 fs.writeFileSync(templatePath, glbBuf);
 
-console.log('✅ Successfully updated Y-Bot.glb with 12 embedded animations!');
+console.log('✅ Successfully updated Y-Bot.glb with BASE_HIPS_Y=101.8!');
 console.log('  - Total file size:', (glbBuf.length / (1024 * 1024)).toFixed(2), 'MB');
 console.log('  - Embedded animations (total 12):', gltfJson.animations.map(a => a.name));
