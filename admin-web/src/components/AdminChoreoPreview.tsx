@@ -161,8 +161,8 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
       rimLight.position.set(-3, 2, -3);
       scene.add(rimLight);
       
-      const fillLight = new THREE.DirectionalLight(0x7000ff, 3.0); // Deep Purple Fill
-      fillLight.position.set(0, -1, 2);
+      const fillLight = new THREE.DirectionalLight(0x7000ff, 4.0); // Deep Purple Fill (mocniejszy)
+      fillLight.position.set(0, -1, 3);
       scene.add(fillLight);
 
       const grid = new THREE.GridHelper(15, 30, 0xff00b3, 0x1a1a24);
@@ -196,9 +196,9 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
                   const mesh = child as THREE.Mesh;
                   if (mesh.material && (mesh.material as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
                     const mat = mesh.material as THREE.MeshStandardMaterial;
-                    mat.metalness = 0.8;
-                    mat.roughness = 0.15;
-                    mat.color = new THREE.Color(0x222222); // Dark base color so neon lights pop
+                    mat.metalness = 0.5;
+                    mat.roughness = 0.2;
+                    mat.color = new THREE.Color(0x887799); // Light gray-purple base for neon reflections
                   }
                 }
               });
