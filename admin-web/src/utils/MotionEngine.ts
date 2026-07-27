@@ -4,10 +4,9 @@ import type { ChoreographySequence, DanceMoveBlock } from './DanceMoveLibrary';
 
 /**
  * Katalog mapujący nazwy klipów na ścieżki do plików GLB z animacjami MoCap.
- * Klucze to `clipName` z DanceMoveBlock, wartości to URL do pliku GLB.
  */
 const CLIP_CATALOG: Record<string, string> = {
-  // Animacje osadzone w Y-Bot.glb (nie wymagają osobnego pliku)
+  // Animacje osadzone w Y-Bot.glb
   idle: '__embedded__',
   walk: '__embedded__',
   run: '__embedded__',
@@ -16,7 +15,7 @@ const CLIP_CATALOG: Record<string, string> = {
   sad_pose: '__embedded__',
   sneak_pose: '__embedded__',
 
-  // Dedykowane animacje taneczne MoCap z plików GLB
+  // Dedykowane animacje taneczne MoCap z plików GLB (pełne 23 kości)
   hiphop_bounce: '/assets/animations/hiphop_bounce.glb',
   bboy_footwork: '/assets/animations/bboy_footwork.glb',
   kpop_isolation: '/assets/animations/kpop_isolation.glb',
@@ -27,14 +26,14 @@ const CLIP_CATALOG: Record<string, string> = {
 };
 
 /**
- * Mapowanie styl taneczny → preferowane klipy (fallback)
+ * Mapowanie styl taneczny → preferowany klip
  */
 const STYLE_FALLBACKS: Record<string, string[]> = {
-  'Hip-Hop': ['hiphop_bounce', 'dance_hiphop', 'dance', 'run'],
-  'Breakdance': ['bboy_footwork', 'dance', 'dance_hiphop', 'run'],
-  'K-Pop': ['kpop_isolation', 'dance_hiphop', 'dance', 'run'],
-  'Commercial': ['commercial_wave', 'dance', 'dance_hiphop', 'walk'],
-  'High Heels': ['heels_strut', 'dance_hiphop', 'dance', 'walk'],
+  'Hip-Hop': ['hiphop_bounce', 'dance_hiphop', 'dance'],
+  'Breakdance': ['bboy_footwork', 'dance', 'hiphop_bounce'],
+  'K-Pop': ['kpop_isolation', 'dance_hiphop', 'dance'],
+  'Commercial': ['commercial_wave', 'dance', 'dance_hiphop'],
+  'High Heels': ['heels_strut', 'dance_hiphop', 'dance'],
 };
 
 export class MotionEngine {
@@ -47,7 +46,7 @@ export class MotionEngine {
   private gltfLoader: GLTFLoader = new GLTFLoader();
 
   /**
-   * Rejestruje węzły szkieletu awatara 3D oraz inicjalizuje THREE.AnimationMixer.
+   * Rejestruje szkielet awatara 3D oraz inicjalizuje THREE.AnimationMixer.
    */
   public bindSkeleton(scene: THREE.Object3D, embeddedAnimations: THREE.AnimationClip[] = []): void {
     this.embeddedActions.clear();
@@ -68,7 +67,7 @@ export class MotionEngine {
       });
     }
 
-    // Pre-load tanecznych plików GLB
+    // Pre-load wszystkich 5 tanecznych plików GLB natychmiast po załadowaniu sceny
     this.preloadDanceClips();
 
     // Domyślnie odtwarzaj animację "idle"
@@ -76,10 +75,10 @@ export class MotionEngine {
   }
 
   /**
-   * Ładuje w tle główne klipy taneczne MoCap
+   * Natychmiastowo ładuje w tle wszystkie 5 dedykowanych animacji tanecznych
    */
   private preloadDanceClips(): void {
-    const clipsToPreload = ['dance_hiphop', 'dance'];
+    const clipsToPreload = ['hiphop_bounce', 'bboy_footwork', 'kpop_isolation', 'commercial_wave', 'heels_strut', 'dance_hiphop', 'dance'];
     clipsToPreload.forEach((key) => {
       const clipUrl = CLIP_CATALOG[key];
       if (clipUrl && clipUrl !== '__embedded__' && !this.loadedActions.has(key) && !this.loadingClips.has(key)) {
@@ -92,7 +91,7 @@ export class MotionEngine {
               const clip = gltf.animations[0];
               const action = this.mixer.clipAction(clip);
               this.loadedActions.set(key, action);
-              console.info(`[MotionEngine] ✅ Preloaded dance clip "${key}" (${clip.duration.toFixed(1)}s)`);
+              console.info(`[MotionEngine] ✅ Preloaded dance clip "${key}" (${clip.duration.toFixed(1)}s, ${clip.tracks.length} tracks)`);
             }
           },
           undefined,
@@ -103,7 +102,7 @@ export class MotionEngine {
   }
 
   /**
-   * Odtwarza klip animacyjny po nazwie z płynnym przenikaniem (crossFade).
+   * Odtwarza klip animacyjny po nazwie z zatrzymaniem poprzednich akcji.
    */
   public playClipByName(clipName: string, timeScale: number = 1.0, crossFadeDuration: number = 0.3): void {
     if (!this.mixer) return;
@@ -125,7 +124,7 @@ export class MotionEngine {
     if (!clipUrl || clipUrl === '__embedded__') {
       const fallbackName = this.findFallbackClipName(key);
       const fallback = fallbackName ? this.loadedActions.get(fallbackName) : null;
-      if (fallback && this.currentActionName !== fallbackName) {
+      if (fallback) {
         this.crossFadeToAction(fallback, fallbackName || 'idle', 1.0, crossFadeDuration);
       }
       return;
@@ -165,8 +164,7 @@ export class MotionEngine {
   }
 
   /**
-   * Główna metoda aktualizacji — wywoływana co klatkę renderowania podczas odtwarzania.
-   * Oblicza aktywny blok na podstawie czasu `currentTimeSeconds` i automatycznie przełącza klip MoCap.
+   * Główna metoda aktualizacji klatki podczas odtwarzania.
    */
   public updatePose(
     sequence: ChoreographySequence,
@@ -215,7 +213,7 @@ export class MotionEngine {
   }
 
   /**
-   * Tick mixera na pauzie (przejście awatara w płynną pozę idle)
+   * Tick mixera na pauzie (przejście awatara w pozę spoczynkową idle)
    */
   public tick(delta: number): void {
     if (!this.mixer) return;
@@ -244,23 +242,36 @@ export class MotionEngine {
       }
     }
 
-    return 'dance_hiphop';
+    return 'hiphop_bounce';
   }
 
   private findFallbackClipName(_failedKey: string): string | null {
-    for (const fallback of ['dance_hiphop', 'dance', 'walk', 'run', 'idle']) {
+    for (const fallback of ['hiphop_bounce', 'dance_hiphop', 'dance', 'idle']) {
       if (this.loadedActions.has(fallback) || CLIP_CATALOG[fallback]) return fallback;
     }
     return 'idle';
   }
 
+  /**
+   * Zatrzymuje WSZYSTKIE poprzednio odtwarzane akcje (w tym walk/run) i płynnie włącza docelową akcję taneczną.
+   */
   private crossFadeToAction(
     nextAction: THREE.AnimationAction,
     nextName: string,
     timeScale: number,
     crossFadeDuration: number
   ): void {
-    const prevAction = this.currentActionName ? this.loadedActions.get(this.currentActionName) : null;
+    if (this.currentActionName === nextName && nextAction.isRunning()) {
+      nextAction.setEffectiveTimeScale(timeScale);
+      return;
+    }
+
+    // Zwróć uwagę: zatrzymujemy WSZYSTKIE poprzednie akcje, aby usunąć ścieżki chodu/biegu
+    this.loadedActions.forEach((action, key) => {
+      if (key !== nextName && action !== nextAction) {
+        action.stop();
+      }
+    });
 
     nextAction.reset();
     nextAction.enabled = true;
@@ -268,10 +279,6 @@ export class MotionEngine {
     nextAction.setLoop(THREE.LoopRepeat, Infinity);
     nextAction.clampWhenFinished = false;
     nextAction.play();
-
-    if (prevAction && prevAction !== nextAction) {
-      prevAction.crossFadeTo(nextAction, crossFadeDuration, true);
-    }
 
     this.currentActionName = nextName;
     console.info(`[MotionEngine] ▶ Odtwarzanie MoCap: "${nextName}" (tempo: ${timeScale.toFixed(2)}x)`);

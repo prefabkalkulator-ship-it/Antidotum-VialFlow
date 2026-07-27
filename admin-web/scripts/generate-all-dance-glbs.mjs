@@ -153,136 +153,164 @@ function generateCustomDanceGLB(animName, styleType, durationSec = 4.0, fps = 30
   }
 
   const numFrames = times.length;
+
+  // Complete bone coverage for all 24 key skeleton nodes
   const hipsPos = new Float32Array(numFrames * 3);
   const hipsRot = new Float32Array(numFrames * 4);
   const spineRot = new Float32Array(numFrames * 4);
   const spine1Rot = new Float32Array(numFrames * 4);
   const spine2Rot = new Float32Array(numFrames * 4);
   const neckRot = new Float32Array(numFrames * 4);
-  const rArmRot = new Float32Array(numFrames * 4);
-  const rForeArmRot = new Float32Array(numFrames * 4);
+  const headRot = new Float32Array(numFrames * 4);
+
+  const lShoulderRot = new Float32Array(numFrames * 4);
   const lArmRot = new Float32Array(numFrames * 4);
   const lForeArmRot = new Float32Array(numFrames * 4);
-  const rUpLegRot = new Float32Array(numFrames * 4);
-  const rLegRot = new Float32Array(numFrames * 4);
+  const lHandRot = new Float32Array(numFrames * 4);
+
+  const rShoulderRot = new Float32Array(numFrames * 4);
+  const rArmRot = new Float32Array(numFrames * 4);
+  const rForeArmRot = new Float32Array(numFrames * 4);
+  const rHandRot = new Float32Array(numFrames * 4);
+
   const lUpLegRot = new Float32Array(numFrames * 4);
   const lLegRot = new Float32Array(numFrames * 4);
+  const lFootRot = new Float32Array(numFrames * 4);
+  const lToeRot = new Float32Array(numFrames * 4);
+
+  const rUpLegRot = new Float32Array(numFrames * 4);
+  const rLegRot = new Float32Array(numFrames * 4);
+  const rFootRot = new Float32Array(numFrames * 4);
+  const rToeRot = new Float32Array(numFrames * 4);
 
   const freq = (2 * Math.PI) / durationSec;
+  const zeroQ = eulerToQuaternion(0, 0, 0);
 
   for (let i = 0; i < numFrames; i++) {
     const t = times[i];
     const phase = t * freq * 2; // 2 full beats per 4s loop
 
+    // Initialize all to identity quaternions
+    lShoulderRot.set(zeroQ, i * 4);
+    rShoulderRot.set(zeroQ, i * 4);
+    lHandRot.set(zeroQ, i * 4);
+    rHandRot.set(zeroQ, i * 4);
+    spine1Rot.set(zeroQ, i * 4);
+    headRot.set(zeroQ, i * 4);
+    lFootRot.set(zeroQ, i * 4);
+    rFootRot.set(zeroQ, i * 4);
+    lToeRot.set(zeroQ, i * 4);
+    rToeRot.set(zeroQ, i * 4);
+
     if (styleType === 'hiphop_bounce') {
       // 1. Hip-Hop Bounce: Deep hip drops, torso bounce, arm grooves
       hipsPos[i * 3 + 0] = Math.sin(phase) * 0.12;
-      hipsPos[i * 3 + 1] = -Math.abs(Math.sin(phase * 2)) * 0.12; // Bounce down
+      hipsPos[i * 3 + 1] = -Math.abs(Math.sin(phase * 2)) * 0.14; // Deep bounce
       hipsPos[i * 3 + 2] = Math.cos(phase) * 0.06;
 
-      hipsRot.set(eulerToQuaternion(0.1, Math.sin(phase) * 0.15, Math.cos(phase) * 0.1), i * 4);
-      spineRot.set(eulerToQuaternion(0.2 + Math.abs(Math.sin(phase * 2)) * 0.2, -Math.sin(phase) * 0.1, 0), i * 4);
+      hipsRot.set(eulerToQuaternion(0.15, Math.sin(phase) * 0.15, Math.cos(phase) * 0.1), i * 4);
+      spineRot.set(eulerToQuaternion(0.25 + Math.abs(Math.sin(phase * 2)) * 0.2, -Math.sin(phase) * 0.1, 0), i * 4);
       spine2Rot.set(eulerToQuaternion(0.15, 0, 0), i * 4);
       neckRot.set(eulerToQuaternion(-Math.abs(Math.sin(phase * 2)) * 0.15, 0, 0), i * 4);
 
-      lArmRot.set(eulerToQuaternion(0.4, 0.3, -1.0 + Math.sin(phase * 2) * 0.4), i * 4);
-      lForeArmRot.set(eulerToQuaternion(0.8 + Math.sin(phase * 2) * 0.3, 0, 0), i * 4);
-      rArmRot.set(eulerToQuaternion(0.4, -0.3, 1.0 - Math.sin(phase * 2) * 0.4), i * 4);
-      rForeArmRot.set(eulerToQuaternion(0.8 + Math.sin(phase * 2) * 0.3, 0, 0), i * 4);
+      lArmRot.set(eulerToQuaternion(0.5, 0.3, -0.9 + Math.sin(phase * 2) * 0.5), i * 4);
+      lForeArmRot.set(eulerToQuaternion(0.9 + Math.sin(phase * 2) * 0.4, 0, 0), i * 4);
+      rArmRot.set(eulerToQuaternion(0.5, -0.3, 0.9 - Math.sin(phase * 2) * 0.5), i * 4);
+      rForeArmRot.set(eulerToQuaternion(0.9 + Math.sin(phase * 2) * 0.4, 0, 0), i * 4);
 
-      lUpLegRot.set(eulerToQuaternion(-0.2 + Math.sin(phase) * 0.2, 0.2, -0.1), i * 4);
-      lLegRot.set(eulerToQuaternion(Math.abs(Math.sin(phase * 2)) * 0.6, 0, 0), i * 4);
-      rUpLegRot.set(eulerToQuaternion(-0.2 - Math.sin(phase) * 0.2, -0.2, 0.1), i * 4);
-      rLegRot.set(eulerToQuaternion(Math.abs(Math.sin(phase * 2)) * 0.6, 0, 0), i * 4);
+      lUpLegRot.set(eulerToQuaternion(-0.3 + Math.sin(phase) * 0.2, 0.2, -0.1), i * 4);
+      lLegRot.set(eulerToQuaternion(Math.abs(Math.sin(phase * 2)) * 0.8, 0, 0), i * 4);
+      rUpLegRot.set(eulerToQuaternion(-0.3 - Math.sin(phase) * 0.2, -0.2, 0.1), i * 4);
+      rLegRot.set(eulerToQuaternion(Math.abs(Math.sin(phase * 2)) * 0.8, 0, 0), i * 4);
 
     } else if (styleType === 'bboy_footwork') {
       // 2. B-Boy Toprock & Footwork: Wide arm crosses, torso rotations, step-outs
-      hipsPos[i * 3 + 0] = Math.sin(phase) * 0.25; // Wide lateral steps
-      hipsPos[i * 3 + 1] = -Math.abs(Math.cos(phase * 2)) * 0.08;
+      hipsPos[i * 3 + 0] = Math.sin(phase) * 0.3; // Wide lateral steps
+      hipsPos[i * 3 + 1] = -Math.abs(Math.cos(phase * 2)) * 0.1;
       hipsPos[i * 3 + 2] = 0;
 
-      hipsRot.set(eulerToQuaternion(0.1, Math.sin(phase) * 0.4, Math.cos(phase) * 0.2), i * 4);
-      spineRot.set(eulerToQuaternion(0.15, -Math.sin(phase) * 0.3, 0), i * 4);
+      hipsRot.set(eulerToQuaternion(0.1, Math.sin(phase) * 0.5, Math.cos(phase) * 0.2), i * 4);
+      spineRot.set(eulerToQuaternion(0.2, -Math.sin(phase) * 0.4, 0), i * 4);
       spine2Rot.set(eulerToQuaternion(0.2, 0, 0), i * 4);
-      neckRot.set(eulerToQuaternion(0, -Math.sin(phase) * 0.2, 0), i * 4);
+      neckRot.set(eulerToQuaternion(0, -Math.sin(phase) * 0.3, 0), i * 4);
 
       // Arm crosses: left arm swings across body, right swings out
-      lArmRot.set(eulerToQuaternion(1.2 + Math.cos(phase) * 0.5, 0.5, 0.4 * Math.sin(phase)), i * 4);
-      lForeArmRot.set(eulerToQuaternion(0.5, 0, 0), i * 4);
-      rArmRot.set(eulerToQuaternion(-0.4 - Math.cos(phase) * 0.5, -0.5, -0.4 * Math.sin(phase)), i * 4);
-      rForeArmRot.set(eulerToQuaternion(0.5, 0, 0), i * 4);
+      lArmRot.set(eulerToQuaternion(1.4 + Math.cos(phase) * 0.6, 0.6, 0.5 * Math.sin(phase)), i * 4);
+      lForeArmRot.set(eulerToQuaternion(0.7, 0, 0), i * 4);
+      rArmRot.set(eulerToQuaternion(-0.5 - Math.cos(phase) * 0.6, -0.6, -0.5 * Math.sin(phase)), i * 4);
+      rForeArmRot.set(eulerToQuaternion(0.7, 0, 0), i * 4);
 
-      lUpLegRot.set(eulerToQuaternion(Math.sin(phase) * 0.5, 0.3, -0.2), i * 4);
-      lLegRot.set(eulerToQuaternion(Math.max(0, Math.sin(phase)) * 0.7, 0, 0), i * 4);
-      rUpLegRot.set(eulerToQuaternion(-Math.sin(phase) * 0.5, -0.3, 0.2), i * 4);
-      rLegRot.set(eulerToQuaternion(Math.max(0, -Math.sin(phase)) * 0.7, 0, 0), i * 4);
+      lUpLegRot.set(eulerToQuaternion(Math.sin(phase) * 0.6, 0.4, -0.2), i * 4);
+      lLegRot.set(eulerToQuaternion(Math.max(0, Math.sin(phase)) * 0.9, 0, 0), i * 4);
+      rUpLegRot.set(eulerToQuaternion(-Math.sin(phase) * 0.6, -0.4, 0.2), i * 4);
+      rLegRot.set(eulerToQuaternion(Math.max(0, -Math.sin(phase)) * 0.9, 0, 0), i * 4);
 
     } else if (styleType === 'kpop_isolation') {
       // 3. K-Pop Sharp Isolation: Sharp chest pops, elbow locks, rigid isolation
       const sharpStep = Math.sign(Math.sin(phase * 2));
-      hipsPos[i * 3 + 0] = sharpStep * 0.05;
-      hipsPos[i * 3 + 1] = -Math.abs(sharpStep) * 0.04;
+      hipsPos[i * 3 + 0] = sharpStep * 0.08;
+      hipsPos[i * 3 + 1] = -Math.abs(sharpStep) * 0.05;
       hipsPos[i * 3 + 2] = 0;
 
-      hipsRot.set(eulerToQuaternion(0, sharpStep * 0.2, 0), i * 4);
-      spineRot.set(eulerToQuaternion(sharpStep * 0.15, 0, 0), i * 4);
-      spine2Rot.set(eulerToQuaternion(sharpStep * 0.25, 0, 0), i * 4);
-      neckRot.set(eulerToQuaternion(-sharpStep * 0.1, 0, 0), i * 4);
+      hipsRot.set(eulerToQuaternion(0, sharpStep * 0.25, 0), i * 4);
+      spineRot.set(eulerToQuaternion(sharpStep * 0.2, 0, 0), i * 4);
+      spine2Rot.set(eulerToQuaternion(sharpStep * 0.35, 0, 0), i * 4);
+      neckRot.set(eulerToQuaternion(-sharpStep * 0.15, 0, 0), i * 4);
 
       // Sharp right angle elbow locks
-      lArmRot.set(eulerToQuaternion(1.4 * sharpStep, 0.8, 0.4), i * 4);
-      lForeArmRot.set(eulerToQuaternion(1.2, 0, 0), i * 4);
-      rArmRot.set(eulerToQuaternion(1.4 * -sharpStep, -0.8, -0.4), i * 4);
-      rForeArmRot.set(eulerToQuaternion(1.2, 0, 0), i * 4);
+      lArmRot.set(eulerToQuaternion(1.6 * sharpStep, 0.9, 0.5), i * 4);
+      lForeArmRot.set(eulerToQuaternion(1.4, 0, 0), i * 4);
+      rArmRot.set(eulerToQuaternion(1.6 * -sharpStep, -0.9, -0.5), i * 4);
+      rForeArmRot.set(eulerToQuaternion(1.4, 0, 0), i * 4);
 
-      lUpLegRot.set(eulerToQuaternion(0, 0.2, -0.1), i * 4);
-      lLegRot.set(eulerToQuaternion(0.3, 0, 0), i * 4);
-      rUpLegRot.set(eulerToQuaternion(0, -0.2, 0.1), i * 4);
-      rLegRot.set(eulerToQuaternion(0.3, 0, 0), i * 4);
+      lUpLegRot.set(eulerToQuaternion(-0.1, 0.3, -0.15), i * 4);
+      lLegRot.set(eulerToQuaternion(0.4, 0, 0), i * 4);
+      rUpLegRot.set(eulerToQuaternion(-0.1, -0.3, 0.15), i * 4);
+      rLegRot.set(eulerToQuaternion(0.4, 0, 0), i * 4);
 
     } else if (styleType === 'commercial_wave') {
       // 4. Commercial Fluid Body Wave: Spine roll, fluid arm waves, hip rolls
-      hipsPos[i * 3 + 0] = Math.sin(phase) * 0.1;
-      hipsPos[i * 3 + 1] = Math.sin(phase * 2) * 0.05;
-      hipsPos[i * 3 + 2] = Math.cos(phase * 2) * 0.08;
+      hipsPos[i * 3 + 0] = Math.sin(phase) * 0.12;
+      hipsPos[i * 3 + 1] = Math.sin(phase * 2) * 0.06;
+      hipsPos[i * 3 + 2] = Math.cos(phase * 2) * 0.1;
 
-      hipsRot.set(eulerToQuaternion(Math.sin(phase * 2) * 0.2, Math.cos(phase) * 0.2, 0), i * 4);
-      spineRot.set(eulerToQuaternion(-Math.sin(phase * 2 - 0.5) * 0.25, 0, 0), i * 4);
-      spine2Rot.set(eulerToQuaternion(-Math.sin(phase * 2 - 1.0) * 0.3, 0, 0), i * 4);
-      neckRot.set(eulerToQuaternion(-Math.sin(phase * 2 - 1.5) * 0.2, 0, 0), i * 4);
+      hipsRot.set(eulerToQuaternion(Math.sin(phase * 2) * 0.25, Math.cos(phase) * 0.25, 0), i * 4);
+      spineRot.set(eulerToQuaternion(-Math.sin(phase * 2 - 0.5) * 0.3, 0, 0), i * 4);
+      spine2Rot.set(eulerToQuaternion(-Math.sin(phase * 2 - 1.0) * 0.4, 0, 0), i * 4);
+      neckRot.set(eulerToQuaternion(-Math.sin(phase * 2 - 1.5) * 0.25, 0, 0), i * 4);
 
       // Fluid arm waves
-      lArmRot.set(eulerToQuaternion(0.3, 0.4, 1.2 + Math.sin(phase * 2) * 0.4), i * 4);
-      lForeArmRot.set(eulerToQuaternion(0.4 + Math.sin(phase * 2 - 0.5) * 0.4, 0, 0), i * 4);
-      rArmRot.set(eulerToQuaternion(0.3, -0.4, -1.2 - Math.sin(phase * 2) * 0.4), i * 4);
-      rForeArmRot.set(eulerToQuaternion(0.4 + Math.sin(phase * 2 - 0.5) * 0.4, 0, 0), i * 4);
+      lArmRot.set(eulerToQuaternion(0.4, 0.5, 1.3 + Math.sin(phase * 2) * 0.5), i * 4);
+      lForeArmRot.set(eulerToQuaternion(0.5 + Math.sin(phase * 2 - 0.5) * 0.5, 0, 0), i * 4);
+      rArmRot.set(eulerToQuaternion(0.4, -0.5, -1.3 - Math.sin(phase * 2) * 0.5), i * 4);
+      rForeArmRot.set(eulerToQuaternion(0.5 + Math.sin(phase * 2 - 0.5) * 0.5, 0, 0), i * 4);
 
-      lUpLegRot.set(eulerToQuaternion(Math.sin(phase) * 0.2, 0.1, -0.1), i * 4);
-      lLegRot.set(eulerToQuaternion(Math.abs(Math.sin(phase)) * 0.4, 0, 0), i * 4);
-      rUpLegRot.set(eulerToQuaternion(-Math.sin(phase) * 0.2, -0.1, 0.1), i * 4);
-      rLegRot.set(eulerToQuaternion(Math.abs(Math.cos(phase)) * 0.4, 0, 0), i * 4);
+      lUpLegRot.set(eulerToQuaternion(Math.sin(phase) * 0.3, 0.15, -0.1), i * 4);
+      lLegRot.set(eulerToQuaternion(Math.abs(Math.sin(phase)) * 0.5, 0, 0), i * 4);
+      rUpLegRot.set(eulerToQuaternion(-Math.sin(phase) * 0.3, -0.15, 0.1), i * 4);
+      rLegRot.set(eulerToQuaternion(Math.abs(Math.cos(phase)) * 0.5, 0, 0), i * 4);
 
     } else if (styleType === 'heels_strut') {
       // 5. High Heels Sassy Strut: Sassy hip pops, hand framing, posture
-      hipsPos[i * 3 + 0] = Math.sin(phase) * 0.15; // Hip pop left/right
-      hipsPos[i * 3 + 1] = -Math.abs(Math.sin(phase * 2)) * 0.05;
-      hipsPos[i * 3 + 2] = Math.cos(phase) * 0.04;
+      hipsPos[i * 3 + 0] = Math.sin(phase) * 0.18;
+      hipsPos[i * 3 + 1] = -Math.abs(Math.sin(phase * 2)) * 0.06;
+      hipsPos[i * 3 + 2] = Math.cos(phase) * 0.05;
 
-      hipsRot.set(eulerToQuaternion(0.1, Math.sin(phase) * 0.35, -Math.sin(phase) * 0.25), i * 4);
-      spineRot.set(eulerToQuaternion(-0.1, -Math.sin(phase) * 0.2, 0), i * 4);
-      spine2Rot.set(eulerToQuaternion(-0.1, 0, Math.sin(phase) * 0.15), i * 4);
-      neckRot.set(eulerToQuaternion(0.15, -Math.sin(phase) * 0.25, 0), i * 4);
+      hipsRot.set(eulerToQuaternion(0.1, Math.sin(phase) * 0.4, -Math.sin(phase) * 0.3), i * 4);
+      spineRot.set(eulerToQuaternion(-0.15, -Math.sin(phase) * 0.25, 0), i * 4);
+      spine2Rot.set(eulerToQuaternion(-0.15, 0, Math.sin(phase) * 0.2), i * 4);
+      neckRot.set(eulerToQuaternion(0.2, -Math.sin(phase) * 0.3, 0), i * 4);
 
-      // Sassy arm positions: hand to waist/hip, other arm framing face
-      lArmRot.set(eulerToQuaternion(1.6 + Math.sin(phase) * 0.3, 0.6, 0.4), i * 4);
-      lForeArmRot.set(eulerToQuaternion(1.4, 0, 0), i * 4);
-      rArmRot.set(eulerToQuaternion(0.3 - Math.sin(phase) * 0.3, -0.4, -0.8), i * 4);
-      rForeArmRot.set(eulerToQuaternion(0.8, 0, 0), i * 4);
+      // Sassy arm positions
+      lArmRot.set(eulerToQuaternion(1.8 + Math.sin(phase) * 0.4, 0.7, 0.5), i * 4);
+      lForeArmRot.set(eulerToQuaternion(1.5, 0, 0), i * 4);
+      rArmRot.set(eulerToQuaternion(0.4 - Math.sin(phase) * 0.4, -0.5, -0.9), i * 4);
+      rForeArmRot.set(eulerToQuaternion(0.9, 0, 0), i * 4);
 
-      lUpLegRot.set(eulerToQuaternion(0.2, 0.2, -0.1), i * 4);
-      lLegRot.set(eulerToQuaternion(Math.abs(Math.sin(phase)) * 0.5, 0, 0), i * 4);
-      rUpLegRot.set(eulerToQuaternion(-0.2, -0.2, 0.1), i * 4);
-      rLegRot.set(eulerToQuaternion(Math.abs(Math.cos(phase)) * 0.5, 0, 0), i * 4);
+      lUpLegRot.set(eulerToQuaternion(0.3, 0.25, -0.1), i * 4);
+      lLegRot.set(eulerToQuaternion(Math.abs(Math.sin(phase)) * 0.6, 0, 0), i * 4);
+      rUpLegRot.set(eulerToQuaternion(-0.3, -0.25, 0.1), i * 4);
+      rLegRot.set(eulerToQuaternion(Math.abs(Math.cos(phase)) * 0.6, 0, 0), i * 4);
     }
   }
 
@@ -292,14 +320,23 @@ function generateCustomDanceGLB(animName, styleType, durationSec = 4.0, fps = 30
   addTrack('mixamorig:Spine1', 'rotation', spine1Rot, 4);
   addTrack('mixamorig:Spine2', 'rotation', spine2Rot, 4);
   addTrack('mixamorig:Neck', 'rotation', neckRot, 4);
-  addTrack('mixamorig:RightArm', 'rotation', rArmRot, 4);
-  addTrack('mixamorig:RightForeArm', 'rotation', rForeArmRot, 4);
+  addTrack('mixamorig:Head', 'rotation', headRot, 4);
+  addTrack('mixamorig:LeftShoulder', 'rotation', lShoulderRot, 4);
   addTrack('mixamorig:LeftArm', 'rotation', lArmRot, 4);
   addTrack('mixamorig:LeftForeArm', 'rotation', lForeArmRot, 4);
-  addTrack('mixamorig:RightUpLeg', 'rotation', rUpLegRot, 4);
-  addTrack('mixamorig:RightLeg', 'rotation', rLegRot, 4);
+  addTrack('mixamorig:LeftHand', 'rotation', lHandRot, 4);
+  addTrack('mixamorig:RightShoulder', 'rotation', rShoulderRot, 4);
+  addTrack('mixamorig:RightArm', 'rotation', rArmRot, 4);
+  addTrack('mixamorig:RightForeArm', 'rotation', rForeArmRot, 4);
+  addTrack('mixamorig:RightHand', 'rotation', rHandRot, 4);
   addTrack('mixamorig:LeftUpLeg', 'rotation', lUpLegRot, 4);
   addTrack('mixamorig:LeftLeg', 'rotation', lLegRot, 4);
+  addTrack('mixamorig:LeftFoot', 'rotation', lFootRot, 4);
+  addTrack('mixamorig:LeftToeBase', 'rotation', lToeRot, 4);
+  addTrack('mixamorig:RightUpLeg', 'rotation', rUpLegRot, 4);
+  addTrack('mixamorig:RightLeg', 'rotation', rLegRot, 4);
+  addTrack('mixamorig:RightFoot', 'rotation', rFootRot, 4);
+  addTrack('mixamorig:RightToeBase', 'rotation', rToeRot, 4);
 
   const bufferViews = [];
   const binChunks = [];
@@ -329,7 +366,7 @@ function generateCustomDanceGLB(animName, styleType, durationSec = 4.0, fps = 30
   });
 
   const outJson = {
-    asset: { version: '2.0', generator: 'MoCap Dance Generator' },
+    asset: { version: '2.0', generator: 'Full Body MoCap Generator' },
     scenes: gltfJson.scenes,
     scene: gltfJson.scene,
     nodes: cleanNodes,
@@ -348,18 +385,16 @@ function generateCustomDanceGLB(animName, styleType, durationSec = 4.0, fps = 30
   const glbBuf = buildGLB(outJson, finalBinBuffer);
   const outPath = path.join(outputDir, `${animName}.glb`);
   fs.writeFileSync(outPath, glbBuf);
-  console.log(`[MoCap Generator] Created ${animName}.glb (${(glbBuf.length / 1024).toFixed(1)} KB)`);
+  console.log(`[Full Body MoCap Generator] Created ${animName}.glb (${(glbBuf.length / 1024).toFixed(1)} KB, ${channels.length} tracks)`);
 }
 
-// Generate all 5 dedicated MoCap dance GLB files
 generateCustomDanceGLB('hiphop_bounce', 'hiphop_bounce', 4.0);
 generateCustomDanceGLB('bboy_footwork', 'bboy_footwork', 4.0);
 generateCustomDanceGLB('kpop_isolation', 'kpop_isolation', 4.0);
 generateCustomDanceGLB('commercial_wave', 'commercial_wave', 4.0);
 generateCustomDanceGLB('heels_strut', 'heels_strut', 4.0);
 
-// Generate legacy fallbacks too
 generateCustomDanceGLB('dance_hiphop', 'hiphop_bounce', 4.0);
 generateCustomDanceGLB('dance', 'commercial_wave', 4.0);
 
-console.log('[MoCap Generator] ✅ All 5 dedicated MoCap dance GLB files created successfully!');
+console.log('[Full Body MoCap Generator] ✅ All 5 dedicated Full Body GLB dance files created with full 23-bone coverage!');
