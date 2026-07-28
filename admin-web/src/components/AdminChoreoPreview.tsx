@@ -59,7 +59,15 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
   // Audio initialization
   useEffect(() => {
     const defaultBeatUrl = 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=hip-hop-beat-112702.mp3';
-    const audio = new Audio(audioUrl || defaultBeatUrl);
+    let finalAudioUrl = audioUrl || defaultBeatUrl;
+    
+    if (finalAudioUrl.startsWith('/api/')) {
+      const PROD_BACKEND_URL = 'https://vialflow-backend-392406857647.europe-central2.run.app';
+      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      finalAudioUrl = (isLocal ? 'http://localhost:3000' : PROD_BACKEND_URL) + finalAudioUrl;
+    }
+
+    const audio = new Audio(finalAudioUrl);
     audio.loop = true;
     audioRef.current = audio;
 
@@ -149,23 +157,23 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
       controls.update();
       controlsRef.current = controls;
 
-      // Profesjonalne Oświetlenie 3D Dyskotekowe - Neon Vibes (Premium Aesthetic)
-      const ambientLight = new THREE.AmbientLight(0x404040, 1.5); // Soft dark ambient
+      // Oświetlenie neutralne (Szkoła tańca)
+      const ambientLight = new THREE.AmbientLight(0xffffff, 1.2); 
       scene.add(ambientLight);
 
-      const keyLight = new THREE.DirectionalLight(0x00f3ff, 4.0); // Neon Cyan Key Light
+      const keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
       keyLight.position.set(3, 4, 4);
       scene.add(keyLight);
 
-      const rimLight = new THREE.DirectionalLight(0xff00b3, 5.0); // Neon Pink Rim Light
+      const rimLight = new THREE.DirectionalLight(0xf0f0f0, 1.0);
       rimLight.position.set(-3, 2, -3);
       scene.add(rimLight);
       
-      const fillLight = new THREE.DirectionalLight(0x7000ff, 4.0); // Deep Purple Fill (mocniejszy)
+      const fillLight = new THREE.DirectionalLight(0xe0e0e0, 1.0);
       fillLight.position.set(0, -1, 3);
       scene.add(fillLight);
 
-      const grid = new THREE.GridHelper(15, 30, 0xff00b3, 0x1a1a24);
+      const grid = new THREE.GridHelper(15, 30, 0x888888, 0x444444);
       grid.position.y = 0;
       scene.add(grid);
 
@@ -196,11 +204,9 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
                   const mesh = child as THREE.Mesh;
                   const matName = (mesh.material as THREE.Material).name || '';
                   if (matName.toLowerCase().includes('joint')) {
-                     // Stawy (brąz) ze światłocieniem Lamberta
-                     mesh.material = new THREE.MeshLambertMaterial({ color: 0x5c4033 });
+                     mesh.material = new THREE.MeshLambertMaterial({ color: 0x444444 });
                   } else {
-                     // Ciało (róż) ze światłocieniem Lamberta (bez blików, ale z bryłą)
-                     mesh.material = new THREE.MeshLambertMaterial({ color: 0xff66b2 });
+                     mesh.material = new THREE.MeshLambertMaterial({ color: 0xffffff });
                   }
                 }
               });

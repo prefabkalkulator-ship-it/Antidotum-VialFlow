@@ -22,9 +22,8 @@ export default function AiTrainer3DContainer({
   groupId,
   backendUrl = 'https://vialflow-backend-392406857647.europe-central2.run.app'
 }: AiTrainer3DContainerProps) {
-  // Playback states
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentFrame, setCurrentFrame] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
   const [isLooping, setIsLooping] = useState(true);
 
@@ -41,8 +40,9 @@ export default function AiTrainer3DContainer({
   const [isLoadingTasks, setIsLoadingTasks] = useState(false);
 
   const playbackTimer = useRef<any>(null);
+  // We use two separate refs: one for web (HTMLAudioElement), one for native (expo-av)
+  const webAudioRef = useRef<HTMLAudioElement | null>(null);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const totalFrames = animationFrames ? animationFrames.length : 120; // fallback default frames
 
   // 1. Fetch student homework list
   const fetchHomework = async () => {
@@ -84,7 +84,7 @@ export default function AiTrainer3DContainer({
 
     setIsLoadingAnimation(true);
     setIsPlaying(false);
-    setCurrentFrame(0);
+    setCurrentTime(0);
 
     try {
       const res = await fetch(`${backendUrl}/api/coach/transition`, {
@@ -124,84 +124,150 @@ export default function AiTrainer3DContainer({
     fetchAnimationData();
   }, [selectedTaskId]);
 
-  // Initialize Audio backing track for dance practice
+  // Helper: Get sequence total duration in seconds (computed at render time)
+  const activeTask = tasks.find(t => t.id === selectedTaskId);
+  const rawAudioUrl = activeTask?.audioUrl || '';
+  const resolvedAudioUrl = rawAudioUrl
+    ? (rawAudioUrl.startsWith('http') ? rawAudioUrl : `${backendUrl}${rawAudioUrl}`)
+    : `${backendUrl}/assets/female_hip_hop_104_bpm.mp3`;
+
+  // Initialize Web Audio — same pattern as AdminChoreoPreview (which works!)
   useEffect(() => {
+    if (Platform.OS !== 'web') return;
+
+    console.log('[AUDIO INIT] resolvedAudioUrl =', resolvedAudioUrl);
+    console.log('[AUDIO INIT] previous webAudioRef.current =', webAudioRef.current);
+
+    // Tear down previous audio element
+    if (webAudioRef.current) {
+      webAudioRef.current.pause();
+      webAudioRef.current.src = '';
+    }
+
+    // 'new Audio()' works in browser (same as AdminChoreoPreview)
+    const audio = new (window as any).Audio(resolvedAudioUrl) as HTMLAudioElement;
+    audio.loop = isLooping;
+    audio.playbackRate = playbackSpeed;
+    audio.preload = 'auto';
+    audio.volume = 1.0;
+
+    // Diagnostic event listeners
+    audio.addEventListener('canplay', () => console.log('[AUDIO EVENT] canplay — ready to play'));
+    audio.addEventListener('canplaythrough', () => console.log('[AUDIO EVENT] canplaythrough — fully buffered'));
+    audio.addEventListener('play', () => console.log('[AUDIO EVENT] play — started'));
+    audio.addEventListener('pause', () => console.log('[AUDIO EVENT] pause'));
+    audio.addEventListener('error', (e) => console.error('[AUDIO EVENT] error', audio.error, e));
+    audio.addEventListener('stalled', () => console.warn('[AUDIO EVENT] stalled — network stall'));
+    audio.addEventListener('loadstart', () => console.log('[AUDIO EVENT] loadstart'));
+
+    webAudioRef.current = audio;
+    console.log('[AUDIO INIT] new audio element created, readyState =', audio.readyState);
+
+    return () => {
+      audio.pause();
+      audio.src = '';
+    };
+  }, [resolvedAudioUrl]); // re-init only when URL changes
+
+  // Initialize Native Audio (expo-av)
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
     let currentSound: Audio.Sound | null = null;
-    const activeTask = tasks.find(t => t.id === selectedTaskId);
-    const audioUrlToUse = activeTask?.audioUrl || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=hip-hop-beat-112702.mp3';
-    
-    async function initAudio() {
+    const initAudio = async () => {
       try {
         const { sound: newSound } = await Audio.Sound.createAsync(
-          { uri: audioUrlToUse },
-          { isLooping: isLooping, rate: playbackSpeed, shouldCorrectPitch: true }
+          { uri: resolvedAudioUrl },
+          { isLooping, rate: playbackSpeed, shouldCorrectPitch: true }
         );
-        newSound.setOnPlaybackStatusUpdate((status) => {
-          if (status.isLoaded && status.didJustFinish && !status.isLooping) {
-            setIsPlaying(false);
-          }
-        });
         currentSound = newSound;
         setSound(newSound);
       } catch (err) {
-        console.warn('Audio play block or error:', err);
-      }
-    }
-    
-    initAudio();
-
-    return () => {
-      if (currentSound) {
-        currentSound.unloadAsync();
+        console.warn('Audio init error (native):', err);
       }
     };
-  }, [selectedTaskId]);
+    initAudio();
+    return () => { if (currentSound) currentSound.unloadAsync(); };
+  }, [resolvedAudioUrl]);
 
-  // Sync audio playbackRate & looping with UI state
+  // Sync audio playbackRate & looping with playbackSpeed/isLooping changes
   useEffect(() => {
-    if (sound) {
-      sound.setStatusAsync({ rate: playbackSpeed, isLooping: isLooping, shouldCorrectPitch: true }).catch(() => {});
+    if (Platform.OS === 'web' && webAudioRef.current) {
+      webAudioRef.current.playbackRate = playbackSpeed;
+      webAudioRef.current.loop = isLooping;
+    } else if (sound) {
+      sound.setStatusAsync({ rate: playbackSpeed, isLooping, shouldCorrectPitch: true }).catch(() => {});
     }
-  }, [playbackSpeed, isLooping, sound]);
+  }, [playbackSpeed, isLooping]);
+
+  let activeSequence = DEFAULT_CHOREOGRAPHY_SEQUENCE;
+  if (activeTask?.sequenceJson) {
+    try {
+      activeSequence = typeof activeTask.sequenceJson === 'string' ? JSON.parse(activeTask.sequenceJson) : activeTask.sequenceJson;
+    } catch (e) {
+      console.warn('Failed to parse task sequenceJson:', e);
+    }
+  }
+
+  const totalTime = activeSequence.blocks.reduce((acc: number, b: any) => {
+    return acc + (60 / (activeSequence.targetBPM || 104)) * (b.durationBeats || 8);
+  }, 0) || 5.0; // fallback to 5 seconds if empty
+  const blocksCount = activeSequence.blocks.length;
 
   // Play/Pause Audio & Frame Driver
   useEffect(() => {
     if (isPlaying) {
-      if (sound) {
-        sound.playAsync().catch(e => console.warn('Audio auto-play blocked by browser:', e));
-      }
-
-      const intervalMs = Math.round(33.33 / playbackSpeed); // ~30 fps base time
-      
+      const intervalMs = 33;
       playbackTimer.current = setInterval(() => {
-        setCurrentFrame((prev) => {
-          const next = prev + 1;
-          if (next >= totalFrames) {
+        setCurrentTime((prev) => {
+          const next = prev + (intervalMs / 1000) * playbackSpeed;
+          if (next >= totalTime) {
             if (isLooping) {
-              if (sound) sound.setPositionAsync(0);
+              if (Platform.OS === 'web') {
+                if (webAudioRef.current) { webAudioRef.current.currentTime = 0; }
+              } else {
+                if (sound) sound.setPositionAsync(0).catch(() => {});
+              }
               return 0;
             }
             setIsPlaying(false);
-            return totalFrames - 1;
+            return totalTime;
           }
           return next;
         });
       }, intervalMs);
     } else {
-      if (sound) {
-        sound.pauseAsync().catch(() => {});
+      // Pause native audio only (web paused directly in handlePlayPause)
+      if (Platform.OS !== 'web') {
+        if (sound) sound.pauseAsync().catch(() => {});
       }
-      if (playbackTimer.current) {
-        clearInterval(playbackTimer.current);
-      }
+      if (playbackTimer.current) clearInterval(playbackTimer.current);
     }
 
-    return () => {
-      if (playbackTimer.current) {
-        clearInterval(playbackTimer.current);
+    return () => { if (playbackTimer.current) clearInterval(playbackTimer.current); };
+  }, [isPlaying, playbackSpeed, isLooping, totalTime]);
+
+  // Direct play/pause handler - must call audio.play() synchronously inside user gesture
+  const handlePlayPause = () => {
+    const nextPlaying = !isPlaying;
+    console.log(`[PLAY/PAUSE] nextPlaying=${nextPlaying} | webAudioRef.current=`, webAudioRef.current);
+    setIsPlaying(nextPlaying);
+    if (Platform.OS === 'web') {
+      if (!webAudioRef.current) {
+        console.error('[PLAY/PAUSE] webAudioRef.current is NULL — audio not initialized!');
+        return;
       }
-    };
-  }, [isPlaying, playbackSpeed, isLooping, totalFrames]);
+      console.log('[PLAY/PAUSE] audio.src =', webAudioRef.current.src, '| readyState =', webAudioRef.current.readyState);
+      if (nextPlaying) {
+        webAudioRef.current.play()
+          .then(() => console.log('[PLAY/PAUSE] play() resolved — audio is playing!'))
+          .catch(e => console.error('[PLAY/PAUSE] play() REJECTED:', e.name, e.message));
+      } else {
+        webAudioRef.current.pause();
+        console.log('[PLAY/PAUSE] paused');
+      }
+    }
+    // Native handled by isPlaying useEffect (expo-av)
+  };
 
   // 4. Submit homework completion
   const handleSubmitCompletion = async (taskId: string, notes: string): Promise<boolean> => {
@@ -233,16 +299,6 @@ export default function AiTrainer3DContainer({
     }
   };
 
-  const activeTask = tasks.find(t => t.id === selectedTaskId);
-  let activeSequence = DEFAULT_CHOREOGRAPHY_SEQUENCE;
-  if (activeTask?.sequenceJson) {
-    try {
-      activeSequence = typeof activeTask.sequenceJson === 'string' ? JSON.parse(activeTask.sequenceJson) : activeTask.sequenceJson;
-    } catch (e) {
-      console.warn('Failed to parse task sequenceJson:', e);
-    }
-  }
-
   return (
     <View style={styles.container}>
       {/* 3D Screen Frame */}
@@ -254,12 +310,13 @@ export default function AiTrainer3DContainer({
           </View>
         ) : (
           <ThreeDViewer
-            currentFrame={currentFrame}
+            currentFrame={0}
             animationFrames={animationFrames}
             isMirrorMode={isMirrorMode}
             cameraMode={cameraMode}
             sequence={activeSequence}
-            audioTimeSeconds={(currentFrame * 0.0333) * playbackSpeed}
+            audioTimeSeconds={currentTime}
+            playbackSpeed={playbackSpeed}
           />
         )}
 
@@ -291,12 +348,13 @@ export default function AiTrainer3DContainer({
       {/* Playback controller */}
       <TimelineController
         isPlaying={isPlaying}
-        onPlayPauseToggle={() => setIsPlaying(!isPlaying)}
+        onPlayPauseToggle={handlePlayPause}
         playbackSpeed={playbackSpeed}
         onChangeSpeed={setPlaybackSpeed}
-        currentFrame={currentFrame}
-        totalFrames={totalFrames}
-        onSeek={setCurrentFrame}
+        currentTime={currentTime}
+        totalTime={totalTime}
+        blocksCount={blocksCount}
+        onSeek={setCurrentTime}
         isLooping={isLooping}
         onLoopToggle={() => setIsLooping(!isLooping)}
       />

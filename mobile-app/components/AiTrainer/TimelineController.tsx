@@ -7,9 +7,10 @@ interface TimelineControllerProps {
   onPlayPauseToggle: () => void;
   playbackSpeed: number;
   onChangeSpeed: (speed: number) => void;
-  currentFrame: number;
-  totalFrames: number;
-  onSeek: (frame: number) => void;
+  currentTime: number;
+  totalTime: number;
+  blocksCount: number;
+  onSeek: (time: number) => void;
   isLooping: boolean;
   onLoopToggle: () => void;
 }
@@ -19,8 +20,9 @@ export default function TimelineController({
   onPlayPauseToggle,
   playbackSpeed,
   onChangeSpeed,
-  currentFrame,
-  totalFrames,
+  currentTime,
+  totalTime,
+  blocksCount,
   onSeek,
   isLooping,
   onLoopToggle
@@ -31,20 +33,21 @@ export default function TimelineController({
     const { locationX, layoutMeasurement } = event.nativeEvent;
     const width = layoutMeasurement?.width || 300;
     const pct = Math.max(0, Math.min(1, locationX / width));
-    const targetFrame = Math.floor(pct * totalFrames);
-    onSeek(targetFrame);
+    const targetTime = pct * totalTime;
+    onSeek(targetTime);
   };
 
-  const progressPercent = totalFrames > 0 ? (currentFrame / totalFrames) * 100 : 0;
-
-  // 8-count tick marks calculation (assuming standard 120 frames represents 8 counts: ~15 frames per beat)
-  const beats = [1, 2, 3, 4, 5, 6, 7, 8];
+  const progressPercent = totalTime > 0 ? (currentTime / totalTime) * 100 : 0;
+  
+  // Calculate which block is currently playing
+  const currentBlockIndex = totalTime > 0 ? Math.min(blocksCount - 1, Math.floor((currentTime / totalTime) * blocksCount)) : 0;
+  const blocks = Array.from({ length: blocksCount || 1 }, (_, i) => i + 1);
 
   return (
     <View style={styles.container}>
       {/* Time display */}
       <View style={styles.timeRow}>
-        <Text style={styles.timeText}>Klatka: {currentFrame} / {totalFrames}</Text>
+        <Text style={styles.timeText}>Czas: {currentTime.toFixed(1)}s / {totalTime.toFixed(1)}s</Text>
         <Text style={styles.speedText}>Tempo: {playbackSpeed}x</Text>
       </View>
 
@@ -59,15 +62,16 @@ export default function TimelineController({
         </View>
       </TouchableOpacity>
 
-      {/* 8-Count beats tick marks */}
+      {/* Sequence blocks tick marks */}
       <View style={styles.beatsRow}>
-        {beats.map((beat) => {
-          const beatFrame = Math.floor(((beat - 1) / 8) * totalFrames);
-          const isPassed = currentFrame >= beatFrame;
+        {blocks.map((block, index) => {
+          const isPassed = currentBlockIndex >= index;
           return (
-            <View key={beat} style={styles.beatTickWrapper}>
+            <View key={block} style={[styles.beatTickWrapper, { flex: 1 }]}>
               <View style={[styles.beatTick, isPassed && styles.beatTickActive]} />
-              <Text style={[styles.beatLabel, isPassed && styles.beatLabelActive]}>{beat}</Text>
+              <Text style={[styles.beatLabel, isPassed && styles.beatLabelActive]}>
+                Układ {block}
+              </Text>
             </View>
           );
         })}
@@ -77,7 +81,7 @@ export default function TimelineController({
       <View style={styles.controlsRow}>
         {/* Loop toggle */}
         <View style={styles.loopContainer}>
-          <Text style={styles.loopLabel}>Pętla (8-liczenie)</Text>
+          <Text style={styles.loopLabel}>Pętla (Całość)</Text>
           <Switch
             value={isLooping}
             onValueChange={onLoopToggle}

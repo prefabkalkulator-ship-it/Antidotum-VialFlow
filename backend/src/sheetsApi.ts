@@ -1449,17 +1449,18 @@ export const createHomeworkTask = async (taskInput: any) => {
     const rowsData = tasksList.map((t: any, index: number) => {
       const taskId = 'HWT-' + (Date.now() + index);
       return [
-        taskId,
-        t.title || '',
-        t.choreoId || '',
-        t.targetType || 'group',
-        t.targetValue || '',
-        t.videoUrl || '',
-        t.deadline || '',
-        t.instructor || '',
-        t.audioUrl || '',
-        t.sequenceJson || '',
-        t.targetBPM || 104
+        taskId,               // A: ID Zadania
+        t.title || '',        // B: Tytuł
+        t.choreoId || '',     // C: ID Choreografii
+        t.targetType || 'group', // D: Typ Odbiorcy
+        t.targetValue || '',  // E: Odbiorca
+        t.videoUrl || '',     // F: Link Video
+        t.deadline || '',     // G: Termin
+        t.instructor || '',   // H: Instruktor
+        t.audioUrl || '',     // I: (legacy – zachowane dla wstecznej kompatybilności)
+        t.sequenceJson || '', // J: Sekwencja JSON
+        t.targetBPM || 104,   // K: BPM
+        t.audioUrl || ''      // L: Podkład muzyczny (nowa kolumna)
       ];
     });
 
@@ -1486,7 +1487,7 @@ export const createHomeworkTask = async (taskInput: any) => {
 
     await api.spreadsheets.values.update({
       spreadsheetId: HOMEWORK_SPREADSHEET_ID,
-      range: `Zadania_Domowe!A2:K${1 + count}`,
+      range: `Zadania_Domowe!A2:L${1 + count}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: rowsData
@@ -1514,7 +1515,7 @@ export const getHomeworkTasks = async (childName?: string, groupId?: string) => 
 
     const response = await api.spreadsheets.values.get({
       spreadsheetId: HOMEWORK_SPREADSHEET_ID,
-      range: 'Zadania_Domowe!A2:K',
+      range: 'Zadania_Domowe!A2:L',
     });
 
     const rows = response.data.values || [];
@@ -1528,7 +1529,8 @@ export const getHomeworkTasks = async (childName?: string, groupId?: string) => 
       videoUrl: row[5],
       deadline: row[6],
       instructor: row[7],
-      audioUrl: row[8] || '',
+      // Kolumna L (index 11) to nowa "Podkład muzyczny"; fallback do kolumny I (index 8) dla starych wpisów
+      audioUrl: row[11] || row[8] || '',
       sequenceJson: row[9] || '',
       targetBPM: row[10] ? Number(row[10]) : 104
     }));
@@ -1555,7 +1557,7 @@ export const getHomeworkTasks = async (childName?: string, groupId?: string) => 
 
         studentRows.forEach((row: any[]) => {
           const childFullName = `${row[1] || ''} ${row[2] || ''}`.trim();
-          const childGroup = row[3] || row[4] || ''; // Grupa w Baza_Uczniow
+          const childGroup = row[4] || ''; // Grupa w Baza_Uczniow (Kolumna E)
           const op1Name = (row[6] || '').toLowerCase();
           const op1Email = (row[7] || '').toLowerCase();
           const op2Name = (row[9] || '').toLowerCase();

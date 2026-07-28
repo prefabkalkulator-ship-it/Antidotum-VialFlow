@@ -13,6 +13,7 @@ interface ThreeDViewerProps {
   cameraMode: 'front' | 'back' | 'profile' | 'feet';
   sequence?: ChoreographySequence | null;
   audioTimeSeconds?: number;
+  playbackSpeed?: number;
 }
 
 export default function ThreeDViewer({
@@ -21,14 +22,15 @@ export default function ThreeDViewer({
   isMirrorMode,
   cameraMode,
   sequence,
-  audioTimeSeconds = 0
+  audioTimeSeconds = 0,
+  playbackSpeed = 1.0
 }: ThreeDViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const motionEngineRef = useRef<MotionEngine>(new MotionEngine());
   
   // Keep refs for updates inside loop without rebuilding scene
-  const paramsRef = useRef({ currentFrame, animationFrames, isMirrorMode, cameraMode, sequence, audioTimeSeconds });
-  paramsRef.current = { currentFrame, animationFrames, isMirrorMode, cameraMode, sequence, audioTimeSeconds };
+  const paramsRef = useRef({ currentFrame, animationFrames, isMirrorMode, cameraMode, sequence, audioTimeSeconds, playbackSpeed });
+  paramsRef.current = { currentFrame, animationFrames, isMirrorMode, cameraMode, sequence, audioTimeSeconds, playbackSpeed };
 
   useEffect(() => {
     if (Platform.OS !== 'web' || !mountRef.current) return;
@@ -67,7 +69,7 @@ export default function ThreeDViewer({
     controls.target.set(0, 1.0, 0);
 
     // Grid Floor & Reflective Mirror Floor styling
-    const gridHelper = new THREE.GridHelper(20, 20, '#f472b6', '#27272a');
+    const gridHelper = new THREE.GridHelper(20, 20, '#888888', '#444444');
     gridHelper.position.y = 0;
     scene.add(gridHelper);
 
@@ -83,20 +85,20 @@ export default function ThreeDViewer({
     floor.receiveShadow = true;
     scene.add(floor);
 
-    // Profesjonalne Oświetlenie 3D Dyskotekowe - Neon Vibes (Premium Aesthetic)
-    const ambientLight = new THREE.AmbientLight(0x404040, 1.5);
+    // Oświetlenie neutralne (Szkoła tańca)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
     scene.add(ambientLight);
 
-    const keyLight = new THREE.DirectionalLight(0x00f3ff, 4.0); // Neon Cyan Key Light
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
     keyLight.position.set(3, 4, 4);
     keyLight.castShadow = true;
     scene.add(keyLight);
 
-    const rimLight = new THREE.DirectionalLight(0xff00b3, 5.0); // Neon Pink Rim Light
+    const rimLight = new THREE.DirectionalLight(0xf0f0f0, 1.0);
     rimLight.position.set(-3, 2, -3);
     scene.add(rimLight);
     
-    const fillLight = new THREE.DirectionalLight(0x7000ff, 4.0); // Deep Purple Fill
+    const fillLight = new THREE.DirectionalLight(0xe0e0e0, 1.0);
     fillLight.position.set(0, -1, 3);
     scene.add(fillLight);
 
@@ -117,9 +119,9 @@ export default function ThreeDViewer({
             const mesh = child as THREE.Mesh;
             const matName = (mesh.material as THREE.Material).name || '';
             if (matName.toLowerCase().includes('joint')) {
-              mesh.material = new THREE.MeshLambertMaterial({ color: 0x5c4033 });
+              mesh.material = new THREE.MeshLambertMaterial({ color: 0x444444 });
             } else {
-              mesh.material = new THREE.MeshLambertMaterial({ color: 0xff66b2 });
+              mesh.material = new THREE.MeshLambertMaterial({ color: 0xffffff });
             }
           }
           if ((child as THREE.Bone).isBone) {
@@ -217,7 +219,7 @@ export default function ThreeDViewer({
       const delta = Math.min(0.1, (now - lastTime) / 1000);
       lastTime = now;
 
-      const { currentFrame, isMirrorMode, cameraMode, sequence, audioTimeSeconds } = paramsRef.current;
+      const { currentFrame, isMirrorMode, cameraMode, sequence, audioTimeSeconds, playbackSpeed } = paramsRef.current;
 
       // 1. Mirror Mode
       if (wrapper) {
@@ -231,8 +233,8 @@ export default function ThreeDViewer({
       // 2. Update Motion Engine with AnimationMixer
       try {
         if (sequence && sequence.blocks && sequence.blocks.length > 0) {
-          // Kiedy odtwarzamy właściwą sekwencję (delta decyduje o czasie)
-          motionEngineRef.current.updatePose(sequence, audioTimeSeconds, delta, isMirrorMode);
+          // Kiedy odtwarzamy właściwą sekwencję (delta decyduje o czasie awatara proporcjonalnie do tempa)
+          motionEngineRef.current.updatePose(sequence, audioTimeSeconds, delta * playbackSpeed, isMirrorMode);
         } else {
           // Zatrzymane: wymuszamy tick 0, czyli oddychanie idle
           motionEngineRef.current.tick(0);

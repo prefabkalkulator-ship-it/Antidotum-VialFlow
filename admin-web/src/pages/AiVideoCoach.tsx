@@ -83,6 +83,13 @@ export default function AiVideoCoach() {
   // Sequencer 3D stany dla trenera
   const [customSequence, setCustomSequence] = useState<ChoreographySequence>(DEFAULT_CHOREOGRAPHY_SEQUENCE);
   const [audioUrl, setAudioUrl] = useState('/assets/female_hip_hop_104_bpm.mp3');
+  const [customAudios, setCustomAudios] = useState<{name: string, url: string}[]>(() => {
+    try {
+      const saved = localStorage.getItem('vialflow_custom_audios');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
+  });
   const [homeworkTitle, setHomeworkTitle] = useState('Trening Choreografii - Tydzień 1');
   const [draggedBlockIdx, setDraggedBlockIdx] = useState<number | null>(null);
 
@@ -743,33 +750,75 @@ export default function AiVideoCoach() {
                           type="file" 
                           accept="audio/*" 
                           className="hidden" 
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             const uploadedFile = e.target.files?.[0];
-                            if (uploadedFile) {
-                              const customObjectUrl = URL.createObjectURL(uploadedFile);
-                              setAudioUrl(customObjectUrl);
-                              setCustomSequence({ ...customSequence, targetBPM: 0 }); // Oznacza custom
-                              setAiSuccessMsg(`🎵 Wgrano plik audio: "${uploadedFile.name}"`);
+                            if (!uploadedFile) return;
+                            // Upload to server so students can access the file
+                            try {
+                              setAiSuccessMsg(`🎵 Wgrywanie "${uploadedFile.name}"...`);
+                              const formData = new FormData();
+                              formData.append('audio', uploadedFile);
+                              const uploadRes = await fetchWithFallback('/api/coach/upload-audio', {
+                                method: 'POST',
+                                body: formData
+                              });
+                              const uploadData = await uploadRes.json();
+                              if (uploadData.success) {
+                                setAudioUrl(uploadData.url);
+                                setCustomSequence(prev => ({ ...prev, targetBPM: 0 }));
+                                setCustomAudios(prev => {
+                                  const updated = [{ name: uploadedFile.name, url: uploadData.url }, ...prev.filter(a => a.url !== uploadData.url)].slice(0, 10);
+                                  localStorage.setItem('vialflow_custom_audios', JSON.stringify(updated));
+                                  return updated;
+                                });
+                                setAiSuccessMsg(`✅ Wgrano podkład: "${uploadedFile.name}"`);
+                              } else {
+                                setAiSuccessMsg('');
+                                alert('Błąd wgrywania pliku audio: ' + (uploadData.error || 'nieznany błąd'));
+                              }
+                            } catch (err: any) {
+                              setAiSuccessMsg('');
+                              alert('Błąd połączenia z serwerem: ' + err.message);
                             }
                           }}
                         />
                       </div>
                       <div className="flex gap-1">
                         <select
-                          value={customSequence.targetBPM}
+                          value={customSequence.targetBPM === 0 ? audioUrl : customSequence.targetBPM.toString()}
                           onChange={(e) => {
-                             const newBpm = Number(e.target.value);
-                             setCustomSequence({ ...customSequence, targetBPM: newBpm });
-                             if (newBpm !== 0) {
-                               setAudioUrl(`/assets/female_hip_hop_${newBpm}_bpm.mp3`);
+                             const val = e.target.value;
+                             if (val.startsWith('/api/') || val.startsWith('http')) {
+                               setCustomSequence({ ...customSequence, targetBPM: 0 });
+                               setAudioUrl(val);
+                             } else {
+                               const newBpm = Number(val);
+                               setCustomSequence({ ...customSequence, targetBPM: newBpm });
+                               if (newBpm !== 0) {
+                                 setAudioUrl(`/assets/female_hip_hop_${newBpm}_bpm.mp3`);
+                               }
                              }
                           }}
                           className="w-full bg-[#27272A] text-white text-xs font-bold p-1 rounded border border-gray-700 focus:outline-none focus:border-primary cursor-pointer"
                         >
-                          <option value="0" disabled={customSequence.targetBPM !== 0}>Własny (Custom)</option>
-                          <option value="85">85 BPM (Powolne wejście)</option>
-                          <option value="104">104 BPM (Urban Beat)</option>
-                          <option value="128">128 BPM (Dynamiczny K-Pop)</option>
+                          <optgroup label="Domyślne podkłady">
+                            <option value="85">85 BPM (Powolne wejście)</option>
+                            <option value="104">104 BPM (Urban Beat)</option>
+                            <option value="128">128 BPM (Dynamiczny K-Pop)</option>
+                          </optgroup>
+                          {customAudios.length > 0 && (
+                            <optgroup label="Ostatnio wgrane">
+                              {customAudios.map(a => (
+                                <option key={a.url} value={a.url}>Własny: {a.name}</option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {/* Fallback dla wgranego przed chwilą (lub ze starego stanu) którego brak w historii */}
+                          {customSequence.targetBPM === 0 && !customAudios.find(a => a.url === audioUrl) && (
+                            <optgroup label="Aktualny plik">
+                              <option value={audioUrl}>Własny (Nieznana nazwa)</option>
+                            </optgroup>
+                          )}
                         </select>
                       </div>
                     </div>

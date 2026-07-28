@@ -978,6 +978,95 @@ app.post('/api/coach/analyze', upload.single('video'), (req, res) => {
   }, 3000);
 });
 
+// Upload pliku audio na Google Drive via GAS webhook (obejście braku storage quota dla Service Account)
+// GAS webhook URL — po deploy GAS skryptu (backend/scripts/gas_audio_upload.gs), wstaw URL tutaj:
+const AUDIO_GAS_WEBHOOK_URL = process.env.AUDIO_GAS_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbz_wZxyI7YVNKsq3KHhDPwrVPeA94e4DzbZ0TFdP3qxHwQJcKaPPj5sFQp3IhLDbrR9Aw/exec';
+const AUDIO_DRIVE_FOLDER_ID = '1spUdddDtH87HjjrVuokuXj96YZCbMRDE';
+const audioUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB max
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('audio/')) cb(null, true);
+    else cb(new Error('Tylko pliki audio są dozwolone'));
+  }
+});
+
+app.post('/api/coach/upload-audio', audioUpload.single('audio'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, error: 'Brak pliku audio' });
+
+    const safeName = `audio_${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const base64 = req.file.buffer.toString('base64');
+
+    if (!AUDIO_GAS_WEBHOOK_URL) {
+      // Fallback: save locally if GAS webhook not configured
+      const dest = path.join(PUBLIC_DIR, 'assets');
+      if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+      fs.writeFileSync(path.join(dest, safeName), req.file.buffer);
+      const localUrl = `/assets/${safeName}`;
+      console.log(`[Upload Audio] Saved locally (no GAS webhook): ${localUrl}`);
+      return res.json({ success: true, url: localUrl });
+    }
+
+    // Send to GAS webhook (runs as folder owner — has storage quota)
+    const gasRes = await fetch(AUDIO_GAS_WEBHOOK_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        name: safeName,
+        folderId: AUDIO_DRIVE_FOLDER_ID,
+        base64: base64,
+        mimeType: req.file.mimetype
+      }),
+      headers: { 'Content-Type': 'text/plain' }
+    });
+    const gasData = await gasRes.json();
+
+    if (!gasData.success || !gasData.id) {
+      console.error('[Upload Audio] GAS error:', gasData);
+      return res.status(500).json({ success: false, error: gasData.error || 'GAS webhook error' });
+    }
+
+    console.log(`[Upload Audio] Google Drive via GAS: ${safeName} -> fileId=${gasData.id}`);
+    // Return proxy URL for student access
+    const proxyUrl = `/api/coach/audio/${gasData.id}`;
+    res.json({ success: true, url: proxyUrl, driveFileId: gasData.id });
+  } catch (err: any) {
+    console.error('Błąd uploadu audio:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Proxy: stream audio file from Google Drive (students access this endpoint)
+app.get('/api/coach/audio/:fileId', async (req, res) => {
+  try {
+    const { google: googleapis } = require('googleapis');
+    const auth = new googleapis.auth.GoogleAuth({
+      keyFile: path.join(__dirname, '../service-account.json'),
+      scopes: ['https://www.googleapis.com/auth/drive.readonly']
+    });
+    const drive = googleapis.drive({ version: 'v3', auth });
+
+    // Get file metadata for content type
+    const meta = await drive.files.get({ fileId: req.params.fileId, fields: 'mimeType,name,size' });
+    
+    res.setHeader('Content-Type', meta.data.mimeType || 'audio/mpeg');
+    res.setHeader('Accept-Ranges', 'bytes');
+    if (meta.data.size) res.setHeader('Content-Length', meta.data.size);
+    res.setHeader('Cache-Control', 'public, max-age=86400'); // cache 24h
+
+    // Stream the file content
+    const fileStream = await drive.files.get(
+      { fileId: req.params.fileId, alt: 'media' },
+      { responseType: 'stream' }
+    );
+    fileStream.data.pipe(res);
+  } catch (err: any) {
+    console.error('[Audio Proxy] Błąd:', err.message);
+    res.status(404).json({ error: 'Plik audio nie znaleziony' });
+  }
+});
+
+
 app.post('/api/coach/tasks', async (req, res) => {
   try {
     const result = await createHomeworkTask(req.body);
@@ -987,6 +1076,7 @@ app.post('/api/coach/tasks', async (req, res) => {
     res.status(500).json({ success: false, error: String(err) });
   }
 });
+
 
 app.get('/api/coach/tasks', async (req, res) => {
   try {
