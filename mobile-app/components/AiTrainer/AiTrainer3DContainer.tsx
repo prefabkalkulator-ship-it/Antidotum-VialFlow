@@ -7,6 +7,7 @@ import TimelineController from './TimelineController';
 import HomeworkTasksList from './HomeworkTasksList';
 import { parse6DofBuffer } from './aiTrainerService';
 import { DEFAULT_CHOREOGRAPHY_SEQUENCE } from './DanceMoveLibrary';
+import { Audio } from 'expo-av';
 
 interface AiTrainer3DContainerProps {
   childId: string;
@@ -40,7 +41,7 @@ export default function AiTrainer3DContainer({
   const [isLoadingTasks, setIsLoadingTasks] = useState(false);
 
   const playbackTimer = useRef<any>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
   const totalFrames = animationFrames ? animationFrames.length : 120; // fallback default frames
 
   // 1. Fetch student homework list
@@ -125,41 +126,49 @@ export default function AiTrainer3DContainer({
 
   // Initialize Audio backing track for dance practice
   useEffect(() => {
-    if (Platform.OS === 'web') {
-      const activeTask = tasks.find(t => t.id === selectedTaskId);
-      const audioUrlToUse = activeTask?.audioUrl || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=hip-hop-beat-112702.mp3';
-      
-      const audio = new Audio(audioUrlToUse);
-      audio.loop = isLooping;
-      audio.playbackRate = playbackSpeed;
-      audioRef.current = audio;
-
-      audio.onended = () => {
-        if (!isLooping) {
-          setIsPlaying(false);
-        }
-      };
-
-      return () => {
-        audio.pause();
-        audioRef.current = null;
-      };
+    let currentSound: Audio.Sound | null = null;
+    const activeTask = tasks.find(t => t.id === selectedTaskId);
+    const audioUrlToUse = activeTask?.audioUrl || 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=hip-hop-beat-112702.mp3';
+    
+    async function initAudio() {
+      try {
+        const { sound: newSound } = await Audio.Sound.createAsync(
+          { uri: audioUrlToUse },
+          { isLooping: isLooping, rate: playbackSpeed, shouldCorrectPitch: true }
+        );
+        newSound.setOnPlaybackStatusUpdate((status) => {
+          if (status.isLoaded && status.didJustFinish && !status.isLooping) {
+            setIsPlaying(false);
+          }
+        });
+        currentSound = newSound;
+        setSound(newSound);
+      } catch (err) {
+        console.warn('Audio play block or error:', err);
+      }
     }
+    
+    initAudio();
+
+    return () => {
+      if (currentSound) {
+        currentSound.unloadAsync();
+      }
+    };
   }, [selectedTaskId]);
 
   // Sync audio playbackRate & looping with UI state
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.playbackRate = playbackSpeed;
-      audioRef.current.loop = isLooping;
+    if (sound) {
+      sound.setStatusAsync({ rate: playbackSpeed, isLooping: isLooping, shouldCorrectPitch: true }).catch(() => {});
     }
-  }, [playbackSpeed, isLooping]);
+  }, [playbackSpeed, isLooping, sound]);
 
   // Play/Pause Audio & Frame Driver
   useEffect(() => {
     if (isPlaying) {
-      if (audioRef.current) {
-        audioRef.current.play().catch(e => console.warn('Audio auto-play blocked by browser:', e));
+      if (sound) {
+        sound.playAsync().catch(e => console.warn('Audio auto-play blocked by browser:', e));
       }
 
       const intervalMs = Math.round(33.33 / playbackSpeed); // ~30 fps base time
@@ -169,7 +178,7 @@ export default function AiTrainer3DContainer({
           const next = prev + 1;
           if (next >= totalFrames) {
             if (isLooping) {
-              if (audioRef.current) audioRef.current.currentTime = 0;
+              if (sound) sound.setPositionAsync(0);
               return 0;
             }
             setIsPlaying(false);
@@ -179,8 +188,8 @@ export default function AiTrainer3DContainer({
         });
       }, intervalMs);
     } else {
-      if (audioRef.current) {
-        audioRef.current.pause();
+      if (sound) {
+        sound.pauseAsync().catch(() => {});
       }
       if (playbackTimer.current) {
         clearInterval(playbackTimer.current);

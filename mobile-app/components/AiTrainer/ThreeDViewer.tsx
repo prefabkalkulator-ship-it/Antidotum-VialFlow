@@ -3,7 +3,6 @@ import { View, StyleSheet, Dimensions, Platform } from 'react-native';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { SMPL_JOINT_MAP } from './aiTrainerService';
 import { MotionEngine } from './MotionEngine';
 import { ChoreographySequence } from './DanceMoveLibrary';
 
@@ -84,72 +83,85 @@ export default function ThreeDViewer({
     floor.receiveShadow = true;
     scene.add(floor);
 
-    // Lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    // Profesjonalne Oświetlenie 3D Dyskotekowe - Neon Vibes (Premium Aesthetic)
+    const ambientLight = new THREE.AmbientLight(0x404040, 1.5);
     scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(2, 5, 3);
-    dirLight.castShadow = true;
-    dirLight.shadow.mapSize.width = 1024;
-    dirLight.shadow.mapSize.height = 1024;
-    scene.add(dirLight);
+    const keyLight = new THREE.DirectionalLight(0x00f3ff, 4.0); // Neon Cyan Key Light
+    keyLight.position.set(3, 4, 4);
+    keyLight.castShadow = true;
+    scene.add(keyLight);
 
-    // Stylized fuchsia side lights for stage feeling
-    const pinkLight = new THREE.PointLight(0xf472b6, 1.5, 10);
-    pinkLight.position.set(-2, 1, 1);
-    scene.add(pinkLight);
-
-    const blueLight = new THREE.PointLight(0x3b82f6, 1.5, 10);
-    blueLight.position.set(2, 1, -1);
-    scene.add(blueLight);
+    const rimLight = new THREE.DirectionalLight(0xff00b3, 5.0); // Neon Pink Rim Light
+    rimLight.position.set(-3, 2, -3);
+    scene.add(rimLight);
+    
+    const fillLight = new THREE.DirectionalLight(0x7000ff, 4.0); // Deep Purple Fill
+    fillLight.position.set(0, -1, 3);
+    scene.add(fillLight);
 
     // Model loading
-    let yBotModel: THREE.Group | null = null;
-    let bonesMap = new Map<string, THREE.Bone>();
     let hipsBone: THREE.Bone | null = null;
+    let wrapper: THREE.Group | null = null;
 
     const loader = new GLTFLoader();
     loader.load(
-      '/Y-Bot.glb',
+      '/assets/animations/female_hip_hop/kick_step.glb',
       (gltf) => {
-        yBotModel = gltf.scene;
+        const yBotModel = gltf.scene;
         yBotModel.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
             child.castShadow = true;
             child.receiveShadow = true;
             
-            // Premium glowing material styling
             const mesh = child as THREE.Mesh;
-            mesh.material = new THREE.MeshStandardMaterial({
-              color: 0xe4e4e7,
-              roughness: 0.3,
-              metalness: 0.2,
-              skinning: true
-            });
+            const matName = (mesh.material as THREE.Material).name || '';
+            if (matName.toLowerCase().includes('joint')) {
+              mesh.material = new THREE.MeshLambertMaterial({ color: 0x5c4033 });
+            } else {
+              mesh.material = new THREE.MeshLambertMaterial({ color: 0xff66b2 });
+            }
           }
           if ((child as THREE.Bone).isBone) {
             const bone = child as THREE.Bone;
-            bonesMap.set(bone.name, bone);
             if (bone.name === 'mixamorig:Hips') {
               hipsBone = bone;
             }
           }
         });
         
-        // Rejestracja kości szkieletu w silniku ruchu MotionEngine
-        motionEngineRef.current.bindSkeleton(gltf.scene);
+        try {
+          motionEngineRef.current.bindSkeleton(gltf.scene, gltf.animations);
+          
+          const animsToLoad = [
+            { name: 'arm_wave', url: '/assets/animations/female_hip_hop/arm_wave.glb' },
+            { name: 'body_wave', url: '/assets/animations/female_hip_hop/body_wave.glb' },
+            { name: 'hip_hop_quake', url: '/assets/animations/female_hip_hop/hip_hop_quake.glb' },
+            { name: 'kick_step', url: '/assets/animations/female_hip_hop/kick_step.glb' },
+            { name: 'rib_pops', url: '/assets/animations/female_hip_hop/rib_pops.glb' },
+            { name: 'running_man', url: '/assets/animations/female_hip_hop/running_man.glb' },
+            { name: 'side_step', url: '/assets/animations/female_hip_hop/side_step.glb' },
+            { name: 'side_to_side', url: '/assets/animations/female_hip_hop/side_to_side.glb' },
+            { name: 'step_hip_hop', url: '/assets/animations/female_hip_hop/step_hip_hop.glb' },
+            { name: 'timid_dansing', url: '/assets/animations/female_hip_hop/timid_dansing.glb' }
+          ];
+          motionEngineRef.current.loadRemoteAnimations(animsToLoad).catch(e => console.warn(e));
+        } catch (e) {
+          console.warn('Failed to bind skeleton:', e);
+        }
 
-        // Scale model appropriately (1.0 is 1.8m human size)
-        yBotModel.scale.set(1, 1, 1);
-        yBotModel.position.set(0, 0, 0);
-        scene.add(yBotModel);
+        wrapper = new THREE.Group();
+        wrapper.add(yBotModel);
+        wrapper.rotation.set(0, 0, 0); // Bez obrotu, natywna pozycja pionowa awatara
+        wrapper.position.set(0, 0, 0);
+        
+        scene.add(wrapper);
 
         // Position camera to initial preset
         applyCameraPreset(paramsRef.current.cameraMode);
       },
       undefined,
-      (err) => console.error('Error loading Y-Bot.glb:', err)
+      (err) => console.error('Error loading kick_step.glb:', err)
     );
 
     // Function to apply camera mode presets relative to hips
@@ -197,39 +209,35 @@ export default function ThreeDViewer({
     let requestID: number;
     let lastCameraMode = cameraMode;
     
+    let lastTime = performance.now();
     const animate = () => {
       requestID = requestAnimationFrame(animate);
 
-      const { currentFrame, animationFrames, isMirrorMode, cameraMode, sequence, audioTimeSeconds } = paramsRef.current;
+      const now = performance.now();
+      const delta = Math.min(0.1, (now - lastTime) / 1000);
+      lastTime = now;
 
-      // 1. Mirror Mode & Human Scale (1.0)
-      if (yBotModel) {
+      const { currentFrame, isMirrorMode, cameraMode, sequence, audioTimeSeconds } = paramsRef.current;
+
+      // 1. Mirror Mode
+      if (wrapper) {
         if (isMirrorMode) {
-          yBotModel.scale.set(-1, 1, 1);
+          wrapper.scale.set(-1, 1, 1);
         } else {
-          yBotModel.scale.set(1, 1, 1);
+          wrapper.scale.set(1, 1, 1);
         }
       }
 
-      // 2. Apply Dynamic Choreography Pose or Raw Joint Rotations
-      if (sequence && sequence.blocks && sequence.blocks.length > 0) {
-        motionEngineRef.current.updatePose(sequence, audioTimeSeconds, isMirrorMode);
-      } else if (animationFrames && animationFrames.length > 0) {
-        const frameIdx = currentFrame % animationFrames.length;
-        const currentRotations = animationFrames[frameIdx];
-        
-        if (currentRotations) {
-          currentRotations.forEach((quat, jointIdx) => {
-            const boneName = SMPL_JOINT_MAP[jointIdx];
-            if (boneName) {
-              const bone = bonesMap.get(boneName);
-              if (bone) {
-                bone.quaternion.copy(quat);
-              }
-            }
-          });
+      // 2. Update Motion Engine with AnimationMixer
+      try {
+        if (sequence && sequence.blocks && sequence.blocks.length > 0) {
+          // Kiedy odtwarzamy właściwą sekwencję (delta decyduje o czasie)
+          motionEngineRef.current.updatePose(sequence, audioTimeSeconds, delta, isMirrorMode);
+        } else {
+          // Zatrzymane: wymuszamy tick 0, czyli oddychanie idle
+          motionEngineRef.current.tick(0);
         }
-      }
+      } catch (e) {}
 
       // 3. Check for cameraMode preset switches
       if (lastCameraMode !== cameraMode) {

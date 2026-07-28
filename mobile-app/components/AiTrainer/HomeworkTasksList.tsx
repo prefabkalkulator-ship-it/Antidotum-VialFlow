@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, FlatList, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, FlatList, Modal, Linking } from 'react-native';
 import { BookOpen, Calendar, User, ArrowRight, CheckCircle, Users, Globe, X, Check, ChevronDown, ChevronUp } from 'lucide-react-native';
 
 interface HomeworkTask {
@@ -11,6 +11,9 @@ interface HomeworkTask {
   videoUrl?: string;
   deadline?: string;
   instructor?: string;
+  audioUrl?: string;
+  sequenceJson?: string;
+  targetBPM?: number;
 }
 
 interface HomeworkTasksListProps {
@@ -195,10 +198,10 @@ export default function HomeworkTasksList({
 
               {activeTask.videoUrl ? (
                 <TouchableOpacity 
-                  onPress={() => window.open(activeTask.videoUrl, '_blank')}
+                  onPress={() => Linking.openURL(activeTask.videoUrl || '')}
                   style={styles.videoLink}
                 >
-                  <Text style={styles.videoLinkText}>▶ Otwórz wideo pomocnicze w nowej karcie</Text>
+                  <Text style={styles.videoLinkText}>▶ Otwórz wideo pomocnicze na YouTube</Text>
                 </TouchableOpacity>
               ) : null}
 

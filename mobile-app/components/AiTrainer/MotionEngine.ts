@@ -1,158 +1,236 @@
 import * as THREE from 'three';
-import { ChoreographySequence, DanceMoveBlock, PoseKeyframe, BoneRotation } from './DanceMoveLibrary';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import type { ChoreographySequence, DanceMoveBlock } from './DanceMoveLibrary';
+
+/**
+ * Katalog mapujący nazwy klipów na animacje.
+ * Wszystkie 12 animacji (w tym 5 tanecznych) są osadzone bezpośrednio w Y-Bot.glb!
+ */
+const CLIP_CATALOG: Record<string, string> = {
+  idle: '__embedded__',
+  walk: '__embedded__',
+  run: '__embedded__',
+  agree: '__embedded__',
+  headshake: '__embedded__',
+  sad_pose: '__embedded__',
+  sneak_pose: '__embedded__',
+
+  hiphop_bounce: '__embedded__',
+  bboy_footwork: '__embedded__',
+  kpop_isolation: '__embedded__',
+  commercial_wave: '__embedded__',
+  heels_strut: '__embedded__',
+  dance: '__embedded__',
+  dance_hiphop: '__embedded__',
+};
+
+const STYLE_FALLBACKS: Record<string, string[]> = {
+  'Hip-Hop': ['hiphop_bounce', 'run'],
+  'Breakdance': ['bboy_footwork', 'hiphop_bounce'],
+  'K-Pop': ['kpop_isolation', 'hiphop_bounce'],
+  'Commercial': ['commercial_wave', 'walk'],
+  'High Heels': ['heels_strut', 'commercial_wave'],
+};
 
 export class MotionEngine {
-  private skeletonBones: Map<string, THREE.Object3D> = new Map();
-
-  constructor() {}
+  private mixer: THREE.AnimationMixer | null = null;
+  private embeddedActions: Map<string, THREE.AnimationAction> = new Map();
+  private loadedActions: Map<string, THREE.AnimationAction> = new Map();
+  private currentActionName: string | null = null;
+  private avatarScene: THREE.Object3D | null = null;
+  private gltfLoader: GLTFLoader = new GLTFLoader();
 
   /**
-   * Rejestruje kości szkieletu modelu 3D dla szybkiego dostępu po nazwach
+   * Rejestruje szkielet awatara 3D oraz inicjalizuje THREE.AnimationMixer.
+   * Wszystkie osadzone animacje z Y-Bot.glb są natychmiastowo rejestrowane.
    */
-  public bindSkeleton(rootModel: THREE.Object3D) {
-    this.skeletonBones.clear();
-    rootModel.traverse((child) => {
-      if (child.name) {
-        // Mapujemy zarówno czystą nazwę jak i nazwy z prefiksem mixamorig
-        this.skeletonBones.set(child.name, child);
-        const cleanName = child.name.replace(/^mixamorig/, '');
-        if (cleanName !== child.name) {
-          this.skeletonBones.set(cleanName, child);
+  public bindSkeleton(scene: THREE.Object3D, embeddedAnimations: THREE.AnimationClip[] = []): void {
+    this.embeddedActions.clear();
+    this.loadedActions.clear();
+    this.currentActionName = null;
+    this.avatarScene = scene;
+    this.mixer = new THREE.AnimationMixer(scene);
+
+    if (embeddedAnimations && embeddedAnimations.length > 0) {
+      embeddedAnimations.forEach((clip) => {
+        if (this.mixer) {
+          const action = this.mixer.clipAction(clip);
+          const key = clip.name.toLowerCase();
+          this.embeddedActions.set(key, action);
+          this.loadedActions.set(key, action);
+          console.info(`[MotionEngine] Zarejestrowano osadzony klip: "${key}" (${clip.duration.toFixed(1)}s, ${clip.tracks.length} tracków)`);
         }
-      }
-    });
+      });
+    }
+
+    // Domyślnie odtwarzaj animację "idle"
+    this.playClipByName('idle', 1.0);
   }
 
   /**
-   * Aktualizuje pozy kości w zależności od aktualnego czasu audio (Master Clock),
-   * wyliczonego tempa (BPM Warping), płynnej interpolacji (SLERP) oraz trybu lustrzanego.
+   * Ładuje animacje z zewnętrznych plików i zapina do bazowego miksera.
+   * Ponieważ szkielety są ujednolicone we wszystkich nowych układach, nie potrzebujemy retargetingu
+   * a przejścia są płynne.
+   */
+  public async loadRemoteAnimations(animUrls: {name: string, url: string}[]): Promise<void> {
+    if (!this.mixer) return;
+
+    const loader = new GLTFLoader();
+    for (const {name, url} of animUrls) {
+      if (this.loadedActions.has(name)) continue;
+
+      try {
+        const gltf = await loader.loadAsync(url);
+        if (gltf.animations.length > 0) {
+          const clip = gltf.animations[0];
+          clip.name = name;
+
+          const action = this.mixer.clipAction(clip);
+          action.setLoop(THREE.LoopRepeat, Infinity);
+          this.loadedActions.set(name, action);
+          
+          console.info(`[MotionEngine] Zarejestrowano zdalny klip do miksera bazy: "${name}" (${clip.duration.toFixed(1)}s)`);
+        }
+      } catch (err) {
+        console.error(`Nie udało się pobrać animacji: ${name}`, err);
+      }
+    }
+  }
+
+  /**
+   * Odtwarza klip używając płynnego cross-fade.
+   */
+  public playClipByName(clipName: string, timeScale: number = 1.0, crossFadeDuration: number = 0.4): void {
+    if (!this.mixer || !this.avatarScene) return;
+    const key = clipName.toLowerCase();
+    
+    let activeKey = key;
+    if (!this.loadedActions.has(key) && !this.embeddedActions.has(key)) {
+       activeKey = this.findFallbackClipName(key) || 'idle';
+    }
+
+    if (this.currentActionName === activeKey) {
+       const action = this.loadedActions.get(activeKey) || this.embeddedActions.get(activeKey);
+       if (action) action.setEffectiveTimeScale(timeScale);
+       return;
+    }
+
+    const action = this.loadedActions.get(activeKey) || this.embeddedActions.get(activeKey);
+    if (action) {
+       this.crossFadeToAction(action, activeKey, timeScale, crossFadeDuration);
+    }
+  }
+
+  /**
+   * Główna metoda aktualizacji klatki podczas odtwarzania.
    */
   public updatePose(
     sequence: ChoreographySequence,
     currentTimeSeconds: number,
-    mirrorMode: boolean = false
-  ) {
+    delta: number,
+    _isMirrorMode: boolean = false
+  ): void {
+    if (!this.mixer) return;
+
+    this.mixer.update(delta);
+
     if (!sequence || !sequence.blocks || sequence.blocks.length === 0) return;
-    if (this.skeletonBones.size === 0) return;
 
     const bpm = sequence.targetBPM || 100;
-    // Wyliczenie całkowitej liczby uderzeń w sekwencji
+    
     let totalBeats = 0;
     sequence.blocks.forEach((b) => {
-      totalBeats += b.durationBeats;
+      totalBeats += b.durationBeats || 8;
     });
 
-    if (totalBeats <= 0) return;
+    if (totalBeats <= 0) totalBeats = 8;
 
-    // Przeliczenie sekund na uderzenia w siatce rytmicznej (BPM Warping)
     const beatsPerSecond = bpm / 60;
     const currentBeat = (currentTimeSeconds * beatsPerSecond) % totalBeats;
 
-    // Znalezienie bloku, w którym aktualnie się znajdujemy
     let accumulatedBeats = 0;
     let activeBlockIndex = 0;
-    let blockBeatOffset = 0;
 
     for (let i = 0; i < sequence.blocks.length; i++) {
       const block = sequence.blocks[i];
-      if (currentBeat >= accumulatedBeats && currentBeat < accumulatedBeats + block.durationBeats) {
+      const duration = block.durationBeats || 8;
+      if (currentBeat >= accumulatedBeats && currentBeat < accumulatedBeats + duration) {
         activeBlockIndex = i;
-        blockBeatOffset = currentBeat - accumulatedBeats;
         break;
       }
-      accumulatedBeats += block.durationBeats;
+      accumulatedBeats += duration;
     }
 
     const activeBlock = sequence.blocks[activeBlockIndex];
-    if (!activeBlock || !activeBlock.keyframes || activeBlock.keyframes.length === 0) return;
+    if (!activeBlock) return;
 
-    // Obliczenie rotacji kości w wybranym bloku z interpolacją SLERP
-    const interpolatedRotations = this.evaluateBlockRotations(activeBlock, blockBeatOffset);
+    const clipName = activeBlock.clipName || this.resolveClipNameForBlock(activeBlock);
+    const timeScale = bpm / (activeBlock.nativeBPM || 100);
 
-    // Aplikowanie rotacji na kości awatara
-    interpolatedRotations.forEach((rot, boneName) => {
-      let bone = this.skeletonBones.get(boneName) || this.skeletonBones.get(`mixamorig${boneName}`);
-      if (bone) {
-        const euler = new THREE.Euler(rot[0], rot[1], rot[2], 'XYZ');
-        bone.quaternion.setFromEuler(euler);
-      }
-    });
+    this.playClipByName(clipName, timeScale);
   }
 
   /**
-   * Ewaluuje i interpoluje rotacje kości dla danego bloku na podstawie beatOffset
+   * Tick mixera na pauzie (zamarzanie czasu).
    */
-  private evaluateBlockRotations(block: DanceMoveBlock, beatOffset: number): Map<string, [number, number, number]> {
-    const result = new Map<string, [number, number, number]>();
-    const keyframes = block.keyframes;
+  public tick(delta: number): void {
+    if (!this.mixer) return;
+    // Nie resetujemy do idle, tylko aktualizujemy bieżący układ by delta wynosiła 0 (freeze frame).
+    this.mixer.update(delta);
+  }
 
-    if (keyframes.length === 1) {
-      keyframes[0].rotations.forEach((r) => result.set(r.boneName, r.rotation));
-      return result;
-    }
+  public getMixer(): THREE.AnimationMixer | null {
+    return this.mixer;
+  }
 
-    // Znalezienie dwóch najbliższych klatek kluczowych (Keyframe A i Keyframe B)
-    let prevKf = keyframes[0];
-    let nextKf = keyframes[keyframes.length - 1];
+  private resolveClipNameForBlock(block: DanceMoveBlock): string {
+    const style = block.style || 'Hip-Hop';
+    const fallbacks = STYLE_FALLBACKS[style] || STYLE_FALLBACKS['Hip-Hop'];
 
-    for (let i = 0; i < keyframes.length - 1; i++) {
-      if (beatOffset >= keyframes[i].beatOffset && beatOffset <= keyframes[i + 1].beatOffset) {
-        prevKf = keyframes[i];
-        nextKf = keyframes[i + 1];
-        break;
+    for (const candidate of fallbacks) {
+      if (this.loadedActions.has(candidate)) {
+        return candidate;
       }
     }
 
-    const duration = nextKf.beatOffset - prevKf.beatOffset;
-    const rawFactor = duration > 0 ? Math.min(1, Math.max(0, (beatOffset - prevKf.beatOffset) / duration)) : 0;
-    const factor = 0.5 - 0.5 * Math.cos(rawFactor * Math.PI);
+    return 'hiphop_bounce';
+  }
 
-    // Zbieranie wszystkich unikalnych nazw kości z obu klatek
-    const boneNames = new Set<string>();
-    prevKf.rotations.forEach((r) => boneNames.add(r.boneName));
-    nextKf.rotations.forEach((r) => boneNames.add(r.boneName));
-
-    boneNames.forEach((boneName) => {
-      const rotA = prevKf.rotations.find((r) => r.boneName === boneName)?.rotation || [0, 0, 0];
-      const rotB = nextKf.rotations.find((r) => r.boneName === boneName)?.rotation || rotA;
-
-      // Konwersja na Kwaterniony i wykonanie interpolacji sferycznej SLERP
-      const qA = new THREE.Quaternion().setFromEuler(new THREE.Euler(rotA[0], rotA[1], rotA[2], 'XYZ'));
-      const qB = new THREE.Quaternion().setFromEuler(new THREE.Euler(rotB[0], rotB[1], rotB[2], 'XYZ'));
-
-      qA.slerp(qB, factor);
-
-      const euler = new THREE.Euler().setFromQuaternion(qA, 'XYZ');
-      result.set(boneName, [euler.x, euler.y, euler.z]);
-    });
-
-    // Automatyczna kompensacja nacisku nóg, ugięcia kolan i kotwiczenia stóp na podłożu (Foot Grounding / Leg IK Fallback)
-    const hipsRot = result.get('mixamorigHips') || result.get('Hips') || [0, 0, 0];
-    const [hipPitch, hipYaw, hipRoll] = hipsRot;
-
-    if (!result.has('mixamorigLeftUpLeg') && !result.has('LeftUpLeg')) {
-      result.set('mixamorigLeftUpLeg', [-0.35 * hipPitch + 0.1, -0.4 * hipYaw, -0.6 * hipRoll - 0.12]);
+  private findFallbackClipName(_failedKey: string): string | null {
+    for (const fallback of ['hiphop_bounce', 'dance_hiphop', 'dance', 'idle']) {
+      if (this.loadedActions.has(fallback)) return fallback;
     }
-    if (!result.has('mixamorigRightUpLeg') && !result.has('RightUpLeg')) {
-      result.set('mixamorigRightUpLeg', [-0.35 * hipPitch + 0.1, -0.4 * hipYaw, -0.6 * hipRoll + 0.12]);
+    return 'idle';
+  }
+
+  private crossFadeToAction(
+    nextAction: THREE.AnimationAction,
+    nextName: string,
+    timeScale: number,
+    crossFadeDuration: number
+  ): void {
+    if (this.currentActionName === nextName && nextAction.isRunning()) {
+      nextAction.setEffectiveTimeScale(timeScale);
+      return;
     }
 
-    if (!result.has('mixamorigLeftLeg') && !result.has('LeftLeg')) {
-      const kneeFlex = -0.4 * Math.max(0, hipPitch) - 0.25;
-      result.set('mixamorigLeftLeg', [kneeFlex, 0, 0]);
-    }
-    if (!result.has('mixamorigRightLeg') && !result.has('RightLeg')) {
-      const kneeFlex = -0.4 * Math.max(0, hipPitch) - 0.25;
-      result.set('mixamorigRightLeg', [kneeFlex, 0, 0]);
+    const prevAction = this.currentActionName 
+      ? (this.loadedActions.get(this.currentActionName) || this.embeddedActions.get(this.currentActionName)) 
+      : null;
+
+    nextAction.reset();
+    nextAction.enabled = true;
+    nextAction.setEffectiveTimeScale(timeScale);
+    nextAction.setEffectiveWeight(1.0);
+    nextAction.setLoop(THREE.LoopRepeat, Infinity);
+    nextAction.clampWhenFinished = false;
+    nextAction.play();
+
+    if (prevAction && prevAction !== nextAction) {
+      nextAction.crossFadeFrom(prevAction, crossFadeDuration, true);
     }
 
-    if (!result.has('mixamorigLeftFoot') && !result.has('LeftFoot')) {
-      result.set('mixamorigLeftFoot', [0.25 * hipPitch + 0.1, 0, 0]);
-    }
-    if (!result.has('mixamorigRightFoot') && !result.has('RightFoot')) {
-      result.set('mixamorigRightFoot', [0.25 * hipPitch + 0.1, 0, 0]);
-    }
-
-    return result;
+    this.currentActionName = nextName;
+    console.info(`[MotionEngine] ▶ Odtwarzanie animacji: "${nextName}" (tempo: ${timeScale.toFixed(2)}x)`);
   }
 }

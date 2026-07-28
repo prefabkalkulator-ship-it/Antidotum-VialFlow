@@ -195,7 +195,7 @@ app.post('/api/auth/login', async (req, res) => {
         }
 
         const role = isAdult ? 'Uczen_Dorosly' : 'Uczen_Nieletni';
-        const payload = { id: childMatch.id, role, name: childMatch.name, email: childMatch.email };
+        const payload = { id: childMatch.id, role, name: childMatch.name, email: childMatch.email, groupId: childMatch.groupId || '' };
         const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
 
         return res.json({
@@ -297,7 +297,7 @@ app.post('/api/auth/verify-profile-pin', async (req, res) => {
   }
   
   if (matchedChild) {
-    res.json({ success: true, role: 'Uczen_Nieletni', userData: matchedChild });
+    res.json({ success: true, role: 'Uczen_Nieletni', userData: { ...matchedChild, groupId: matchedChild.groupId || '' } });
   } else {
     res.status(401).json({ error: 'Nieprawidłowy PIN' });
   }
