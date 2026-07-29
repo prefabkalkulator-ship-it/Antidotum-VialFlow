@@ -95,6 +95,7 @@ export default function AiVideoCoach() {
 
   // AI Choreography Generator stany
   const [aiPrompt, setAiPrompt] = useState('');
+  const [aiAudioUrl, setAiAudioUrl] = useState('');
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const [aiSuccessMsg, setAiSuccessMsg] = useState('');
   const [aiErrorMsg, setAiErrorMsg] = useState('');
@@ -111,10 +112,10 @@ export default function AiVideoCoach() {
     setAiErrorMsg('');
 
     try {
-      const res = await fetchWithFallback('/api/coach/generate-choreo', {
+      const res = await fetchWithFallback('/api/coach/generate-edge-dance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: textPrompt })
+        body: JSON.stringify({ prompt: textPrompt, audioUrl: aiAudioUrl })
       });
       const data = await res.json();
       if (data.success && data.sequence) {
@@ -686,7 +687,39 @@ export default function AiVideoCoach() {
                       <span className="text-xs font-bold text-primary uppercase tracking-widest flex items-center gap-1.5">
                         <Sparkles size={16} /> Asystent AI Choreografa
                       </span>
-                      <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded-full font-mono">Gemini AI</span>
+                      <div className="flex gap-2 items-center">
+                        <label htmlFor="aiAudioUpload" className="bg-[#18181B] hover:bg-gray-800 text-primary border border-primary/30 p-1 rounded-md cursor-pointer transition-colors" title="Wgraj podkład muzyczny dla AI">
+                          <Plus size={14} />
+                        </label>
+                        <input 
+                          id="aiAudioUpload" 
+                          type="file" 
+                          accept="audio/*" 
+                          className="hidden" 
+                          onChange={async (e) => {
+                            const uploadedFile = e.target.files?.[0];
+                            if (!uploadedFile) return;
+                            try {
+                              setAiSuccessMsg(`🎵 Wgrywanie dla AI: "${uploadedFile.name}"...`);
+                              const formData = new FormData();
+                              formData.append('audio', uploadedFile);
+                              const uploadRes = await fetchWithFallback('/api/coach/upload-audio', { method: 'POST', body: formData });
+                              const uploadData = await uploadRes.json();
+                              if (uploadData.success) {
+                                setAiAudioUrl(uploadData.url);
+                                setAiSuccessMsg(`✅ Wgrano podkład do analizy: "${uploadedFile.name}"`);
+                              } else {
+                                setAiErrorMsg('Błąd wgrywania pliku dla AI');
+                                setAiSuccessMsg('');
+                              }
+                            } catch (err: any) {
+                              setAiErrorMsg('Błąd połączenia: ' + err.message);
+                              setAiSuccessMsg('');
+                            }
+                          }}
+                        />
+                        <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded-full font-mono">EDGE AI</span>
+                      </div>
                     </div>
                     
                     <div className="flex flex-col gap-2 mb-2">
@@ -755,7 +788,6 @@ export default function AiVideoCoach() {
                             if (!uploadedFile) return;
                             // Upload to server so students can access the file
                             try {
-                              setAiSuccessMsg(`🎵 Wgrywanie "${uploadedFile.name}"...`);
                               const formData = new FormData();
                               formData.append('audio', uploadedFile);
                               const uploadRes = await fetchWithFallback('/api/coach/upload-audio', {
@@ -770,13 +802,10 @@ export default function AiVideoCoach() {
                                   localStorage.setItem('vialflow_custom_audios', JSON.stringify(updated));
                                   return updated;
                                 });
-                                setAiSuccessMsg(`✅ Wgrano podkład: "${uploadedFile.name}"`);
                               } else {
-                                setAiSuccessMsg('');
                                 alert('Błąd wgrywania pliku audio: ' + (uploadData.error || 'nieznany błąd'));
                               }
                             } catch (err: any) {
-                              setAiSuccessMsg('');
                               alert('Błąd połączenia z serwerem: ' + err.message);
                             }
                           }}
