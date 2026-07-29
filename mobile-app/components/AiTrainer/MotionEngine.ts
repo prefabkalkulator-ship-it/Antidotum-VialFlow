@@ -134,6 +134,12 @@ export class MotionEngine {
 
     this.mixer.update(delta);
 
+    if (sequence.customGlbUrl) {
+      // Tryb zewnętrznej pełnej animacji GLB (AI EDGE)
+      this.playClipByName('edge_custom_anim', 1.0);
+      return;
+    }
+
     if (!sequence || !sequence.blocks || sequence.blocks.length === 0) return;
 
     const bpm = sequence.targetBPM || 100;

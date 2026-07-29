@@ -30,6 +30,9 @@ export interface ChoreographySequence {
   style?: string;
   targetBPM: number;
   blocks: DanceMoveBlock[];
+  /** Opcjonalny URL do wygenerowanej przez AI EDGE (np. w postaci jednego pliku) gotowej choreografii GLB.
+   * Jeśli obecne, player zignoruje pole blocks. */
+  customGlbUrl?: string;
 }
 
 // Spójna i bogata baza klocków tanecznych synchronizowana z backendem i szybkim generowaniem

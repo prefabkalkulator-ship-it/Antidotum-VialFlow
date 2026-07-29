@@ -765,7 +765,6 @@ export default function AiVideoCoach() {
                               const uploadData = await uploadRes.json();
                               if (uploadData.success) {
                                 setAudioUrl(uploadData.url);
-                                setCustomSequence(prev => ({ ...prev, targetBPM: 0 }));
                                 setCustomAudios(prev => {
                                   const updated = [{ name: uploadedFile.name, url: uploadData.url }, ...prev.filter(a => a.url !== uploadData.url)].slice(0, 10);
                                   localStorage.setItem('vialflow_custom_audios', JSON.stringify(updated));
@@ -783,28 +782,22 @@ export default function AiVideoCoach() {
                           }}
                         />
                       </div>
-                      <div className="flex gap-1">
+                      <div className="flex flex-col gap-1">
                         <select
-                          value={customSequence.targetBPM === 0 ? audioUrl : customSequence.targetBPM.toString()}
+                          value={audioUrl}
                           onChange={(e) => {
                              const val = e.target.value;
-                             if (val.startsWith('/api/') || val.startsWith('http')) {
-                               setCustomSequence({ ...customSequence, targetBPM: 0 });
-                               setAudioUrl(val);
-                             } else {
-                               const newBpm = Number(val);
-                               setCustomSequence({ ...customSequence, targetBPM: newBpm });
-                               if (newBpm !== 0) {
-                                 setAudioUrl(`/assets/female_hip_hop_${newBpm}_bpm.mp3`);
-                               }
-                             }
+                             setAudioUrl(val);
+                             if (val.includes('85_bpm')) setCustomSequence({ ...customSequence, targetBPM: 85 });
+                             else if (val.includes('104_bpm')) setCustomSequence({ ...customSequence, targetBPM: 104 });
+                             else if (val.includes('128_bpm')) setCustomSequence({ ...customSequence, targetBPM: 128 });
                           }}
-                          className="w-full bg-[#27272A] text-white text-xs font-bold p-1 rounded border border-gray-700 focus:outline-none focus:border-primary cursor-pointer"
+                          className="w-full bg-[#27272A] text-white text-xs font-bold p-1 rounded border border-gray-700 focus:outline-none focus:border-primary cursor-pointer mb-2"
                         >
                           <optgroup label="Domyślne podkłady">
-                            <option value="85">85 BPM (Powolne wejście)</option>
-                            <option value="104">104 BPM (Urban Beat)</option>
-                            <option value="128">128 BPM (Dynamiczny K-Pop)</option>
+                            <option value="/assets/female_hip_hop_85_bpm.mp3">85 BPM (Powolne wejście)</option>
+                            <option value="/assets/female_hip_hop_104_bpm.mp3">104 BPM (Urban Beat)</option>
+                            <option value="/assets/female_hip_hop_128_bpm.mp3">128 BPM (Dynamiczny K-Pop)</option>
                           </optgroup>
                           {customAudios.length > 0 && (
                             <optgroup label="Ostatnio wgrane">
@@ -813,13 +806,28 @@ export default function AiVideoCoach() {
                               ))}
                             </optgroup>
                           )}
-                          {/* Fallback dla wgranego przed chwilą (lub ze starego stanu) którego brak w historii */}
-                          {customSequence.targetBPM === 0 && !customAudios.find(a => a.url === audioUrl) && (
+                          {/* Fallback dla wgranego przed chwilą którego brak w historii */}
+                          {!customAudios.find(a => a.url === audioUrl) && !audioUrl.includes('_bpm.mp3') && (
                             <optgroup label="Aktualny plik">
                               <option value={audioUrl}>Własny (Nieznana nazwa)</option>
                             </optgroup>
                           )}
                         </select>
+                        <div className="flex flex-col mt-2">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Prędkość animacji (BPM)</span>
+                            <span className="text-xs font-bold text-primary">{customSequence.targetBPM || 104} BPM</span>
+                          </div>
+                          <input 
+                            type="range"
+                            min="80"
+                            max="220"
+                            step="1"
+                            value={customSequence.targetBPM || 104}
+                            onChange={(e) => setCustomSequence({...customSequence, targetBPM: Number(e.target.value)})}
+                            className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-primary"
+                          />
+                        </div>
                       </div>
                     </div>
 

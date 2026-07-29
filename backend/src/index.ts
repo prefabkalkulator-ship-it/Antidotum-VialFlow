@@ -1221,67 +1221,21 @@ app.post('/api/coach/transition', (req, res) => {
 });
 
 // Endpoint AI EDGE (Editable Dance Generation from Music) - generuje sekwencję MoCap 3D z promptu i utworu MP3
-app.post('/api/coach/generate-edge-dance', (req, res) => {
+app.post('/api/coach/generate-edge-dance', async (req, res) => {
   try {
     const { prompt, style = 'Hip-Hop', bpm = 104 } = req.body;
     console.log(`[AI EDGE Engine] Generowanie autentycznej choreografii MoCap 3D dla promptu: "${prompt}" (${style}, ${bpm} BPM)`);
+
+    // Symulacja czasu działania modelu GPU inference (np. 4 sekundy)
+    await new Promise(resolve => setTimeout(resolve, 4000));
 
     const edgeSequence = {
       id: `seq_edge_${Date.now()}`,
       title: `AI EDGE: ${prompt ? prompt.slice(0, 30) : style} (${bpm} BPM)`,
       style,
       targetBPM: bpm,
-      blocks: [
-        {
-          id: 'edge_mocap_intro',
-          name: `${style} MoCap Opening Bounce`,
-          style,
-          difficulty: 'Średniozaawansowany',
-          nativeBPM: bpm,
-          durationBeats: 8,
-          description: 'Początkowy krok otwarcia z dynamiczną pracą bioder i miednicy.',
-          tags: ['edge', 'mocap', 'bounce'],
-          clipName: 'hiphop_bounce',
-          keyframes: [
-            { beatOffset: 0, rotations: [
-              { boneName: 'mixamorigHips', rotation: [0.15, 0, 0] },
-              { boneName: 'mixamorigSpine', rotation: [0.1, 0, 0] },
-              { boneName: 'mixamorigLeftArm', rotation: [0.2, 0.2, -1.1] },
-              { boneName: 'mixamorigRightArm', rotation: [0.2, -0.2, 1.1] },
-              { boneName: 'mixamorigLeftUpLeg', rotation: [-0.2, 0.3, -0.2] },
-              { boneName: 'mixamorigLeftLeg', rotation: [-0.4, 0, 0] },
-              { boneName: 'mixamorigRightUpLeg', rotation: [-0.2, -0.3, 0.2] },
-              { boneName: 'mixamorigRightLeg', rotation: [-0.4, 0, 0] }
-            ] },
-            { beatOffset: 2, rotations: [
-              { boneName: 'mixamorigHips', rotation: [0.3, 0.4, -0.2] },
-              { boneName: 'mixamorigSpine', rotation: [0.2, 0.3, 0] },
-              { boneName: 'mixamorigLeftArm', rotation: [0.6, 0.4, -0.6] },
-              { boneName: 'mixamorigRightArm', rotation: [-0.2, -0.4, 1.3] },
-              { boneName: 'mixamorigLeftUpLeg', rotation: [0.4, 0.6, -0.1] },
-              { boneName: 'mixamorigLeftLeg', rotation: [-0.8, 0, 0] }
-            ] },
-            { beatOffset: 4, rotations: [
-              { boneName: 'mixamorigHips', rotation: [0.15, 0, 0] },
-              { boneName: 'mixamorigLeftArm', rotation: [0.2, 0.2, -1.1] },
-              { boneName: 'mixamorigRightArm', rotation: [0.2, -0.2, 1.1] }
-            ] },
-            { beatOffset: 6, rotations: [
-              { boneName: 'mixamorigHips', rotation: [0.3, -0.4, 0.2] },
-              { boneName: 'mixamorigSpine', rotation: [0.2, -0.3, 0] },
-              { boneName: 'mixamorigLeftArm', rotation: [-0.2, 0.4, -1.3] },
-              { boneName: 'mixamorigRightArm', rotation: [0.6, -0.4, 0.6] },
-              { boneName: 'mixamorigRightUpLeg', rotation: [0.4, -0.6, 0.1] },
-              { boneName: 'mixamorigRightLeg', rotation: [-0.8, 0, 0] }
-            ] },
-            { beatOffset: 8, rotations: [
-              { boneName: 'mixamorigHips', rotation: [0.15, 0, 0] },
-              { boneName: 'mixamorigLeftArm', rotation: [0.2, 0.2, -1.1] },
-              { boneName: 'mixamorigRightArm', rotation: [0.2, -0.2, 1.1] }
-            ] }
-          ]
-        }
-      ]
+      customGlbUrl: '/assets/animations/edge_generated_test.glb',
+      blocks: [] // Ignorowane przez zaktualizowany MotionEngine na froncie
     };
 
     res.json({ success: true, sequence: edgeSequence });

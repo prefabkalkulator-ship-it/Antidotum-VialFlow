@@ -282,6 +282,20 @@ export default function AdminChoreoPreview({ sequence, audioUrl }: AdminChoreoPr
     };
   }, []);
 
+  // Ładowanie zewnętrznej animacji GLB z AI EDGE w locie
+  useEffect(() => {
+    if (sequence.customGlbUrl && !isLoadingModel) {
+      logProbe(`Wykryto nową zewnętrzną animację GLB: ${sequence.customGlbUrl}`);
+      motionEngineRef.current.loadRemoteAnimations([
+        { name: 'edge_custom_anim', url: sequence.customGlbUrl }
+      ]).then(() => {
+        logProbe('✅ Animacja EDGE załadowana i gotowa do użycia!');
+      }).catch(err => {
+        logProbe(`Błąd ładowania animacji EDGE: ${err}`, true);
+      });
+    }
+  }, [sequence.customGlbUrl, isLoadingModel]);
+
   // 2. Pętla Odtwarzania Animacji + Renderowania klatek (sterowana flagą isPlaying)
   useEffect(() => {
     let animId: number;

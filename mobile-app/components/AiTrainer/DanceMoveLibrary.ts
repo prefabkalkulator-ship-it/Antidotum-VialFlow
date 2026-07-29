@@ -26,6 +26,8 @@ export interface ChoreographySequence {
   targetBPM: number;
   audioUrl?: string;
   blocks: DanceMoveBlock[];
+  /** Opcjonalny URL do wygenerowanej przez AI EDGE gotowej choreografii GLB. */
+  customGlbUrl?: string;
 }
 
 // Bogata baza klocków tanecznych dla szkół tańca z pełną pracą szkieletu

@@ -28,9 +28,17 @@ export default function ThreeDViewer({
   const mountRef = useRef<HTMLDivElement>(null);
   const motionEngineRef = useRef<MotionEngine>(new MotionEngine());
   
-  // Keep refs for updates inside loop without rebuilding scene
   const paramsRef = useRef({ currentFrame, animationFrames, isMirrorMode, cameraMode, sequence, audioTimeSeconds, playbackSpeed });
   paramsRef.current = { currentFrame, animationFrames, isMirrorMode, cameraMode, sequence, audioTimeSeconds, playbackSpeed };
+
+  // Ładowanie zewnętrznej animacji GLB z AI EDGE w locie
+  useEffect(() => {
+    if (sequence?.customGlbUrl) {
+      motionEngineRef.current.loadRemoteAnimations([
+        { name: 'edge_custom_anim', url: sequence.customGlbUrl }
+      ]).catch(e => console.warn('Błąd ładowania animacji EDGE', e));
+    }
+  }, [sequence?.customGlbUrl]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || !mountRef.current) return;
