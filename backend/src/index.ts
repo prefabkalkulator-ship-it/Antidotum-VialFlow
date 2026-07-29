@@ -1226,15 +1226,34 @@ app.post('/api/coach/generate-edge-dance', async (req, res) => {
     const { prompt, style = 'Hip-Hop', bpm = 104 } = req.body;
     console.log(`[AI EDGE Engine] Generowanie autentycznej choreografii MoCap 3D dla promptu: "${prompt}" (${style}, ${bpm} BPM)`);
 
-    // Symulacja czasu działania modelu GPU inference (np. 4 sekundy)
-    await new Promise(resolve => setTimeout(resolve, 4000));
+    const inferenceUrl = process.env.EDGE_INFERENCE_API_URL;
+    let finalGlbUrl = '/assets/animations/edge_generated_test.glb';
+
+    if (inferenceUrl) {
+      console.log(`[AI EDGE] Przekazywanie żądania do serwera Python: ${inferenceUrl}/generate`);
+      const response = await fetch(`${inferenceUrl}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, audioUrl: req.body.audioUrl, targetBpm: bpm, style })
+      });
+      const data = await response.json();
+      if (data.success && data.glbUrl) {
+        finalGlbUrl = data.glbUrl;
+      } else {
+        throw new Error('Serwer Inference zwrócił błąd: ' + JSON.stringify(data));
+      }
+    } else {
+      // Symulacja czasu działania modelu GPU inference (brak skonfigurowanej zmiennej)
+      console.log(`[AI EDGE] Brak EDGE_INFERENCE_API_URL, używam mocka (4s) i fallbackowego GLB.`);
+      await new Promise(resolve => setTimeout(resolve, 4000));
+    }
 
     const edgeSequence = {
       id: `seq_edge_${Date.now()}`,
       title: `AI EDGE: ${prompt ? prompt.slice(0, 30) : style} (${bpm} BPM)`,
       style,
       targetBPM: bpm,
-      customGlbUrl: '/assets/animations/edge_generated_test.glb',
+      customGlbUrl: finalGlbUrl,
       blocks: [] // Ignorowane przez zaktualizowany MotionEngine na froncie
     };
 
