@@ -3,6 +3,7 @@ import path from 'path';
 
 const PAYMENTS_SPREADSHEET_ID = process.env.PAYMENTS_SPREADSHEET_ID || '1kYX0aeqkdo8aCGpabZQo3WzIVeFQJ7bxfDLd6MPGRds';
 const USERS_SPREADSHEET_ID = '1U6ouQFxEydO3I3_CxQvVmMAGuA0_tRz_a8VCE_cozUA';
+const NOTIFICATIONS_SPREADSHEET_ID = process.env.NOTIFICATIONS_SPREADSHEET_ID || '1FxQQP2yBESSXfCTLFDZcZ68W1pPlVT-174P0J4g4OK0';
 const SCHEDULE_SPREADSHEET_ID = process.env.SCHEDULE_SPREADSHEET_ID || '1qhczWuBlUKjSZBXicDgPh2kbLdzsUCGsmzn11RjoPb8';
 
 let sheetsApi: any = null;
@@ -338,7 +339,7 @@ export const getTeamRoles = async () => {
     if (!api) throw new Error('Brak połączenia z Google Sheets');
     const response = await api.spreadsheets.values.get({
       spreadsheetId: USERS_SPREADSHEET_ID,
-      range: 'Baza_Zespolu!A:F',
+      range: 'Baza_Zespolu!A:H',
     });
 
     const rows = response.data.values;
@@ -350,7 +351,9 @@ export const getTeamRoles = async () => {
       email: (row[2] || '').trim().toLowerCase(),
       phone: row[3] || '',
       role: row[4] || '',
-      pin: row[5] || ''
+      pin: row[5] || '',
+      expoPushToken: row[6] || '',
+      deviceToken: row[7] || ''
     })).filter(u => u.email !== '');
 
     return data;
@@ -1254,7 +1257,42 @@ export const setExpoPushToken = async (identifier: string, token: string): Promi
   }
 };
 
-const NOTIFICATIONS_SPREADSHEET_ID = '1FxQQP2yBESSXfCTLFDZcZ68W1pPlVT-174P0J4g4OK0';
+export const setStaffPushToken = async (email: string, token: string): Promise<boolean> => {
+  try {
+    const api = await initAuth();
+    if (!api) return false;
+    
+    const usersRes = await api.spreadsheets.values.get({
+      spreadsheetId: USERS_SPREADSHEET_ID,
+      range: 'Baza_Zespolu!A:H',
+    });
+    
+    const rows = usersRes.data.values || [];
+    const searchEmail = email.toLowerCase().trim();
+    
+    let updated = false;
+    
+    // Szukamy pasującego wiersza w Baza_Zespolu po Email (kolumna C - indeks 2)
+    for (let i = 1; i < rows.length; i++) {
+      const rowEmail = (rows[i][2] || '').trim().toLowerCase();
+      
+      if (rowEmail === searchEmail) {
+        await api.spreadsheets.values.update({
+          spreadsheetId: USERS_SPREADSHEET_ID,
+          range: `Baza_Zespolu!G${i + 1}:H${i + 1}`,
+          valueInputOption: 'USER_ENTERED',
+          requestBody: { values: [[token, token]] }
+        });
+        updated = true;
+      }
+    }
+    
+    return updated;
+  } catch(e) {
+    console.error('Błąd zapisywania Staff ExpoPushToken:', e);
+    return false;
+  }
+};
 
 // --- POWIADOMIENIA (TABLICA OGŁOSZEŃ) ---
 
@@ -1267,44 +1305,17 @@ export const saveNotification = async (title: string, content: string, targetGro
     const date = new Date().toISOString();
     const groupsStr = targetGroups.join(',');
 
-    const rowData = [id, date, title, content, groupsStr, sender];
+    const rowData = [id, date, title, content, groupsStr, sender, ''];
 
-    // Get sheetId for "Powiadomienia"
-    const sheetData = await api.spreadsheets.get({
+    await api.spreadsheets.values.append({
       spreadsheetId: NOTIFICATIONS_SPREADSHEET_ID,
-    });
-    const sheet = sheetData.data.sheets?.find((s: any) => s.properties?.title === 'Powiadomienia');
-    const sheetId = sheet ? sheet.properties.sheetId : 0;
-
-    // Insert row at index 1 (between row 1 and 2)
-    await api.spreadsheets.batchUpdate({
-      spreadsheetId: NOTIFICATIONS_SPREADSHEET_ID,
-      requestBody: {
-        requests: [
-          {
-            insertDimension: {
-              range: {
-                sheetId: sheetId,
-                dimension: "ROWS",
-                startIndex: 1,
-                endIndex: 2
-              }
-            }
-          }
-        ]
-      }
-    });
-
-    // Update the newly inserted row
-    await api.spreadsheets.values.update({
-      spreadsheetId: NOTIFICATIONS_SPREADSHEET_ID,
-      range: 'Powiadomienia!A2:F2',
+      range: 'Powiadomienia!A:G',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: [rowData]
-      }
+        values: [rowData],
+      },
     });
-    
+
     return { success: true, id };
   } catch (error) {
     console.error('[Sheets API] Błąd zapisywania powiadomienia:', error);
@@ -1312,14 +1323,51 @@ export const saveNotification = async (title: string, content: string, targetGro
   }
 };
 
+export const markNotificationAsRead = async (id: string) => {
+  try {
+    const api = await initAuth();
+    if (!api) throw new Error('Brak polaczenia');
+    
+    const response = await api.spreadsheets.values.get({
+      spreadsheetId: NOTIFICATIONS_SPREADSHEET_ID,
+      range: 'Powiadomienia!A:A',
+    });
+    
+    const rows = response.data.values;
+    if (!rows) return { success: false };
+    
+    const rowIndex = rows.findIndex((r: any) => r[0] === id);
+    if (rowIndex === -1) return { success: false };
+    
+    // Zapisz wartosc "1" w kolumnie G dla wiersza
+    await api.spreadsheets.values.update({
+      spreadsheetId: NOTIFICATIONS_SPREADSHEET_ID,
+      range: `Powiadomienia!G${rowIndex + 1}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [['1']]
+      }
+    });
+    
+    return { success: true };
+  } catch (err) {
+    console.error('Blad oznaczania jako przeczytane:', err);
+    return { success: false };
+  }
+};
+
 export const getNotificationsForUser = async (groupId: string, groupName: string = '', email: string = '', childIds: string = '') => {
   try {
     const api = await initAuth();
     if (!api) throw new Error('Brak połączenia z Google Sheets');
+
+    const sheetData = await api.spreadsheets.get({ spreadsheetId: NOTIFICATIONS_SPREADSHEET_ID });
+    const sheet = sheetData.data.sheets?.find((s: any) => s.properties?.title === 'Powiadomienia');
+    if (!sheet) return [];
     
     const response = await api.spreadsheets.values.get({
       spreadsheetId: NOTIFICATIONS_SPREADSHEET_ID,
-      range: 'Powiadomienia!A:F',
+      range: `Powiadomienia!A:G`,
     });
 
     const rows = response.data.values;
@@ -1331,10 +1379,12 @@ export const getNotificationsForUser = async (groupId: string, groupName: string
       title: row[2] || '',
       content: row[3] || '',
       targetGroups: (row[4] || '').split(',').map((g: string) => g.trim()),
-      sender: row[5] || ''
+      sender: row[5] || '',
+      isRead: row[6] === '1'
     })).filter((n: any) => n.id !== ''); // ignore empty
 
     // Filter by group
+    if (groupId === 'admin_all') return data;
     return data.filter((n: any) => {
        const hasAll = n.targetGroups.some((g: string) => g.toLowerCase() === 'wszyscy');
        const childIdsArr = (childIds || '').split(',').filter(Boolean);

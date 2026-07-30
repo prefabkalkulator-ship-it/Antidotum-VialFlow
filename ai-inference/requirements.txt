@@ -2,3 +2,15 @@ fastapi==0.103.2
 uvicorn==0.23.2
 pydantic==2.4.2
 requests==2.31.0
+
+# -------------------------------------------------------------
+# Poniższe biblioteki są niezbędne do odpalenia prawdziwego
+# modelu PyTorch na GPU (Patrz: INSTRUCTIONS_GPU.md)
+# Odkomentuj je i zbuduj ponownie kontener po zdobyciu wag.
+# -------------------------------------------------------------
+# torch --index-url https://download.pytorch.org/whl/cu118
+# torchaudio
+# transformers
+# librosa
+# numpy
+# scipy

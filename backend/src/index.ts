@@ -10,7 +10,7 @@ import { runEventOrchestration, rewriteEventDocumentWithComment, readEventDocume
 import { initCronJobs, runPassGenerationJob, runPassRemindersJob } from './cron';
 import { processVideo } from './videoPipeline';
 import { chatWithRAG, refreshKnowledgeBase, generatePushDraft, refinePushDraft } from './rag';
-import { getPaymentHistory, addPaymentTransaction, getStudentPasses, getAllPasses, generateStudentPass, payStudentPass, getGroups, getUsersAndParents, addStudent, deleteStudent, updateStudentFullData, approveStudent, getTeamRoles, getSchedule, addAttendance, getEvents, bookEvent, getEventBookings, approveEventBooking, payEventBooking, saveEventQuestion, getPendingEventQuestions, markEventQuestionAsAnswered, updateUserProfile, setParentDeviceToken, removeDeviceToken, updateUserPin, setExpoPushToken , saveNotification, getNotificationsForUser, createHomeworkTask, getHomeworkTasks, submitHomeworkResult, getAllHomeworkResults } from './sheetsApi';
+import { getPaymentHistory, addPaymentTransaction, getStudentPasses, getAllPasses, generateStudentPass, payStudentPass, getGroups, getUsersAndParents, addStudent, deleteStudent, updateStudentFullData, approveStudent, getTeamRoles, getSchedule, addAttendance, getEvents, bookEvent, getEventBookings, approveEventBooking, payEventBooking, saveEventQuestion, getPendingEventQuestions, markEventQuestionAsAnswered, updateUserProfile, setParentDeviceToken, removeDeviceToken, updateUserPin, setExpoPushToken , setStaffPushToken, saveNotification, getNotificationsForUser, markNotificationAsRead, createHomeworkTask, getHomeworkTasks, submitHomeworkResult, getAllHomeworkResults } from './sheetsApi';
 import jwt from 'jsonwebtoken';
 import { authenticateJWT } from './middleware';
 import { logConsentToWORM, deleteEphemeralVideo } from './audit';
@@ -92,16 +92,59 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'VialFlow API is running' });
 });
 
+const enrichNotificationsWithSenders = async (notifications: any[]) => {
+  if (!notifications || notifications.length === 0) return [];
+  try {
+    const parents = await getUsersAndParents();
+    const staff = await getTeamRoles();
+    return notifications.map(n => {
+      let senderName = n.sender;
+      if (n.sender && n.sender !== 'System') {
+        const sLower = n.sender.toLowerCase();
+        const staffMatch = staff.find((s: any) => s.email.toLowerCase() === sLower);
+        if (staffMatch) {
+          senderName = staffMatch.name || `${staffMatch.firstName} ${staffMatch.lastName}`;
+        } else {
+          let found = false;
+          for (const parent of parents) {
+            if (parent.email.toLowerCase() === sLower) {
+               senderName = parent.name || 'Rodzic/Opiekun';
+               found = true; break;
+            }
+            const childMatch = parent.children?.find((c: any) => c.id.toLowerCase() === sLower);
+            if (childMatch) {
+               senderName = `${childMatch.firstName} ${childMatch.lastName}`;
+               found = true; break;
+            }
+          }
+        }
+      }
+      return { ...n, senderName };
+    });
+  } catch { return notifications; }
+};
+
+app.post('/api/notifications/mark-read', async (req, res) => {
+  const { id } = req.body;
+  if (!id) return res.status(400).json({ error: 'Brak id powiadomienia' });
+  try {
+    const result = await markNotificationAsRead(id);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Blad serwera' });
+  }
+});
 
 app.get('/api/notifications', async (req, res) => {
   try {
     const { groupId, groupName, email, childIds } = req.query;
     if (!groupId) return res.status(400).json({ error: 'Brak groupId' });
-    const notifications = await getNotificationsForUser(groupId);
-    res.json(notifications);
+    const notifications = await getNotificationsForUser(groupId as string, groupName as string, email as string, childIds as string);
+    const enriched = await enrichNotificationsWithSenders(notifications);
+    res.json(enriched);
   } catch (err) {
-    console.error('Błąd pobierania powiadomień:', err);
-    res.status(500).json({ error: 'Błąd serwera' });
+    console.error('Blad pobierania powiadomien:', err);
+    res.status(500).json({ error: 'Blad serwera' });
   }
 });
 
@@ -327,11 +370,15 @@ app.post('/api/auth/unpair-device', async (req, res) => {
 app.post('/api/push/register', async (req, res) => {
   const { identifier, pushToken } = req.body;
   if (!identifier || !pushToken) return res.status(400).json({ error: 'Brak danych' });
-  const success = await setExpoPushToken(identifier, pushToken);
-  if (success) {
-    res.json({ success: true });
+  
+  // Próbujemy zapisać zarówno u Ucznia jak i u Personelu (wiele baz)
+  const successStudent = await setExpoPushToken(identifier, pushToken);
+  const successStaff = await setStaffPushToken(identifier, pushToken);
+  
+  if (successStudent || successStaff) {
+    res.json({ success: true, updatedStaff: successStaff });
   } else {
-    res.status(500).json({ error: 'Błąd zapisu tokenu Push' });
+    res.status(500).json({ error: 'Błąd zapisu tokenu Push w arkuszu.' });
   }
 });
 
@@ -347,14 +394,18 @@ app.post('/api/push/send', async (req, res) => {
   
       for (const parent of parents) {
         for (const child of parent.children) {
-          if (child.expoPushToken && !child.expoPushToken.startsWith('MOCK-TOKEN-')) {
-            if (groups.includes('wszyscy') || groups.includes('wszyscy_uczniowie') || groups.includes(child.groupId) || groups.includes(child.id) || groups.includes(child.email) || groups.includes(parent.email)) {
+            if (child.expoPushToken && !child.expoPushToken.startsWith('MOCK-TOKEN-')) {
+              const isGroupMatched = groups.some((g: string) => 
+                (child.groupId && g.toLowerCase() === child.groupId.toLowerCase()) || 
+                (child.groupName && g.toLowerCase() === child.groupName.toLowerCase())
+              );
+              if (groups.includes('wszyscy') || groups.includes('wszyscy_uczniowie') || isGroupMatched || groups.includes(child.id) || groups.includes(child.email) || groups.includes(parent.email)) {
               if (Expo.isExpoPushToken(child.expoPushToken)) {
-                expoTokens.push(child.expoPushToken);
-              } else {
-                fcmTokens.push(child.expoPushToken);
-              }
-            }
+                    expoTokens.push(child.expoPushToken);
+                  } else {
+                    fcmTokens.push(child.expoPushToken);
+                  }
+                }
           }
         }
       }
@@ -389,12 +440,24 @@ app.post('/api/push/send', async (req, res) => {
       }
 
       if (fcmTokens.length > 0) {
-        const payload = {
-          notification: { title, body },
+        const message = {
+          notification: {
+            title: title || 'Powiadomienie',
+            body: body,
+          },
+          webpush: {
+            notification: {
+              icon: '/icon-512x512.png',
+              tag: 'antidotum-notif'
+            },
+            fcmOptions: {
+              link: 'https://vialflow-backend-392406857647.europe-central2.run.app/'
+            }
+          },
           tokens: fcmTokens,
         };
         try {
-          const response = await getMessaging().sendEachForMulticast(payload);
+          const response = await getMessaging().sendEachForMulticast(message);
           sentCount += response.successCount;
         } catch (error) {
           console.error('Błąd wysyłania FCM:', error);
@@ -408,6 +471,133 @@ app.post('/api/push/send', async (req, res) => {
       res.status(500).json({ error: 'Błąd serwera' });
     }
   });
+
+// Endpoint skrzynki odbiorczej
+  app.get('/api/notifications/get', async (req, res) => {
+    try {
+      const list = await getNotificationsForUser('admin_all', '', '', '');
+      const enriched = await enrichNotificationsWithSenders(list.slice(0, 50));
+      res.json(enriched);
+    } catch (err) {
+      res.status(500).json({ error: 'Blad pobierania powiadomien' });
+    }
+  });
+
+app.post('/api/push/send-from-student', async (req, res) => {
+  const { senderChildId, target, message, title } = req.body;
+  if (!senderChildId || !target || !message) return res.status(400).json({ error: 'Brak wymaganych danych.' });
+
+  try {
+    const parents = await getUsersAndParents();
+    let senderChild: any = null;
+    for (const parent of parents) {
+      if (parent.id === senderChildId) {
+        senderChild = parent;
+        break;
+      }
+      const found = parent.children?.find((c: any) => c.id === senderChildId);
+      if (found) { senderChild = found; break; }
+    }
+    if (!senderChild) {
+       console.log('Uczeń nie znaleziony dla ID:', senderChildId);
+       return res.status(404).json({ error: 'Uczeń nie znaleziony.' });
+    }
+
+    let expoTokens: string[] = [];
+    let fcmTokens: string[] = [];
+    let mockTokensCount = 0;
+    const notificationTitle = title || `Wiadomość od ${senderChild.firstName} (${senderChild.groupName})`;
+    let targetIdForNotification = 'Nieznany';
+
+    if (target === 'Moja_grupa' || target === 'Moja grupa') {
+      targetIdForNotification = senderChild.groupName;
+      for (const parent of parents) {
+        for (const child of parent.children) {
+          if (child.groupId === senderChild.groupId && child.expoPushToken && child.id !== senderChild.id) {
+            if (Expo.isExpoPushToken(child.expoPushToken)) {
+                 expoTokens.push(child.expoPushToken);
+              } else {
+                 fcmTokens.push(child.expoPushToken);
+              }
+            }
+        }
+      }
+    } else if (target === 'Trener' || target === 'Administrator') {
+      const staff = await getTeamRoles();
+      if (target === 'Trener') {
+        const groups = await getGroups();
+        const studentGroup = groups.find((g: any) => g.id === senderChild.groupId);
+        if (studentGroup && studentGroup.instructor) {
+          targetIdForNotification = `Trener: ${studentGroup.instructor}`;
+          const searchName = studentGroup.instructor.toLowerCase();
+          const foundTrainer = staff.find((s: any) => 
+            s.firstName.toLowerCase().includes(searchName) || s.lastName.toLowerCase().includes(searchName)
+          );
+          if (foundTrainer && foundTrainer.expoPushToken) {
+            if (Expo.isExpoPushToken(foundTrainer.expoPushToken)) expoTokens.push(foundTrainer.expoPushToken);
+            else if (!foundTrainer.expoPushToken.includes('MOCK')) fcmTokens.push(foundTrainer.expoPushToken);
+          }
+        }
+      } else if (target === 'Administrator') {
+        targetIdForNotification = 'Administrator';
+        const admins = staff.filter((s: any) => s.role.toLowerCase() === 'administrator');
+        admins.forEach((adm: any) => {
+          if (adm.expoPushToken) {
+            if (Expo.isExpoPushToken(adm.expoPushToken)) expoTokens.push(adm.expoPushToken);
+            else if (adm.expoPushToken.includes('MOCK')) mockTokensCount++;
+            else fcmTokens.push(adm.expoPushToken);
+          }
+        });
+      }
+    }
+
+    expoTokens = [...new Set(expoTokens)];
+    fcmTokens = [...new Set(fcmTokens)];
+    
+    if (expoTokens.length > 0) {
+      const chunks = expo.chunkPushNotifications(
+        expoTokens.map(token => ({ to: token, sound: 'default', title: notificationTitle, body: message }))
+      );
+      for (const chunk of chunks) {
+        try {
+          await expo.sendPushNotificationsAsync(chunk);
+        } catch (e) {
+          console.error("Blad expo:", e);
+        }
+      }
+    }
+
+    if (fcmTokens.length > 0) {
+      const messageObj = {
+        notification: { title: notificationTitle, body: message },
+        webpush: {
+          notification: {
+            icon: '/icon-512x512.png',
+            tag: 'antidotum-notif'
+          },
+          fcmOptions: {
+            link: 'https://vialflow-backend-392406857647.europe-central2.run.app/'
+          }
+        },
+        tokens: fcmTokens,
+      };
+      try {
+        await getMessaging().sendEachForMulticast(messageObj);
+      } catch (error) {
+        console.error('Błąd wysyłania FCM z send-from-student:', error);
+      }
+    }
+
+    // Dodanie do Skrzynki Odbiorczej
+    await saveNotification(notificationTitle, message, [targetIdForNotification], senderChildId);
+
+    const totalRecipients = expoTokens.length + fcmTokens.length + mockTokensCount;
+    res.json({ success: true, recipientsCount: totalRecipients });
+  } catch (err: any) {
+    console.error('Błąd push-from-student:', err);
+    res.status(500).json({ error: 'Błąd wysyłania wiadomości' });
+  }
+});
 
   app.post('/api/users/add', async (req, res) => {
   try {

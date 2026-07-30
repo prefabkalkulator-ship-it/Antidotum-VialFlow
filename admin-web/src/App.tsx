@@ -8,7 +8,9 @@ import AiVideoCoach from './pages/AiVideoCoach';
 import RagChat from './pages/RagChat';
 import ReceptionTablet from './pages/ReceptionTablet';
 import FinanceDashboard from './pages/FinanceDashboard';
+import NotificationsAdmin from './pages/NotificationsAdmin';
 import InstallPrompt from './components/InstallPrompt';
+import { getFirebaseMessaging, getToken } from './firebase';
 
 function InfoPlaceholder() {
   return (
@@ -38,19 +40,30 @@ function MainApp({ userEmail }: { userEmail: string }) {
   const isKioskMode = location.pathname === '/reception';
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   useEffect(() => {
-    fetch('/api/events/questions/pending')
+    fetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/events/questions/pending')
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setPendingCount(data.length);
+      })
+      .catch(() => {});
+
+    // Fetch unread notifications count
+    fetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/notifications/get')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setUnreadNotifCount(data.filter(n => !n.isRead).length);
+        }
       })
       .catch(() => {});
   }, []);
 
   return (
     <div className="flex h-screen bg-background text-white overflow-hidden relative w-full">
-      {!isKioskMode && <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} pendingCount={pendingCount} />}
+      {!isKioskMode && <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} pendingCount={pendingCount} unreadNotifCount={unreadNotifCount} />}
       
       <div className="flex-1 flex flex-col min-w-0">
         {!isKioskMode && (
@@ -72,6 +85,7 @@ function MainApp({ userEmail }: { userEmail: string }) {
             <Route path="/coach" element={<AiVideoCoach />} />
             <Route path="/chat" element={<RagChat />} />
             <Route path="/finances" element={<FinanceDashboard userEmail={userEmail} />} />
+            <Route path="/notifications" element={<NotificationsAdmin onCountChange={setUnreadNotifCount} />} />
             <Route path="/reception" element={<ReceptionTablet />} />
             <Route path="/info" element={<InfoPlaceholder />} />
           </Routes>
@@ -104,7 +118,7 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const res = await fetch('http://localhost:3000/api/auth/login', {
+      const res = await fetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ login: loginInput, pin: pinInput })
@@ -116,6 +130,42 @@ export default function App() {
           if (data.token) localStorage.setItem('jwtToken', data.token);
           setRole(data.role);
           setIsAuthenticated(true);
+          
+          const registerToken = async () => {
+            let finalToken = `ADMIN-WEB-MOCK-${Math.floor(Math.random()*1000)}`;
+            try {
+              const messaging = await getFirebaseMessaging();
+              if (messaging) {
+                let registration;
+                if ('serviceWorker' in navigator) {
+                  await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+                  registration = await navigator.serviceWorker.ready;
+                }
+                const currentToken = await getToken(messaging, { 
+                  vapidKey: "BP70xxauLvf-G59SJO_ic6MZg7Ml4zYCv3sBPFQDacn0wpDy-SDhrM6tp4GwWbN-X85QORNOw8Ll_4yynGehNd0",
+                   
+                });
+                if (currentToken) {
+                  finalToken = currentToken;
+                }
+              }
+            } catch (err: any) {
+              console.error('Błąd FCM token:', err);
+              finalToken = `ADMIN-WEB-ERR-${err.message || 'unknown'}`;
+            }
+
+            fetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/push/register', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ identifier: data.userData?.email || loginInput, pushToken: finalToken })
+            }).catch(console.error);
+          };
+
+          if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+            Notification.requestPermission().then(() => registerToken());
+          } else {
+            registerToken();
+          }
         } else {
           setError('Brak uprawnień dostępu do panelu (wymagany Admin/Instruktor).');
         }

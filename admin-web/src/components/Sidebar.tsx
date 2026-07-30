@@ -1,8 +1,8 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Users, Calendar, Info, FlaskConical, Sparkles, Wallet, MessageSquare } from 'lucide-react';
+import { Users, Calendar, Info, FlaskConical, Sparkles, Wallet, MessageSquare, Bell, LogOut } from 'lucide-react';
 
-export default function Sidebar({ isOpen, onClose, pendingCount = 0 }: { isOpen: boolean; onClose: () => void; pendingCount?: number }) {
+export default function Sidebar({ isOpen, onClose, pendingCount = 0, unreadNotifCount = 0 }: { isOpen: boolean; onClose: () => void; pendingCount?: number; unreadNotifCount?: number }) {
   const navItems = [
     { to: '/', icon: <Users size={20} />, label: 'Uczniowie' },
     { to: '/events', icon: <Calendar size={20} />, label: 'Wydarzenia' },
@@ -10,6 +10,7 @@ export default function Sidebar({ isOpen, onClose, pendingCount = 0 }: { isOpen:
     { to: '/coach', icon: <FlaskConical size={20} />, label: 'AI Trener' },
     { to: '/chat', icon: <Sparkles size={20} />, label: 'Asystent' },
     { to: '/finances', icon: <Wallet size={20} />, label: 'Finanse' },
+    { to: '/notifications', icon: <Bell size={20} />, label: 'Powiadomienia', badge: unreadNotifCount },
     { to: '/info', icon: <Info size={20} />, label: 'Info' },
   ];
 
@@ -52,14 +53,26 @@ export default function Sidebar({ isOpen, onClose, pendingCount = 0 }: { isOpen:
       </nav>
       
       <div className="mt-auto pt-6 border-t border-gray-800">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center">
-            <span className="text-sm font-bold text-gray-300">AD</span>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center">
+              <span className="text-sm font-bold text-gray-300">AD</span>
+            </div>
+            <div>
+              <p className="text-sm font-bold text-white">Admin</p>
+              <p className="text-xs text-gray-500">Workspace</p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-bold text-white">Admin</p>
-            <p className="text-xs text-gray-500">Workspace</p>
-          </div>
+          <button 
+            onClick={() => {
+              localStorage.removeItem('jwtToken');
+              window.location.reload();
+            }}
+            className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+            title="Wyloguj się"
+          >
+            <LogOut size={20} />
+          </button>
         </div>
       </div>
       </div>

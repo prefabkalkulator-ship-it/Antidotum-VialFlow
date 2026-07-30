@@ -1483,8 +1483,15 @@ function ChatScreen({ userData, isKeyboardVisible, keyboardHeight }: { userData?
     setInput('');
     setIsTyping(true);
 
-    if (currentInput.toLowerCase().includes('powiadomienie')) {
-      setTimeout(() => {
+
+    if (currentInput.toLowerCase().includes('powiadomienie') || currentInput.toLowerCase().includes('push') || currentInput.toLowerCase().includes('wiadomość')) {
+      try {
+        const res = await apiFetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/rag/push-draft', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: currentInput })
+        });
+        const data = await res.json();
         setIsTyping(false);
         const aiText = 'Przygotowałem szkic powiadomienia Push. Sprawdź, czy wszystko się zgadza:';
         const msgId = Date.now().toString();
@@ -1493,11 +1500,15 @@ function ChatScreen({ userData, isKeyboardVisible, keyboardHeight }: { userData?
           sender: 'ai',
           text: aiText,
           isPushDraft: true,
-          pushDraftContent: "Hej! 👋 Z powodu problemów technicznych dzisiejsze zajęcia odbędą się w sali nr 2. Przepraszamy za utrudnienia!",
-          pushDraftStatus: 'draft'
+          pushDraftContent: data.draft || currentInput,
+          pushDraftStatus: 'draft',
+          pushTargetGroup: data.suggestedTarget || null
         } as any]);
         if (currentInputMethod === 'voice') speakText(aiText, msgId);
-      }, 1500);
+      } catch (e) {
+        setIsTyping(false);
+        setMessages(prev => [...prev, { id: Date.now().toString(), sender: 'ai', text: 'Nie udało się przygotować szkicu.' } as any]);
+      }
       return;
     }
 
@@ -1637,7 +1648,7 @@ function ChatScreen({ userData, isKeyboardVisible, keyboardHeight }: { userData?
                  />
                  <Text style={{ color: COLORS.textMuted, fontSize: 12, marginBottom: 5 }}>Grupa docelowa:</Text>
                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 15 }}>
-                   {['Moja grupa', 'Instruktor', 'Administrator'].map(grp => (
+                   {['Moja grupa', 'Trener', 'Administrator'].map(grp => (
                      <TouchableOpacity 
                        key={grp}
                        onPress={() => setMessages(prev => prev.map(msg => msg.id === m.id ? { ...msg, pushTargetGroup: grp } : msg))}
@@ -1652,13 +1663,13 @@ function ChatScreen({ userData, isKeyboardVisible, keyboardHeight }: { userData?
                     onPress={async () => {
                       setMessages(prev => prev.map(msg => msg.id === m.id ? { ...msg, pushDraftStatus: 'sending' } : msg));
                       try {
-                        const res = await apiFetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/push/send', {
+                        const res = await apiFetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/push/send-from-student', {
                           method: 'POST', headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ targetGroup: m.pushTargetGroup, title: 'Antidotum', body: m.pushDraftContent })
+                          body: JSON.stringify({ senderChildId: userData?.id || (userData?.children && userData.children.length > 0 ? userData.children[0].id : ''), target: m.pushTargetGroup, title: 'Zapytaj AI', message: m.pushDraftContent })
                         });
                         const data = await res.json();
                         if (data.success) {
-                          setMessages(prev => prev.map(msg => msg.id === m.id ? { ...msg, pushDraftStatus: 'sent', text: `✅ Powiadomienie wysłane do: ${msg.pushTargetGroup} (${data.sentCount} urz.)` } : msg));
+                          setMessages(prev => prev.map(msg => msg.id === m.id ? { ...msg, pushDraftStatus: 'sent', text: `✅ Powiadomienie wysłane do: ${msg.pushTargetGroup} (${data.recipientsCount || 0} urz.)` } : msg));
                         } else {
                           setMessages(prev => prev.map(msg => msg.id === m.id ? { ...msg, pushDraftStatus: 'sent', text: `❌ Błąd wysyłania: ${data.error}` } : msg));
                         }
