@@ -154,6 +154,7 @@ export default function AiVideoCoach() {
   const [homeworkResults, setHomeworkResults] = useState<any[]>([]);
   const [refLink, setRefLink] = useState('');
   const [deadlineDate, setDeadlineDate] = useState('');
+  const [coachNote, setCoachNote] = useState('');
   const [isLoadingHomework, setIsLoadingHomework] = useState(false);
 
   const fetchTasksAndResults = async () => {
@@ -300,6 +301,7 @@ export default function AiVideoCoach() {
           targetValue: isAll ? 'Wszystkie Grupy' : tgt,
           videoUrl: refLink,
           deadline: deadlineDate,
+          coachNote: coachNote,
           instructor: 'Instruktor (Kreator AI)',
           audioUrl: audioUrl,
           sequenceJson: JSON.stringify(customSequence),
@@ -1059,6 +1061,16 @@ export default function AiVideoCoach() {
                         onChange={(e) => setDeadlineDate(e.target.value)}
                       />
                     </div>
+
+                    <div className="mb-6">
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Komentarz / Wskazówki do wykonania (opcjonalnie)</label>
+                      <textarea 
+                        className="w-full bg-[#27272A] text-white p-3 rounded-lg focus:outline-none focus:border-primary border border-transparent text-sm resize-none h-20" 
+                        placeholder="np. Zwróćcie uwagę na układ Body Wave..." 
+                        value={coachNote}
+                        onChange={(e) => setCoachNote(e.target.value)}
+                      />
+                    </div>
                   </div>
 
                   <div className="flex gap-4 pt-4 border-t border-gray-800">
@@ -1068,6 +1080,7 @@ export default function AiVideoCoach() {
                         setShowHomeworkModal(false);
                         setRefLink('');
                         setDeadlineDate('');
+                        setCoachNote('');
                         setTargetGroup('');
                         setSelectedTargets([]);
                       }} 

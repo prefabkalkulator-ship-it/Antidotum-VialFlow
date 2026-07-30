@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, FlatList, Modal, Linking } from 'react-native';
-import { BookOpen, Calendar, User, ArrowRight, CheckCircle, Users, Globe, X, Check, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { BookOpen, Calendar, User, ArrowRight, CheckCircle, Users, Globe, X, Check, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react-native';
 
 interface HomeworkTask {
   id: string;
@@ -14,6 +14,7 @@ interface HomeworkTask {
   audioUrl?: string;
   sequenceJson?: string;
   targetBPM?: number;
+  coachNote?: string;
 }
 
 interface HomeworkTasksListProps {
@@ -105,7 +106,10 @@ export default function HomeworkTasksList({
         ]}
       >
         <View style={styles.cardHeader}>
-          <BookOpen size={14} color={isDone ? '#10b981' : isSelected ? '#f472b6' : '#a1a1aa'} />
+          <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+            <BookOpen size={14} color={isDone ? '#10b981' : isSelected ? '#f472b6' : '#a1a1aa'} />
+            {item.coachNote && <MessageCircle size={14} color="#fbbf24" />}
+          </View>
           {isDone ? (
             <Text style={styles.completedTag}>ODROBIONE</Text>
           ) : (
@@ -195,6 +199,16 @@ export default function HomeworkTasksList({
               <Text style={styles.detailsMeta}>
                 Zadane przez: {activeTask.instructor || 'Instruktor'} • Termin: {activeTask.deadline || 'Brak'}
               </Text>
+
+              {activeTask.coachNote ? (
+                <View style={styles.coachNoteBox}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <MessageCircle size={14} color="#fbbf24" />
+                    <Text style={styles.coachNoteTitle}>Wskazówki od trenera:</Text>
+                  </View>
+                  <Text style={styles.coachNoteText}>{activeTask.coachNote}</Text>
+                </View>
+              ) : null}
 
               {activeTask.videoUrl ? (
                 <TouchableOpacity 
@@ -630,6 +644,27 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: 'bold',
     fontSize: 14,
+    fontFamily: 'sans-serif'
+  },
+  coachNoteBox: {
+    backgroundColor: 'rgba(251, 191, 36, 0.1)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#fbbf24',
+    padding: 10,
+    marginTop: 6,
+    marginBottom: 8,
+    borderRadius: 6
+  },
+  coachNoteTitle: {
+    color: '#fbbf24',
+    fontWeight: 'bold',
+    fontSize: 13,
+    fontFamily: 'sans-serif'
+  },
+  coachNoteText: {
+    color: '#fde68a',
+    fontSize: 13,
+    lineHeight: 18,
     fontFamily: 'sans-serif'
   }
 });

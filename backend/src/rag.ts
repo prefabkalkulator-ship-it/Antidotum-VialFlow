@@ -142,21 +142,18 @@ ${contextText}`;
 export async function generatePushDraft(instruction: string) {
   const generativeModel = vertexAI.preview.getGenerativeModel({
     model: 'gemini-2.5-flash',
+    generationConfig: {
+      responseMimeType: 'application/json',
+    }
   });
 
-  const prompt = `Jesteś asystentem szkoły. Użytkownik dyktuje polecenie wysłania powiadomienia: "${instruction}".
-Twoim zadaniem jest zredagowanie GOTOWEJ treści powiadomienia Push skierowanego bezpośrednio do odbiorców (nie powtarzaj polecenia!).
-Na przykład, jeśli użytkownik mówi "wyślij powiadomienie do opiekunów jana kowalskiego że jutro ma przynieść strój", 
-zredaguj: "Drodzy opiekunowie Jana, przypominamy o konieczności przyniesienia stroju na jutrzejsze zajęcia. 👕"
+  const prompt = `Otrzymujesz polecenie wysłania powiadomienia od użytkownika: "${instruction}".
+Zredaguj gotowy, krótki i rzeczowy tekst powiadomienia Push. Ma być uprzejmy, ale bez lania wody (1-2 zwięzłe zdania). Zawsze dodaj na końcu adekwatne emoji.
+Popraw błędy ortograficzne (np. w imionach). Jeśli wskazano odbiorcę, wyciągnij go do 'suggestedTarget', a 'targetType' to jedna z opcji: "opiekun", "uczen", "grupa", "wszyscy".
 
-Poprawiaj błędy ortograficzne i gramatyczne (np. "kowalckiego" -> "kowalskiego"), używaj wielkich liter dla imion i nazwisk.
-
-Jeśli wskazano odbiorcę, wyciągnij jego imię/nazwisko/nazwę do 'suggestedTarget' i określ typ w 'targetType' ("opiekun", "uczen", "grupa", "wszyscy").
-Jeśli "opiekunowie jana", to suggestedTarget: "jan kowalski", targetType: "opiekun".
-
-Zwróć odpowiedź WYŁĄCZNIE jako JSON:
+Musisz zwrócić odpowiedź jako JSON:
 {
-  "draft": "Zredagowany tekst powiadomienia 😊",
+  "draft": "Krótki tekst powiadomienia 😊",
   "suggestedTarget": "jan kowalski",
   "targetType": "opiekun"
 }`;
@@ -165,13 +162,11 @@ Zwróć odpowiedź WYŁĄCZNIE jako JSON:
     const aiResponse = await generativeModel.generateContent({
       contents: [{ role: 'user', parts: [{ text: prompt }] }]
     });
-    let text = aiResponse.response.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
-    if (text.startsWith('```json')) {
-      text = text.replace(/^\`\`\`json/i, '').replace(/\`\`\`$/i, '').trim();
-    } else if (text.startsWith('```')) {
-      text = text.replace(/^\`\`\`/, '').replace(/\`\`\`$/, '').trim();
-    }
+    
+    // Użycie responseMimeType gwarantuje surowego JSON'a.
+    const text = aiResponse.response.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '{}';
     const parsed = JSON.parse(text);
+    
     return { 
       draft: parsed.draft || instruction, 
       suggestedTarget: parsed.suggestedTarget || '',

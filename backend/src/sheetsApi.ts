@@ -1507,10 +1507,11 @@ export const createHomeworkTask = async (taskInput: any) => {
         t.videoUrl || '',     // F: Link Video
         t.deadline || '',     // G: Termin
         t.instructor || '',   // H: Instruktor
-        t.audioUrl || '',     // I: (legacy – zachowane dla wstecznej kompatybilności)
+        t.audioUrl || '',     // I: (legacy)
         t.sequenceJson || '', // J: Sekwencja JSON
         t.targetBPM || 104,   // K: BPM
-        t.audioUrl || ''      // L: Podkład muzyczny (nowa kolumna)
+        t.audioUrl || '',     // L: Podkład muzyczny (nowa kolumna)
+        t.coachNote || ''     // M: Komentarz trenera
       ];
     });
 
@@ -1537,7 +1538,7 @@ export const createHomeworkTask = async (taskInput: any) => {
 
     await api.spreadsheets.values.update({
       spreadsheetId: HOMEWORK_SPREADSHEET_ID,
-      range: `Zadania_Domowe!A2:L${1 + count}`,
+      range: `Zadania_Domowe!A2:M${1 + count}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: rowsData
@@ -1565,7 +1566,7 @@ export const getHomeworkTasks = async (childName?: string, groupId?: string) => 
 
     const response = await api.spreadsheets.values.get({
       spreadsheetId: HOMEWORK_SPREADSHEET_ID,
-      range: 'Zadania_Domowe!A2:L',
+      range: 'Zadania_Domowe!A2:M',
     });
 
     const rows = response.data.values || [];
@@ -1582,7 +1583,8 @@ export const getHomeworkTasks = async (childName?: string, groupId?: string) => 
       // Kolumna L (index 11) to nowa "Podkład muzyczny"; fallback do kolumny I (index 8) dla starych wpisów
       audioUrl: row[11] || row[8] || '',
       sequenceJson: row[9] || '',
-      targetBPM: row[10] ? Number(row[10]) : 104
+      targetBPM: row[10] ? Number(row[10]) : 104,
+      coachNote: row[12] || ''
     }));
 
     const cleanChildName = String(childName || '').trim();
