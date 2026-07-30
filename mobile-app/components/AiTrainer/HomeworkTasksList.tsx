@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, FlatList, Modal, Linking } from 'react-native';
-import { BookOpen, Calendar, User, ArrowRight, CheckCircle, Users, Globe, X, Check, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react-native';
+import { BookOpen, Calendar, User, ArrowRight, CheckCircle, Users, Globe, X, Check, ChevronDown, ChevronUp } from 'lucide-react-native';
 
 interface HomeworkTask {
   id: string;
@@ -106,10 +106,7 @@ export default function HomeworkTasksList({
         ]}
       >
         <View style={styles.cardHeader}>
-          <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-            <BookOpen size={14} color={isDone ? '#10b981' : isSelected ? '#f472b6' : '#a1a1aa'} />
-            {item.coachNote && <MessageCircle size={14} color="#fbbf24" />}
-          </View>
+          <BookOpen size={14} color={isDone ? '#10b981' : isSelected ? '#f472b6' : '#a1a1aa'} />
           {isDone ? (
             <Text style={styles.completedTag}>ODROBIONE</Text>
           ) : (
@@ -202,10 +199,7 @@ export default function HomeworkTasksList({
 
               {activeTask.coachNote ? (
                 <View style={styles.coachNoteBox}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                    <MessageCircle size={14} color="#fbbf24" />
-                    <Text style={styles.coachNoteTitle}>Wskazówki od trenera:</Text>
-                  </View>
+                  <Text style={styles.coachNoteTitle}>💡 Wskazówki od trenera:</Text>
                   <Text style={styles.coachNoteText}>{activeTask.coachNote}</Text>
                 </View>
               ) : null}

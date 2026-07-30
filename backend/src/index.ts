@@ -10,7 +10,7 @@ import { runEventOrchestration, rewriteEventDocumentWithComment, readEventDocume
 import { initCronJobs, runPassGenerationJob, runPassRemindersJob } from './cron';
 import { processVideo } from './videoPipeline';
 import { chatWithRAG, refreshKnowledgeBase, generatePushDraft, refinePushDraft } from './rag';
-import { getPaymentHistory, addPaymentTransaction, getStudentPasses, getAllPasses, generateStudentPass, payStudentPass, getGroups, getUsersAndParents, addStudent, deleteStudent, updateStudentFullData, approveStudent, getTeamRoles, getSchedule, addAttendance, getEvents, bookEvent, getEventBookings, approveEventBooking, payEventBooking, saveEventQuestion, getPendingEventQuestions, markEventQuestionAsAnswered, updateUserProfile, setParentDeviceToken, removeDeviceToken, updateUserPin, setExpoPushToken , setStaffPushToken, saveNotification, getNotificationsForUser, markNotificationAsRead, createHomeworkTask, getHomeworkTasks, submitHomeworkResult, getAllHomeworkResults } from './sheetsApi';
+import { getPaymentHistory, addPaymentTransaction, getStudentPasses, getAllPasses, generateStudentPass, payStudentPass, getGroups, getUsersAndParents, addStudent, deleteStudent, updateStudentFullData, approveStudent, getTeamRoles, getSchedule, addAttendance, getEvents, bookEvent, getEventBookings, approveEventBooking, payEventBooking, saveEventQuestion, getPendingEventQuestions, markEventQuestionAsAnswered, updateUserProfile, setParentDeviceToken, removeDeviceToken, updateUserPin, setExpoPushToken , setStaffPushToken, saveNotification, getNotificationsForUser, markNotificationAsRead, createHomeworkTask, getHomeworkTasks, submitHomeworkResult, getAllHomeworkResults, moveStudents } from './sheetsApi';
 import jwt from 'jsonwebtoken';
 import { authenticateJWT } from './middleware';
 import { logConsentToWORM, deleteEphemeralVideo } from './audit';
@@ -1052,11 +1052,33 @@ app.get('/api/schedule', async (req, res) => {
 });
 
   // --- RAG AI CHAT ---
+  app.post('/api/rag/confirm-function', async (req, res) => {
+    try {
+      const { name, args } = req.body;
+      if (name === 'moveStudentsGroup') {
+        const studentNames = args.studentNames || [];
+        const targetGroup = args.targetGroup || '';
+        const sourceGroup = args.sourceGroup || '';
+        const success = await moveStudents(studentNames, targetGroup, sourceGroup);
+        if (success) {
+          res.json({ success: true, answer: 'Gotowe! Przeniosłem wskazanych uczniów.' });
+        } else {
+          res.json({ success: false, answer: 'Wystąpił błąd podczas przenoszenia. Sprawdź logi.' });
+        }
+      } else {
+        res.status(400).json({ error: 'Nieznana funkcja' });
+      }
+    } catch (err) {
+      console.error('Błąd confirm-function:', err);
+      res.status(500).json({ error: 'Błąd wykonywania akcji' });
+    }
+  });
+
   app.post('/api/rag/chat', async (req, res) => {
     try {
-      const { message } = req.body;
+      const { message, history } = req.body;
       const userRole = (req as any).user?.role || 'Rodzic';
-      const response = await chatWithRAG(message, userRole);
+      const response = await chatWithRAG(message, userRole, history || []);
       res.json(response);
     } catch (err) {
       console.error('Błąd RAG:', err);

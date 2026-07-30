@@ -1516,7 +1516,10 @@ function ChatScreen({ userData, isKeyboardVisible, keyboardHeight }: { userData?
       const res = await apiFetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/rag/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: currentInput })
+        body: JSON.stringify({ 
+          message: currentInput,
+          history: messages.map((m: any) => ({ role: m.sender, text: m.text }))
+        })
       });
       const data = await res.json();
       const aiText = data.answer || 'Błąd.';

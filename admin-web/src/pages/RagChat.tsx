@@ -10,12 +10,16 @@ interface Message {
   pushDraftContent?: string;
   pushDraftStatus?: 'draft' | 'approved' | 'sent' | 'dismissed';
   pushTargetGroups?: string[];
+  functionCall?: { name: string, args: any };
+  functionStatus?: 'pending' | 'rejected' | 'executed';
 }
 
 export default function RagChat() {
   const [messages, setMessages] = useState<Message[]>([
     { id: '1', sender: 'ai', text: 'Cześć! Jestem asystentem Antidotum. Masz pytanie o regulaminy, a może chcesz wysłać powiadomienie Push do uczniów?' }
   ]);
+  const messagesRef = useRef(messages);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -201,10 +205,25 @@ export default function RagChat() {
     
     const currentInputMethod = inputMethod;
     const userText = attachedFile ? `[Załącznik: ${attachedFile.name}] ${input}` : input;
+    const originalInput = input.trim();
+    
+    const lastMsg = messagesRef.current[messagesRef.current.length - 1];
+    if (lastMsg && lastMsg.sender === 'ai' && lastMsg.functionCall && lastMsg.functionStatus === 'pending') {
+      const positiveWords = ['ok', 'tak', 'zatwierdzam', 'potwierdzam', 'zgadzam', 'jasne', 'pewnie', 'oczywiście'];
+      if (positiveWords.some(w => originalInput.toLowerCase().includes(w))) {
+         const userMsg: Message = { id: Date.now().toString(), sender: 'user', text: userText };
+         setMessages(prev => [...prev, userMsg]);
+         setInput('');
+         if (textAreaRef.current) textAreaRef.current.style.height = 'auto';
+         setAttachedFile(null);
+         await confirmFunction(lastMsg.id, 'approve');
+         return;
+      }
+    }
+
     const userMsg: Message = { id: Date.now().toString(), sender: 'user', text: userText };
     setMessages(prev => [...prev, userMsg]);
     
-    const originalInput = input;
     setInput('');
     if (textAreaRef.current) textAreaRef.current.style.height = 'auto';
     setAttachedFile(null);
@@ -294,18 +313,56 @@ export default function RagChat() {
       const res = await fetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/rag/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: originalInput }),
+        body: JSON.stringify({ 
+          message: originalInput,
+          history: messages.map(m => ({ role: m.sender, text: m.text }))
+        }),
       });
       const data = await res.json();
       const aiText = data.answer || 'Błąd generowania odpowiedzi.';
       
       const aiMsgId = (Date.now() + 1).toString();
-      const aiMsg: Message = { id: aiMsgId, sender: 'ai', text: aiText };
+      const aiMsg: Message = { 
+        id: aiMsgId, 
+        sender: 'ai', 
+        text: aiText,
+        functionCall: data.functionCall,
+        functionStatus: data.functionCall ? 'pending' : undefined
+      };
       setMessages(prev => [...prev, aiMsg]);
       
       if (currentInputMethod === 'voice') speakText(aiText, aiMsgId);
     } catch (err) {
       setMessages(prev => [...prev, { id: 'err', sender: 'ai', text: 'Błąd połączenia z serwerem.' }]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  const confirmFunction = async (msgId: string, action: 'approve' | 'reject') => {
+    const msg = messages.find(m => m.id === msgId);
+    if (!msg || !msg.functionCall) return;
+
+    if (action === 'reject') {
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, functionStatus: 'rejected' } : m));
+      return;
+    }
+
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, functionStatus: 'executed' } : m));
+    setIsTyping(true);
+    
+    try {
+      const res = await fetch('https://vialflow-backend-392406857647.europe-central2.run.app/api/rag/confirm-function', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: msg.functionCall.name, args: msg.functionCall.args }),
+      });
+      const data = await res.json();
+      
+      const aiMsg: Message = { id: Date.now().toString(), sender: 'ai', text: data.answer || 'Gotowe!' };
+      setMessages(prev => [...prev, aiMsg]);
+    } catch (err) {
+      setMessages(prev => [...prev, { id: Date.now().toString(), sender: 'ai', text: 'Wystąpił błąd podczas wykonywania akcji.' }]);
     } finally {
       setIsTyping(false);
     }
@@ -429,6 +486,26 @@ export default function RagChat() {
               <div className={`flex flex-col gap-2 max-w-[90%] md:max-w-[70%]`}>
                 <div className={`p-4 rounded-2xl font-sans text-[15px] leading-relaxed shadow-sm ${msg.sender === 'user' ? 'bg-primary text-white rounded-tr-none' : 'bg-[#27272A] border border-gray-800 text-gray-200 rounded-tl-none relative'}`}>
                   {msg.text}
+                  
+                  {msg.functionCall && msg.functionStatus === 'pending' && (
+                    <div className="mt-4 p-3 bg-gray-900/50 rounded-xl border border-gray-700">
+                      <div className="text-sm text-gray-300 mb-2 font-bold">Wymagane zatwierdzenie (Human in the loop):</div>
+                      <div className="font-mono text-xs text-primary mb-3 bg-black/40 p-2 rounded break-all">
+                        {msg.functionCall.name}({JSON.stringify(msg.functionCall.args)})
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => confirmFunction(msg.id, 'approve')} className="flex-1 bg-primary hover:bg-primary-light text-white font-bold py-2 rounded-lg text-sm flex items-center justify-center gap-1"><Check size={16}/> Zatwierdź</button>
+                        <button onClick={() => confirmFunction(msg.id, 'reject')} className="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-500 font-bold py-2 rounded-lg text-sm flex items-center justify-center gap-1"><X size={16}/> Odrzuć</button>
+                      </div>
+                    </div>
+                  )}
+                  {msg.functionCall && msg.functionStatus === 'rejected' && (
+                     <div className="mt-2 text-sm text-red-400 font-bold">❌ Operacja anulowana przez użytkownika.</div>
+                  )}
+                  {msg.functionCall && msg.functionStatus === 'executed' && (
+                     <div className="mt-2 text-sm text-green-400 font-bold">✅ Operacja przekazana do realizacji.</div>
+                  )}
+
                   {msg.sender === 'ai' && (
                     <div className="mt-3 text-right">
                       {isSpeaking && speakingMsgId === msg.id ? (

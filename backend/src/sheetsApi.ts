@@ -1827,3 +1827,48 @@ export const getAllHomeworkResults = async () => {
     return [];
   }
 };
+
+export const moveStudents = async (names: string[], targetGroup: string, sourceGroup?: string): Promise<boolean> => {
+  try {
+    const api = await initAuth();
+    if (!api) return false;
+    
+    const usersRes = await api.spreadsheets.values.get({
+      spreadsheetId: USERS_SPREADSHEET_ID,
+      range: 'Baza_Uczniow!A:E',
+    });
+    
+    const rows = usersRes.data.values || [];
+    const updatePromises = [];
+    
+    for (let i = 1; i < rows.length; i++) {
+      const imie = rows[i][1] || '';
+      const nazwisko = rows[i][2] || '';
+      const aktualnaGrupa = rows[i][4] || '';
+      const full = `${imie} ${nazwisko}`.toLowerCase();
+      
+      const shouldMove = (names && names.length > 0 && names.some(n => full.includes(n.toLowerCase()))) 
+                         || (sourceGroup && aktualnaGrupa.trim().toLowerCase() === sourceGroup.trim().toLowerCase());
+                         
+      if (shouldMove) {
+        updatePromises.push(
+          api.spreadsheets.values.update({
+            spreadsheetId: USERS_SPREADSHEET_ID,
+            range: `Baza_Uczniow!E${i + 1}`,
+            valueInputOption: 'USER_ENTERED',
+            requestBody: { values: [[targetGroup]] }
+          })
+        );
+      }
+    }
+    
+    if (updatePromises.length > 0) {
+      await Promise.all(updatePromises);
+      return true;
+    }
+    return false;
+  } catch (err) {
+    console.error('Błąd moveStudents:', err);
+    return false;
+  }
+};
